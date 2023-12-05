@@ -14,6 +14,8 @@ def generate_report_list(show):
         list_report = list_report + glob.glob(list_dir + '*\*.xls*')
         list_report = list_report + glob.glob(list_dir + '*\*.csv')
 
+    list_report = sorted(list_report)
+
     # Check all reports
     if show:
         logging.debug("List Report:")
