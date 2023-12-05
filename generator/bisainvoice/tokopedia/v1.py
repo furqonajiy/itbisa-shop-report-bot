@@ -33,5 +33,8 @@ def generate_bisainvoice(tkp_file, df):
                       .str.replace('.', ''))
 
     # Export
-    path = tkp_file.replace('BisaTransaksi', 'BisaLaporan')
+    path = (tkp_file
+            .replace(' v1', '')
+            .replace(' v2', '')
+            .replace('BisaTransaksi', 'BisaLaporan'))
     bisainvoice_to_excel(df, path, 'BisaInvoice Tokopedia')

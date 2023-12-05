@@ -48,5 +48,8 @@ def generate_bisaremit(tkp_file, df):
     df = df.groupby(['Invoice', 'Tanggal Remit']).sum().sort_values('Invoice')
 
     # Export to Existing WorkBook
-    path = tkp_file.replace('BisaSaldo', 'BisaLaporan')
+    path = (tkp_file
+            .replace(' v1', '')
+            .replace(' v2', '')
+            .replace('BisaSaldo', 'BisaLaporan'))
     bisaremit_to_excel(df, path, 'BisaRemit Tokopedia')

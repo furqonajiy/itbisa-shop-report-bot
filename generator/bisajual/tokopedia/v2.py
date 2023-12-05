@@ -35,5 +35,8 @@ def generate_bisajual(tkp_file, df):
     standardize_sku(df)
 
     # Export to Existing WorkBook
-    path = tkp_file.replace('BisaTransaksi', 'BisaLaporan')
+    path = (tkp_file
+            .replace(' v1', '')
+            .replace(' v2', '')
+            .replace('BisaTransaksi', 'BisaLaporan'))
     bisajual_to_excel(df, path, 'BisaJual Tokopedia')

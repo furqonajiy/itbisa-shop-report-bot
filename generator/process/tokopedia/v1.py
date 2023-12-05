@@ -7,14 +7,14 @@ from bisainvoice.tokopedia.v1 import generate_bisainvoice
 from bisajual.tokopedia.v1 import generate_bisajual
 from bisaremit.tokopedia.v1 import generate_bisaremit
 from keywordchecker.tokopedia import check_status_keyword, check_saldo_keyword
-from utility.constant import BISALAPORAN_TOKOPEDIA_V1_DIR
+from utility.constant import BISALAPORAN_TOKOPEDIA_DIR
 from utility.generic import create_directory
 
 
 def process(list_report):
     logging.info("Process Tokopedia v1 File")
 
-    create_directory(BISALAPORAN_TOKOPEDIA_V1_DIR)
+    create_directory(BISALAPORAN_TOKOPEDIA_DIR)
 
     for tkp_file in list_report:
         read_bisatransaksi(tkp_file)

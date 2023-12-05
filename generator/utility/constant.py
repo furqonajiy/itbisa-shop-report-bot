@@ -17,5 +17,4 @@ BISASALDO_DIR = [
 ]
 
 BISALAPORAN_BUKALAPAK_DIR = 'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Bukalapak - BisaLaporan v2'
-BISALAPORAN_TOKOPEDIA_V1_DIR = 'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tokopedia - BisaLaporan v1'
-BISALAPORAN_TOKOPEDIA_V2_DIR = 'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tokopedia - BisaLaporan v2'
+BISALAPORAN_TOKOPEDIA_DIR = 'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tokopedia - BisaLaporan'
