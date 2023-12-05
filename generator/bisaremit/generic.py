@@ -28,7 +28,7 @@ def bisaremit_to_excel(df, path, sheet_name):
         df.to_excel(writer, sheet_name=sheet_name)  # Export
 
     sheet = writer.book[sheet_name]  # Select sheet to be formatted
-    sheet.column_dimensions['B'].width = 30  # Invoice Bukalapak
+    sheet.column_dimensions['B'].width = 40  # Invoice
     sheet.column_dimensions['C'].width = 18  # Tanggal Remit
     sheet.column_dimensions['D'].width = 22  # Potongan Pembayaran
     sheet.column_dimensions['E'].width = 15  # Nominal Remit

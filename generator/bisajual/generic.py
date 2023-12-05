@@ -24,6 +24,6 @@ def bisajual_to_excel(df, path, sheet_name):
 
         sheet = writer.book[sheet_name]  # Select sheet to be formatted
         sheet.column_dimensions['B'].width = 50  # SKU
-        sheet.column_dimensions['C'].width = 50  # Invoice
+        sheet.column_dimensions['C'].width = 40  # Invoice
         sheet.column_dimensions['D'].width = 10  # Banyak
         sheet.column_dimensions['E'].width = 18  # Omzet
