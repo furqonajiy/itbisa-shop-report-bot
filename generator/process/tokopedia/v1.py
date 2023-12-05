@@ -4,6 +4,8 @@ import pandas as pd
 
 from bisainvoice.tokopedia.v1 import generate_bisainvoice
 from bisajual.tokopedia.v1 import generate_bisajual
+from bisaremit.tokopedia.v1 import generate_bisaremit
+from bisabonus.tokopedia.v1 import generate_bisabonus
 from keywordchecker.tokopedia import check_status_keyword, check_saldo_keyword
 from utility.constant import BISALAPORAN_TOKOPEDIA_V1_DIR
 from utility.generic import create_directory
@@ -39,6 +41,7 @@ def read_bisatransaksi(tkp_file):
             check_status_keyword("1", tkp_file, df)
             generate_bisainvoice(tkp_file, df)
             generate_bisajual(tkp_file, df)
+
 
 def read_bisasaldo(tkp_file):
     cond1 = 'BisaSaldo v1 Tokopedia' in tkp_file
