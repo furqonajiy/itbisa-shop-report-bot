@@ -22,4 +22,4 @@ def bisainvoice_to_excel(df, path, sheet_name):
         sheet = writer.book[sheet_name]  # Select sheet to be formatted
         sheet.column_dimensions['B'].width = 18  # Tanggal
         sheet.column_dimensions['C'].width = 18  # Marketplace
-        sheet.column_dimensions['D'].width = 18  # Invoice
+        sheet.column_dimensions['D'].width = 50  # Invoice
