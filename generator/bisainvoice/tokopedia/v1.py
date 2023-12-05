@@ -20,8 +20,8 @@ def generate_bisainvoice(tkp_file, df):
     # df.loc[(df['Biaya Asuransi Pengiriman (IDR)'] == 'Non Tunai'), 'Biaya Asuransi Pengiriman (IDR)'] = 0
 
     # Select Needed Column
-    df = df[['Payment Date', 'Marketplace', 'Invoice', 'Shipping Price + fee (Rp.)',
-             'Insurance (Rp.)']]
+    df = df[['Payment Date', 'Marketplace', 'Invoice',
+             'Shipping Price + fee (Rp.)', 'Insurance (Rp.)']]
 
     # Change Column Name
     df.columns = ['Tanggal', 'Marketplace', 'Invoice', 'Ongkir', 'Asuransi']
