@@ -5,24 +5,31 @@ from keywordchecker.generic import handle_invalid_keywords
 VALID_SALDO_KEYWORD = [
     'Withdrawal',  # Not Used
 
-    'Sisa Saldo Mitra dikembalikan',  # Need to check
-    'Penggunaan Saldo Tokopedia untuk pembelian',  # Need to check
-    'Dipotong karena Solusi dari Resolusi',  # Need to check
-    'Dipotong karena Pergantian kurir',  # Need to check
-    'Ganti Kurir ke Kurir Non Promo',  # Need to check
-    'Penarikan subsidi promo ongkir',  # Need to check
+    # Need to check
+    'Sisa Saldo Mitra dikembalikan',
+    'Penggunaan Saldo Tokopedia untuk pembelian',
+    'Dipotong karena Solusi dari Resolusi',
+    'Dipotong karena Pergantian kurir',
+    'Ganti Kurir ke Kurir Non Promo',
+    'Penarikan subsidi promo ongkir',
 
-    'Pemotongan Ongkir',  # Nominal Remit
-    'Pemotongan untuk Asuransi',  # Nominal Remit
-    'Transaksi Penjualan Berhasil',  # Nominal Remit
+    # Nominal Remit
+    'Pemotongan Ongkir',
+    'Pemotongan untuk Asuransi',
+    'Pemotongan biaya proteksi produk',
+    'Transaksi Penjualan Berhasil',
+    'Dipotong karena kelebihan ongkos kirim',
+    'Selisih ongkos kirim',
 
-    'Pemotongan Biaya Layanan',  # Kerugian Tambahan
-    'Pemotongan Voucher Merchant',  # Kerugian Tambahan
+    # Kerugian Tambahan
+    'Pemotongan Biaya Layanan',
+    'Pemotongan Voucher Merchant',
 
-    'Cashback pengiriman GrabExpress',  # BisaBonus
-    'Cashback atas pengiriman cashless JNE',  # BisaBonus
-    'Cashback atas pengiriman cashless J&T',  # BisaBonus
-    'Cashback atas pengiriman cashless Lion Parcel'  # BisaBonus
+    # BisaBonus
+    'Cashback pengiriman GrabExpress',
+    'Cashback atas pengiriman cashless JNE',
+    'Cashback atas pengiriman cashless J&T',
+    'Cashback atas pengiriman cashless Lion Parcel'
 ]
 
 VALID_TRANSAKSI_KEYWORD = [
@@ -43,16 +50,18 @@ VALID_TRANSAKSI_KEYWORD = [
 ]
 
 VALID_NOMINAL_REMIT_KEYWORD = [
-    'Pemotongan Ongkir',  # Nominal Remit
-    'Pemotongan untuk Asuransi',  # Nominal Remit
-    'Transaksi Penjualan Berhasil',  # Nominal Remit
+    # Nominal Remit
+    'Pemotongan Ongkir',
+    'Pemotongan untuk Asuransi',
+    'Transaksi Penjualan Berhasil',
 ]
 
 VALID_BONUS_KEYWORD = [
-    'Cashback pengiriman GrabExpress',  # BisaBonus
-    'Cashback atas pengiriman cashless JNE',  # BisaBonus
-    'Cashback atas pengiriman cashless J&T',  # BisaBonus
-    'Cashback atas pengiriman cashless Lion Parcel'  # BisaBonus
+    # BisaBonus
+    'Cashback pengiriman GrabExpress',
+    'Cashback atas pengiriman cashless JNE',
+    'Cashback atas pengiriman cashless J&T',
+    'Cashback atas pengiriman cashless Lion Parcel'
 ]
 
 
