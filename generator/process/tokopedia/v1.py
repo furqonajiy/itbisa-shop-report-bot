@@ -13,7 +13,6 @@ def process(list_report):
     logging.info("Process Tokopedia File")
 
     create_directory(BISALAPORAN_TOKOPEDIA_V1_DIR)
-    create_directory(BISALAPORAN_TOKOPEDIA_V2_DIR)
 
     for tkp_file in list_report:
         read_bisatransaksi(tkp_file)
