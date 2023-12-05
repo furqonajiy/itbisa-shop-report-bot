@@ -26,8 +26,15 @@ VALID_SALDO_KEYWORD = [
 ]
 
 VALID_TRANSAKSI_KEYWORD = [
-    'Transaksi selesai..\nDana akan diteruskan ke penjual.',  # v1
+    # V1
+    'Transaksi selesai..\nDana akan diteruskan ke penjual.',
+    'Transaksi dibatalkan.',
+    'Pesanan telah dikirim..\nPesanan dalam proses pengiriman oleh kurir.',
+    'Pesanan telah tiba di tujuan..\nDana akan diteruskan ketika barang dikonfirmasi pembeli atau otomatis dalam 48 jam.',
+    'Pemesanan sedang diproses oleh penjual.',
+    'Menunggu Pick Up',
 
+    # V2
     'Pesanan Diproses',
     'Menunggu Pickup',
     'Pesanan Dikirim',
