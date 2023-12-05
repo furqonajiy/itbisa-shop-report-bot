@@ -4,17 +4,17 @@ import pandas as pd
 
 from bisabonus.tokopedia import generate_bisabonus
 from bisainvoice.tokopedia.v2 import generate_bisainvoice
-from bisajual.tokopedia import generate_bisajual
+from bisajual.tokopedia.v2 import generate_bisajual
 from bisaremit.tokopedia import generate_bisaremit
 from keywordchecker.tokopedia import check_saldo_keyword, check_status_keyword
-from utility.constant import BISALAPORAN_TOKOPEDIA_DIR
+from utility.constant import BISALAPORAN_TOKOPEDIA_V2_DIR
 from utility.generic import create_directory
 
 
 def process(list_report):
     logging.info("Process Tokopedia File")
 
-    create_directory(BISALAPORAN_TOKOPEDIA_DIR)
+    create_directory(BISALAPORAN_TOKOPEDIA_V2_DIR)
 
     for tkp_file in list_report:
         read_bisatransaksi(tkp_file)
@@ -36,7 +36,7 @@ def read_bisatransaksi(tkp_file):
         df = df[~df['Status Terakhir'].str.contains('|'.join(search_values))]
 
         if len(df) > 0:
-            check_status_keyword(tkp_file, df)
+            check_status_keyword("2", tkp_file, df)
             generate_bisainvoice(tkp_file, df)
             generate_bisajual(tkp_file, df)
 
