@@ -2,17 +2,17 @@ import logging
 
 import pandas as pd
 
-from bisabonus.tokopedia import generate_bisabonus
+from bisabonus.tokopedia.v2 import generate_bisabonus
 from bisainvoice.tokopedia.v2 import generate_bisainvoice
 from bisajual.tokopedia.v2 import generate_bisajual
-from bisaremit.tokopedia import generate_bisaremit
+from bisaremit.tokopedia.v2 import generate_bisaremit
 from keywordchecker.tokopedia import check_saldo_keyword, check_status_keyword
 from utility.constant import BISALAPORAN_TOKOPEDIA_V2_DIR
 from utility.generic import create_directory
 
 
 def process(list_report):
-    logging.info("Process Tokopedia File")
+    logging.info("Process Tokopedia v2 File")
 
     create_directory(BISALAPORAN_TOKOPEDIA_V2_DIR)
 

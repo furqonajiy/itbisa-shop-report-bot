@@ -2,10 +2,10 @@ import logging
 
 import pandas as pd
 
+from bisabonus.tokopedia.v1 import generate_bisabonus
 from bisainvoice.tokopedia.v1 import generate_bisainvoice
 from bisajual.tokopedia.v1 import generate_bisajual
 from bisaremit.tokopedia.v1 import generate_bisaremit
-from bisabonus.tokopedia.v1 import generate_bisabonus
 from keywordchecker.tokopedia import check_status_keyword, check_saldo_keyword
 from utility.constant import BISALAPORAN_TOKOPEDIA_V1_DIR
 from utility.generic import create_directory
