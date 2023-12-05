@@ -11,6 +11,9 @@ def generate_bisabonus(tkp_file, df):
 
     # Select valid rows based on Description
     df = df[df['Description'].str.contains('|'.join(VALID_BONUS_KEYWORD))]
+    if len(df) == 0:
+        logging.debug("No valid BisaBonus keyword")
+        return
 
     # Initialize Jurnal
     df['Akun Debit'] = 'Kas ITBisa'
