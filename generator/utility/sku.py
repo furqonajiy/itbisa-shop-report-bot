@@ -50,7 +50,7 @@ def standardize_sku(df):
     # 7 Segment
     df['SKU'] = (df['SKU']
                  .str.replace('-CA-', '-ANODE-')
-                 .str.replace('CC-', '-CATHODE-')
+                 .str.replace('-CC-', '-CATHODE-')
                  .str.replace('-ANODE-', '-ANODE-RED-')
                  .str.replace('-CATHODE-', '-CATHODE-RED-')
                  .str.replace('-RED-RED-', '-RED-'))
