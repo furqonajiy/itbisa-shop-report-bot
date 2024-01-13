@@ -21,9 +21,14 @@ VALID_SALDO_KEYWORD = [
     'Dipotong karena kelebihan ongkos kirim',
     'Selisih ongkos kirim',
 
+    # Keuntungan Tambahan
+    'Subsidi Kupon Toko',
+
     # Kerugian Tambahan
     'Pemotongan Biaya Layanan',
     'Pemotongan Voucher Merchant',
+    'Pemotongan Saldo untuk Kupon Toko',
+    'Pemotongan Selisih Ongkir',
 
     # BisaBonus
     'Cashback pengiriman GrabExpress',
