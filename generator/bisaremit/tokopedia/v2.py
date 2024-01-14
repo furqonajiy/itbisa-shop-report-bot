@@ -12,7 +12,7 @@ def generate_bisaremit(tkp_file, df):
     df = df[df['Description'].str.contains('INV')]
 
     # Generate Invoice from Description
-    df['Invoice'] = df['Description'].str.replace('^.*(?=INV)', '')
+    df['Invoice'] = df['Description'].str.extract(r'(INV\S+)')
 
     # Initialize Biaya Layanan and Remit
     df['Potongan Pembayaran'] = 0
