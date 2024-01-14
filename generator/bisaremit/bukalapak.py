@@ -3,6 +3,7 @@ import logging
 import pandas as pd
 
 from bisaremit.generic import bisaremit_to_excel
+from keywordchecker.bukalapak import VALID_NOMINAL_REMIT_KEYWORD, VALID_KERUGIAN_TAMBAHAN_KEYWORD, VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD
 
 
 def generate_bisaremit(bl_file, df):
@@ -21,11 +22,10 @@ def generate_bisaremit(bl_file, df):
     df['Keuntungan Tambahan'] = 0
     df['Kerugian Tambahan'] = 0
 
-    # Generate Biaya Layanan and Remit based on Deskripsi
-    df.loc[df['Keterangan'].str.contains('Remit untuk transaksi'), 'Nominal Remit'] = df['Mutasi']
-
-    df.loc[df['Keterangan'].str.contains('Pemotongan biaya') |
-           df['Keterangan'].str.contains('Pembayaran fee'), 'Kerugian Tambahan'] = -df['Mutasi']
+    # Generate Nominal Remit, Kerugian Tambahan, Keuntungan Tambahan
+    df.loc[df['Keterangan'].str.contains('|'.join(VALID_NOMINAL_REMIT_KEYWORD)), 'Nominal Remit'] = df['Mutasi']
+    df.loc[df['Keterangan'].str.contains('|'.join(VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD)), 'Keuntungan Tambahan'] = df['Mutasi']
+    df.loc[df['Keterangan'].str.contains('|'.join(VALID_KERUGIAN_TAMBAHAN_KEYWORD)), 'Kerugian Tambahan'] = -df['Mutasi']
 
     # Select Needed Column
     df = df[['Invoice', 'Waktu', 'Potongan Pembayaran', 'Nominal Remit',

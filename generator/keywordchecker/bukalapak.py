@@ -27,6 +27,27 @@ VALID_TRANSAKSI_KEYWORD = [
     'Dikirim'
 ]
 
+VALID_NOMINAL_REMIT_KEYWORD = [
+    # Nominal Remit
+    'Remit untuk transaksi',
+]
+
+VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
+    # Keuntungan Tambahan
+]
+
+VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
+    # Kerugian Tambahan
+    'Pemotongan biaya Super Seller',
+    'Pembayaran fee promo campaign',
+    'Pemotongan biaya kelebihan berat',
+]
+
+VALID_BONUS_KEYWORD = [
+    # BisaBonus
+    'Injection Promo Cashback Sicepat',
+]
+
 
 def check_saldo_keyword(bl_file, df):
     logging.debug("Check BisaSaldo Keyword in {0}".format(bl_file))
