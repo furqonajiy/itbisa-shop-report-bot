@@ -26,7 +26,7 @@ def generate_bisainvoice(tkp_file, df):
     # Change Column Name
     df.columns = ['Tanggal', 'Marketplace', 'Invoice', 'Ongkir', 'Asuransi']
 
-    # # Convert Data Type
+    # Convert Data Type
     df['Tanggal'] = pd.to_datetime(df['Tanggal'], format='%d-%m-%Y %H:%M:%S').dt.strftime('%Y-%m-%d %H:%M:%S')  # Datetime
     df['Ongkir'] = (df['Ongkir'].astype(str)
                     .str.replace('Rp ', '')
