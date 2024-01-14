@@ -18,7 +18,7 @@ def main():
     list_report = generate_report_list(False)
 
     # Process Marketplace
-    bukalapak.process(list_report)
+    # bukalapak.process(list_report)
     tokopedia_v1.process(list_report)
     tokopedia_v2.process(list_report)
 

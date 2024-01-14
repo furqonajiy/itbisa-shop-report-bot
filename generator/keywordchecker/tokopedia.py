@@ -14,10 +14,10 @@ VALID_SALDO_KEYWORD = [
     'Penarikan subsidi promo ongkir',
 
     # Nominal Remit
+    'Transaksi Penjualan Berhasil',
     'Pemotongan Ongkir',
     'Pemotongan untuk Asuransi',
     'Pemotongan biaya proteksi produk',
-    'Transaksi Penjualan Berhasil',
     'Dipotong karena kelebihan ongkos kirim',
     'Selisih ongkos kirim',
 
@@ -56,9 +56,22 @@ VALID_TRANSAKSI_KEYWORD = [
 
 VALID_NOMINAL_REMIT_KEYWORD = [
     # Nominal Remit
+    'Transaksi Penjualan Berhasil',
     'Pemotongan Ongkir',
     'Pemotongan untuk Asuransi',
-    'Transaksi Penjualan Berhasil',
+]
+
+VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
+    # Keuntungan Tambahan
+    'Subsidi Kupon Toko',
+]
+
+VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
+    # Kerugian Tambahan
+    'Pemotongan Biaya Layanan',
+    'Pemotongan Voucher Merchant',
+    'Pemotongan Saldo untuk Kupon Toko',
+    'Pemotongan Selisih Ongkir',
 ]
 
 VALID_BONUS_KEYWORD = [
