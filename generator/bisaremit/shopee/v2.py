@@ -12,7 +12,7 @@ def generate_bisaremit(tkp_file, df):
     # Select rows which contains invoice number
     df = df[df['Deskripsi'].str.contains('#')]
 
-    # Generate Invoice from Description
+    # Generate Invoice from Deskripsi
     df['Invoice'] = df['Deskripsi'].str.replace('^.*(?=#)', '')
     df['Invoice'] = df['Invoice'].str.replace('#', '')
 
@@ -22,12 +22,12 @@ def generate_bisaremit(tkp_file, df):
     df['Keuntungan Tambahan'] = 0
     df['Kerugian Tambahan'] = 0
 
-    # Generate Nominal Remit, Keuntungan Tambahan, Kerugian Tambahan, based on Description
-    df.loc[df['Description'].str.contains('|'.join(VALID_NOMINAL_REMIT_KEYWORD)), 'Nominal Remit'] = df['Nominal (Rp)']
+    # Generate Nominal Remit, Keuntungan Tambahan, Kerugian Tambahan, based on Deskripsi
+    df.loc[df['Deskripsi'].str.contains('|'.join(VALID_NOMINAL_REMIT_KEYWORD)), 'Nominal Remit'] = df['Jumlah Dana']
 
-    df.loc[df['Description'].str.contains('|'.join(VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD)), 'Keuntungan Tambahan'] = df['Nominal (Rp)']
+    df.loc[df['Deskripsi'].str.contains('|'.join(VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD)), 'Keuntungan Tambahan'] = df['Jumlah Dana']
 
-    df.loc[df['Description'].str.contains('|'.join(VALID_KERUGIAN_TAMBAHAN_KEYWORD)), 'Kerugian Tambahan'] = -df['Nominal (Rp)']
+    df.loc[df['Deskripsi'].str.contains('|'.join(VALID_KERUGIAN_TAMBAHAN_KEYWORD)), 'Kerugian Tambahan'] = -df['Jumlah Dana']
 
     # Select Needed Column
     df = df[['Invoice', 'Tanggal', 'Potongan Pembayaran', 'Nominal Remit',
@@ -47,5 +47,6 @@ def generate_bisaremit(tkp_file, df):
     path = (tkp_file
             .replace(' v1', '')
             .replace(' v2', '')
-            .replace('BisaSaldo', 'BisaLaporan'))
+            .replace('BisaSaldo', 'BisaLaporan')
+            .replace('.csv', '.xlsx'))
     bisaremit_to_excel(df, path, 'BisaRemit Shopee')

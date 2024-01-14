@@ -8,9 +8,9 @@ from bisainvoice.generic import bisainvoice_to_excel
 def generate_bisainvoice(shp_file, df):
     logging.info("Generate BisaInvoice from {0} ({1} rows)".format(shp_file, len(df)))
 
-    # Remove Duplicate and Null Nomor Invoice
-    df = df.dropna(axis=0, subset=['Nomor Invoice'])
-    df = df.drop_duplicates(subset=['Nomor Invoice'])
+    # Remove Duplicate and Null No. Pesanan
+    df = df.dropna(axis=0, subset=['No. Pesanan'])
+    df = df.drop_duplicates(subset=['No. Pesanan'])
 
     # Add New Column contain 'Shopee' and Asuransi
     df['Marketplace'] = 'Shopee'

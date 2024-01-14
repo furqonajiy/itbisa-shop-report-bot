@@ -20,6 +20,9 @@ VALID_TRANSAKSI_KEYWORD = [
     # V1
 
     # V2
+    'Selesai',
+    'Perlu Dikirim',
+    'Sedang Dikirim'
 ]
 
 VALID_NOMINAL_REMIT_KEYWORD = [
@@ -48,20 +51,20 @@ VALID_BONUS_KEYWORD = [
 ]
 
 
-def check_saldo_keyword(tkp_file, df):
-    logging.debug("Check BisaSaldo Keyword in {0}".format(tkp_file))
+def check_saldo_keyword(shp_file, df):
+    logging.debug("Check BisaSaldo Keyword in {0}".format(shp_file))
 
-    invalid_rows = df[~df['Description'].str.contains('|'.join(VALID_SALDO_KEYWORD))]
+    invalid_rows = df[~df['Deskripsi'].str.contains('|'.join(VALID_SALDO_KEYWORD))]
 
-    handle_invalid_keywords('BisaSaldo', tkp_file, invalid_rows)
+    handle_invalid_keywords('BisaSaldo', shp_file, invalid_rows)
 
 
-def check_status_keyword(version, tkp_file, df):
-    logging.debug("Check BisaTransaksi Keyword in {0}".format(tkp_file))
+def check_status_keyword(version, shp_file, df):
+    logging.info("Check BisaTransaksi Keyword in {0}".format(shp_file))
 
     if version == "1":
         invalid_rows = df[~df['Order Status'].isin(VALID_TRANSAKSI_KEYWORD)]
     elif version == "2":
-        invalid_rows = df[~df['Status Terakhir'].isin(VALID_TRANSAKSI_KEYWORD)]
+        invalid_rows = df[~df['Status Pesanan'].isin(VALID_TRANSAKSI_KEYWORD)]
 
-    handle_invalid_keywords('BisaTransaksi', tkp_file, invalid_rows)
+    handle_invalid_keywords('BisaTransaksi', shp_file, invalid_rows)
