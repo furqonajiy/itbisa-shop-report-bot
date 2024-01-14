@@ -3,7 +3,7 @@ import logging
 
 import process.tokopedia.v1 as tokopedia_v1
 import process.tokopedia.v2 as tokopedia_v2
-from process import bukalapak
+import process.bukalapak.v2 as bukalapak_v2
 from process.preprocess import generate_report_list
 from utility.generic import ignore_warning
 
@@ -18,9 +18,9 @@ def main():
     list_report = generate_report_list(False)
 
     # Process Marketplace
-    # bukalapak.process(list_report)
-    tokopedia_v1.process(list_report)
-    tokopedia_v2.process(list_report)
+    bukalapak_v2.process(list_report)
+    # tokopedia_v1.process(list_report)
+    # tokopedia_v2.process(list_report)
 
 
 if __name__ == "__main__":
