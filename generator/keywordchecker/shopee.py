@@ -34,15 +34,17 @@ VALID_TRANSAKSI_KEYWORD = [
 
 VALID_NOMINAL_REMIT_KEYWORD = [
     # Nominal Remit
-
+    'Penghasilan dari Pesanan',
 ]
 
 VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
     # Keuntungan Tambahan
+    'AAA'
 ]
 
 VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
     # Kerugian Tambahan
+    'AAA'
 ]
 
 VALID_BONUS_KEYWORD = [

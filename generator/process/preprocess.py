@@ -1,7 +1,7 @@
 import glob
 import logging
 
-from utility.constant import BISASALDO_DIR, BISATRANSAKSI_DIR
+from utility.constant import BISASALDO_DIR, BISATRANSAKSI_DIR, BISAFEE_DIR
 
 
 def generate_report_list(show):
@@ -9,7 +9,7 @@ def generate_report_list(show):
 
     # Generate all report list
     list_report = []
-    all_dir = BISASALDO_DIR + BISATRANSAKSI_DIR
+    all_dir = BISASALDO_DIR + BISATRANSAKSI_DIR + BISAFEE_DIR
     for list_dir in all_dir:
         list_report = list_report + glob.glob(list_dir + '*\*.xls*')
         list_report = list_report + glob.glob(list_dir + '*\*.csv')
