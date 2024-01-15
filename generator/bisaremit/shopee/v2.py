@@ -31,20 +31,20 @@ def generate_bisaremit(shp_file, df, df_fee):
 
     # Select Needed Column
     df = df[['Invoice', 'Tanggal', 'Potongan Pembayaran', 'Nominal Remit',
-             'Keuntungan Tambahan', 'Kerugian Tambahan']]
+             'Keuntungan Tambahan']]
 
     # Change Column Name
     df.columns = ['Invoice', 'Tanggal Remit', 'Potongan Pembayaran', 'Nominal Remit',
-                  'Keuntungan Tambahan', 'Kerugian Tambahan']
+                  'Keuntungan Tambahan']
 
     # Convert Data Type
     df['Tanggal Remit'] = pd.to_datetime(df['Tanggal Remit'], format='%Y-%m-%d %H:%M').dt.strftime('%Y-%m-%d %H:%M')  # Datetime
 
     # Aggregate
-    df = df.groupby(['Invoice', 'Tanggal Remit']).sum().sort_values('Invoice')
+    df = df.groupby(['Invoice', 'Tanggal Remit']).sum().sort_values('Invoice').reset_index()
 
     # Left Join with BisaFee
-    df = df.merge(df_fee, on=['Invoice', 'Nominal Remit'], how='left')
+    df = df.merge(df_fee, on=['Invoice', 'Nominal Remit'], how='left').set_index('Invoice')
 
     # Export to Existing WorkBook
     path = (shp_file

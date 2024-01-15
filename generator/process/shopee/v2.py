@@ -20,7 +20,7 @@ def process(list_report):
     for shp_file in list_report:
         read_bisatransaksi(shp_file)
 
-    df_fee = pd.DataFrame(columns=['Invoice', 'Nominal Remit', 'Biaya Admin'])
+    df_fee = pd.DataFrame(columns=['Invoice', 'Nominal Remit', 'Kerugian Tambahan'])
     for shp_file in list_report:
         df_fee = read_bisafee(shp_file, df_fee)
 
