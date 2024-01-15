@@ -61,9 +61,17 @@ VALID_NOMINAL_REMIT_KEYWORD = [
     'Pemotongan untuk Asuransi',
 ]
 
+VALID_POTONGAN_PEMBAYARAN_KEYWORD = [
+    # Nominal Remit
+    'Pemotongan untuk Asuransi',
+    'Pemotongan Ongkir',
+    'Pemotongan biaya proteksi produk',
+]
+
 VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
     # Keuntungan Tambahan
     'Subsidi Kupon Toko',
+    'Selisih ongkos kirim',
 ]
 
 VALID_KERUGIAN_TAMBAHAN_KEYWORD = [

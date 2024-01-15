@@ -3,7 +3,7 @@ import logging
 import pandas as pd
 
 from bisaremit.generic import bisaremit_to_excel
-from keywordchecker.tokopedia import VALID_NOMINAL_REMIT_KEYWORD, VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD, VALID_KERUGIAN_TAMBAHAN_KEYWORD
+from keywordchecker.tokopedia import VALID_NOMINAL_REMIT_KEYWORD, VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD, VALID_KERUGIAN_TAMBAHAN_KEYWORD, VALID_POTONGAN_PEMBAYARAN_KEYWORD
 
 
 def generate_bisaremit(tkp_file, df):
@@ -16,16 +16,15 @@ def generate_bisaremit(tkp_file, df):
     df['Invoice'] = df['Description'].str.extract(r'(INV\S+)')
 
     # Initialize Biaya Layanan and Remit
-    df['Potongan Pembayaran'] = 0
     df['Nominal Remit'] = 0
+    df['Potongan Pembayaran'] = 0
     df['Keuntungan Tambahan'] = 0
     df['Kerugian Tambahan'] = 0
 
     # Generate Nominal Remit, Keuntungan Tambahan, Kerugian Tambahan, based on Description
     df.loc[df['Description'].str.contains('|'.join(VALID_NOMINAL_REMIT_KEYWORD)), 'Nominal Remit'] = df['Nominal (Rp)']
-
+    df.loc[df['Description'].str.contains('|'.join(VALID_POTONGAN_PEMBAYARAN_KEYWORD)), 'Potongan Pembayaran'] = -df['Nominal (Rp)']
     df.loc[df['Description'].str.contains('|'.join(VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD)), 'Keuntungan Tambahan'] = df['Nominal (Rp)']
-
     df.loc[df['Description'].str.contains('|'.join(VALID_KERUGIAN_TAMBAHAN_KEYWORD)), 'Kerugian Tambahan'] = -df['Nominal (Rp)']
 
     # Select Needed Column
