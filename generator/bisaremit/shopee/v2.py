@@ -6,8 +6,8 @@ from bisaremit.generic import bisaremit_to_excel
 from keywordchecker.shopee import VALID_NOMINAL_REMIT_KEYWORD, VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD, VALID_KERUGIAN_TAMBAHAN_KEYWORD
 
 
-def generate_bisaremit(tkp_file, df):
-    logging.info("Generate BisaRemit Shopee from {0} ({1} rows)".format(tkp_file, len(df)))
+def generate_bisaremit(shp_file, df):
+    logging.info("Generate BisaRemit Shopee from {0} ({1} rows)".format(shp_file, len(df)))
 
     # Select rows which contains invoice number
     df = df[df['Deskripsi'].str.contains('#')]
@@ -44,7 +44,7 @@ def generate_bisaremit(tkp_file, df):
     df = df.groupby(['Invoice', 'Tanggal Remit']).sum().sort_values('Invoice')
 
     # Export to Existing WorkBook
-    path = (tkp_file
+    path = (shp_file
             .replace(' v1', '')
             .replace(' v2', '')
             .replace('BisaSaldo', 'BisaLaporan')

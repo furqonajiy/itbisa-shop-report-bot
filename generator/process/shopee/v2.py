@@ -47,7 +47,7 @@ def read_bisasaldo(shp_file):
     if cond1 and cond2:
         logging.debug("Read {0}".format(shp_file))
 
-        df = pd.read_csv(shp_file, skiprows = 6, dtype={'Jumlah Dana':int})
+        df = pd.read_csv(shp_file, skiprows=6, dtype={'Jumlah Dana': int})
 
         if len(df) > 0:
             check_saldo_keyword(shp_file, df)
