@@ -59,12 +59,13 @@ VALID_NOMINAL_REMIT_KEYWORD = [
     'Transaksi Penjualan Berhasil',
     'Pemotongan Ongkir',
     'Pemotongan untuk Asuransi',
+    'Pemotongan biaya proteksi produk',
 ]
 
 VALID_POTONGAN_PEMBAYARAN_KEYWORD = [
     # Nominal Remit
-    'Pemotongan untuk Asuransi',
     'Pemotongan Ongkir',
+    'Pemotongan untuk Asuransi',
     'Pemotongan biaya proteksi produk',
 ]
 
