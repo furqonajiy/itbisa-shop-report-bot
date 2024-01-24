@@ -29,7 +29,8 @@ VALID_TRANSAKSI_KEYWORD = [
     # V2
     'Selesai',
     'Perlu Dikirim',
-    'Sedang Dikirim'
+    'Sedang Dikirim',
+    'Batal'
 ]
 
 VALID_NOMINAL_REMIT_KEYWORD = [
