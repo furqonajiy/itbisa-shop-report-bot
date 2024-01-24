@@ -34,7 +34,7 @@ def read_bisatransaksi(shp_file):
     if cond1 and cond2:
         logging.debug("Read BisaTransaksi Shopee {0}".format(shp_file))
 
-        df = pd.read_excel(shp_file, dtype={'Harga Setelah Diskon': str, 'Ongkir': str, 'Alasan Pembatalan':str})
+        df = pd.read_excel(shp_file, dtype={'Harga Setelah Diskon': str, 'Ongkir': str, 'Alasan Pembatalan': str})
 
         # Remove rows with invalid status
         search_values = ['Batal', 'Dibatalkan']
@@ -66,12 +66,20 @@ def read_bisafee(shp_file, df_fee):
     if cond1 and cond2:
         logging.debug("Read {0}".format(shp_file))
 
-        df = pd.read_excel(shp_file, sheet_name='Income', skiprows=5, dtype={
+        df_raw = pd.read_excel(shp_file, sheet_name='Income', skiprows=5, dtype={
             'Harga Asli Produk': int, 'Total Diskon Produk': int, 'Biaya Administrasi': int, 'Biaya Layanan (termasuk PPN 11%)': int,
             'Ongkir yang Diteruskan oleh Shopee ke Jasa Kirim': int, 'Total Penghasilan': int})
 
-        if len(df) > 0:
-            clean_df_fee = generate_bisafee(shp_file, df)
+        df_adjust = []
+        try:
+            df_adjust = pd.read_excel(shp_file, sheet_name='Adjustment', skiprows=13, dtype={
+                'Biaya Penyesuaian': float
+            })
+        except ValueError as error:
+            logging.debug(error)
+
+        if len(df_raw) > 0:
+            clean_df_fee = generate_bisafee(shp_file, df_raw, df_adjust)
             df_fee = pd.concat([df_fee, clean_df_fee])
 
     return df_fee

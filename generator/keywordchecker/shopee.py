@@ -5,8 +5,6 @@ from keywordchecker.generic import handle_invalid_keywords
 VALID_SALDO_KEYWORD = [
     # Not Used
     'Penarikan Dana',
-    'Penggantian Dana Penuh',
-    'Kompensasi kehilangan',
     'Shopee Ongkir',
     'Pengembalian Dana untuk Penarikan Gagal',
 
@@ -16,6 +14,8 @@ VALID_SALDO_KEYWORD = [
     'Penghasilan dari Pesanan',
 
     # Keuntungan Tambahan
+    'Penggantian Dana Penuh',
+    'Kompensasi kehilangan',
 
     # Kerugian Tambahan
 
@@ -36,11 +36,12 @@ VALID_TRANSAKSI_KEYWORD = [
 VALID_NOMINAL_REMIT_KEYWORD = [
     # Nominal Remit
     'Penghasilan dari Pesanan',
+    'Kompensasi kehilangan',
 ]
 
 VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
     # Keuntungan Tambahan
-    'AAA'
+    'Penggantian Dana Penuh'
 ]
 
 VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
@@ -50,7 +51,7 @@ VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
 
 VALID_BONUS_KEYWORD = [
     # BisaBonus
-    'PENAMBAHAN WALLET'
+    'AAA'
 ]
 
 

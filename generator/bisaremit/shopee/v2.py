@@ -10,11 +10,12 @@ def generate_bisaremit(shp_file, df, df_fee):
     logging.info("Generate BisaRemit Shopee from {0} ({1} rows)".format(shp_file, len(df)))
 
     # Select rows which contains invoice number
-    df = df[df['Deskripsi'].str.contains('#')]
+    search_values = ['#', 'Penambahan dana']
+    df = df[df['Deskripsi'].str.contains('|'.join(search_values))]
 
     # Generate Invoice from Deskripsi
-    df['Invoice'] = df['Deskripsi'].str.replace('^.*(?=#)', '')
-    df['Invoice'] = df['Invoice'].str.replace('#', '')
+    df['Invoice'] = df['Deskripsi'].str.extract(r'(#\S+)')
+    df['Invoice'] = df['Invoice'].str.replace('#', '').str.replace('.', '')
 
     # Initialize Biaya Layanan and Remit
     df['Potongan Pembayaran'] = 0
@@ -44,7 +45,7 @@ def generate_bisaremit(shp_file, df, df_fee):
     df = df.groupby(['Invoice', 'Tanggal Remit']).sum().sort_values('Invoice').reset_index()
 
     # Left Join with BisaFee
-    df = df.merge(df_fee, on=['Invoice', 'Nominal Remit'], how='left')
+    df = df.merge(df_fee, on=['Invoice', 'Nominal Remit'], how='left').fillna(0)
     df['Potongan Pembayaran'] = df['Potongan Pembayaran'] + df['Potongan Pembayaran (Fee)']
     df['Keuntungan Tambahan'] = df['Keuntungan Tambahan'] + df['Keuntungan Tambahan (Fee)']
     df['Kerugian Tambahan'] = df['Kerugian Tambahan'] + df['Kerugian Tambahan (Fee)']
