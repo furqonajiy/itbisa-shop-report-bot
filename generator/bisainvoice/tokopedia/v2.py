@@ -20,15 +20,14 @@ def generate_bisainvoice(tkp_file, df):
     df.loc[(df['Biaya Asuransi Pengiriman (IDR)'] == 'Non Tunai'), 'Biaya Asuransi Pengiriman (IDR)'] = 0
 
     # Select Needed Column
-    df = df[['Tanggal Pembayaran', 'Marketplace', 'Nomor Invoice', 'Biaya Pengiriman Tunai (IDR)',
-             'Biaya Asuransi Pengiriman (IDR)']]
+    df = df[['Tanggal Pembayaran', 'Marketplace', 'Nomor Invoice',
+             'Biaya Pengiriman Tunai (IDR)', 'Biaya Asuransi Pengiriman (IDR)']]
 
     # Change Column Name
     df.columns = ['Tanggal', 'Marketplace', 'Invoice', 'Ongkir', 'Asuransi']
 
-    # # Convert Data Type
-    df['Tanggal'] = (pd.to_datetime(df['Tanggal'], format='%d-%m-%Y %H:%M:%S')
-                     .dt.strftime('%Y-%m-%d %H:%M:%S'))  # Datetime
+    # Convert Data Type
+    df['Tanggal'] = pd.to_datetime(df['Tanggal'], format='%d-%m-%Y %H:%M:%S').dt.strftime('%Y-%m-%d %H:%M:%S')  # Datetime
     df['Ongkir'] = (df['Ongkir'].astype(str)
                     .str.replace('Rp ', '')
                     .str.replace('.', ''))
@@ -37,5 +36,8 @@ def generate_bisainvoice(tkp_file, df):
                       .str.replace('.', ''))
 
     # Export
-    path = tkp_file.replace('BisaTransaksi', 'BisaLaporan')
+    path = (tkp_file
+            .replace(' v1', '')
+            .replace(' v2', '')
+            .replace('BisaTransaksi', 'BisaLaporan'))
     bisainvoice_to_excel(df, path, 'BisaInvoice Tokopedia')

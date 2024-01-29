@@ -2,9 +2,9 @@ import logging
 
 import pandas as pd
 
-from bisainvoice.bukalapak import generate_bisainvoice
-from bisajual.bukalapak import generate_bisajual
-from bisaremit.bukalapak import generate_bisaremit
+from bisainvoice.bukalapak.v2 import generate_bisainvoice
+from bisajual.bukalapak.v2 import generate_bisajual
+from bisaremit.bukalapak.v2 import generate_bisaremit
 from keywordchecker.bukalapak import check_saldo_keyword, check_status_keyword
 from utility.constant import BISALAPORAN_BUKALAPAK_DIR
 from utility.generic import create_directory

@@ -11,6 +11,9 @@ def generate_bisabonus(tkp_file, df):
 
     # Select valid rows based on Description
     df = df[df['Description'].str.contains('|'.join(VALID_BONUS_KEYWORD))]
+    if len(df) == 0:
+        logging.debug("No valid BisaBonus keyword")
+        return
 
     # Initialize Jurnal
     df['Akun Debit'] = 'Kas ITBisa'
@@ -23,7 +26,10 @@ def generate_bisabonus(tkp_file, df):
     df.columns = ['Tanggal', 'Akun Debit', 'Akun Kredit', 'Nominal', 'Keterangan']
 
     # Export to Existing WorkBook
-    path = tkp_file.replace('BisaSaldo', 'BisaLaporan')
+    path = (tkp_file
+            .replace(' v1', '')
+            .replace(' v2', '')
+            .replace('BisaSaldo', 'BisaLaporan'))
 
     # Check if file exist
     with pd.ExcelWriter(path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:

@@ -9,28 +9,24 @@ from utility.sku import standardize_sku
 def generate_bisajual(tkp_file, df):
     logging.info("Generate BisaJual from {0} ({1} rows)".format(tkp_file, len(df)))
 
-    # Fill Blank Nomor Invoice and Status Terakhir
-    df['Nomor Invoice'].fillna(method='ffill', inplace=True)
-    df['Status Terakhir'].fillna(method='ffill', inplace=True)
-
     # Assign Omzet as Jumlah Produk Dibeli multiply with Price
-    df['Omzet'] = (df['Jumlah Produk Dibeli'] * df['Harga Jual (IDR)'].astype(str)
+    df['Omzet'] = (df['Quantity'] * df['Price (Rp.)'].astype(str)
                    .str.replace('Rp ', '')
                    .str.replace('.', '')
                    .astype(int))
 
     # Assign 1PCS to SKU
-    df['Pengali'] = df['Nomor SKU'].str.extract('(\d+)(?=\s*PCS)').apply(pd.to_numeric)
+    df['Pengali'] = df['Stock Keeping Unit (SKU)'].str.extract('(\d+)(?=\s*PCS)').apply(pd.to_numeric)
     df.loc[df['Pengali'].isnull(), 'Pengali'] = 1
 
     # Multiple Jumlah Produk Dibeli with PCS in SKU
-    df['Jumlah Produk Dibeli'] = df['Jumlah Produk Dibeli'] * df['Pengali'].astype(int)
+    df['Quantity'] = df['Quantity'] * df['Pengali'].astype(int)
 
     # Remove XX PCS in SKU
-    df['Nomor SKU'] = df['Nomor SKU'].str.replace('(\d+)PCS-', '', regex=True)
+    df['Stock Keeping Unit (SKU)'] = df['Stock Keeping Unit (SKU)'].str.replace('(\d+)PCS-', '', regex=True)
 
     # Select Needed Column
-    df = df[['Nomor SKU', 'Nomor Invoice', 'Jumlah Produk Dibeli', 'Omzet']]
+    df = df[['Stock Keeping Unit (SKU)', 'Invoice', 'Quantity', 'Omzet']]
 
     # Change Column Name
     df.columns = ['SKU', 'Invoice', 'Kuantitas', 'Omzet']
@@ -39,5 +35,8 @@ def generate_bisajual(tkp_file, df):
     standardize_sku(df)
 
     # Export to Existing WorkBook
-    path = tkp_file.replace('BisaTransaksi', 'BisaLaporan')
+    path = (tkp_file
+            .replace(' v1', '')
+            .replace(' v2', '')
+            .replace('BisaTransaksi', 'BisaLaporan'))
     bisajual_to_excel(df, path, 'BisaJual Tokopedia')

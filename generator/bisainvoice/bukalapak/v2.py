@@ -21,8 +21,7 @@ def generate_bisainvoice(bl_file, df):
     df.columns = ['Tanggal', 'Marketplace', 'Invoice', 'Ongkir', 'Asuransi']
 
     # Convert Data Type
-    df['Tanggal'] = (pd.to_datetime(df['Tanggal'], format='%Y-%m-%d %H:%M')
-                     .dt.strftime('%Y-%m-%d %H:%M:%S'))  # Datetime
+    df['Tanggal'] = pd.to_datetime(df['Tanggal'], format='%Y-%m-%d %H:%M').dt.strftime('%Y-%m-%d %H:%M:%S')  # Datetime
 
     # Export
     path = bl_file.replace('BisaTransaksi', 'BisaLaporan')
