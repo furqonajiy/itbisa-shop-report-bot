@@ -16,17 +16,17 @@ def generate_bisajual(shp_file, df):
                    .astype(int))
 
     # Assign 1PCS to SKU
-    df['Pengali'] = df['SKU Induk'].str.extract('(\d+)(?=\s*PCS)').apply(pd.to_numeric)
+    df['Pengali'] = df['Nomor Referensi SKU'].str.extract('(\d+)(?=\s*PCS)').apply(pd.to_numeric)
     df.loc[df['Pengali'].isnull(), 'Pengali'] = 1
 
     # Multiple Jumlah with PCS in SKU
     df['Jumlah'] = df['Jumlah'] * df['Pengali'].astype(int)
 
     # Remove XX PCS in SKU
-    df['SKU Induk'] = df['SKU Induk'].str.replace('(\d+)PCS-', '', regex=True)
+    df['Nomor Referensi SKU'] = df['Nomor Referensi SKU'].str.replace('(\d+)PCS-', '', regex=True)
 
     # Select Needed Column
-    df = df[['SKU Induk', 'No. Pesanan', 'Jumlah', 'Omzet']]
+    df = df[['Nomor Referensi SKU', 'No. Pesanan', 'Jumlah', 'Omzet']]
 
     # Change Column Name
     df.columns = ['SKU', 'Invoice', 'Kuantitas', 'Omzet']
