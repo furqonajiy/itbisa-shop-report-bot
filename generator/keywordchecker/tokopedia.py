@@ -3,7 +3,9 @@ import logging
 from keywordchecker.generic import handle_invalid_keywords
 
 VALID_SALDO_KEYWORD = [
-    'Withdrawal',  # Not Used
+    # Not Used
+    'Withdrawal',
+    'Penarikan Otomatis',
 
     # Need to check
     'Sisa Saldo Mitra dikembalikan',
@@ -50,8 +52,12 @@ VALID_TRANSAKSI_KEYWORD = [
     'Pesanan Diproses',
     'Menunggu Pickup',
     'Pesanan Dikirim',
+    'Sedang Dikirim',
     'Pesanan Tiba',
     'Pesanan Selesai',
+    'Dibatalkan Pembeli',
+    'Dibatalkan Penjual [Permintaan Pembeli]',
+    'Pesanan Dikomplain'
 ]
 
 VALID_NOMINAL_REMIT_KEYWORD = [
@@ -60,6 +66,8 @@ VALID_NOMINAL_REMIT_KEYWORD = [
     'Pemotongan Ongkir',
     'Pemotongan untuk Asuransi',
     'Pemotongan biaya proteksi produk',
+    'Dipotong karena kelebihan ongkos kirim',
+    'Selisih ongkos kirim',
 ]
 
 VALID_POTONGAN_PEMBAYARAN_KEYWORD = [
@@ -72,7 +80,6 @@ VALID_POTONGAN_PEMBAYARAN_KEYWORD = [
 VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
     # Keuntungan Tambahan
     'Subsidi Kupon Toko',
-    'Selisih ongkos kirim',
 ]
 
 VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
@@ -88,7 +95,7 @@ VALID_BONUS_KEYWORD = [
     'Cashback pengiriman GrabExpress',
     'Cashback atas pengiriman cashless JNE',
     'Cashback atas pengiriman cashless J&T',
-    'Cashback atas pengiriman cashless Lion Parcel'
+    'Cashback atas pengiriman cashless Lion Parcel',
 ]
 
 
