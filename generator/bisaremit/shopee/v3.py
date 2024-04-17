@@ -31,7 +31,7 @@ def generate_bisaremit(shp_file, df, df_fee):
     df.loc[df['Deskripsi'].str.contains('|'.join(VALID_KERUGIAN_TAMBAHAN_KEYWORD)), 'Kerugian Tambahan'] = -df['Jumlah']
 
     # Select Needed Column
-    df = df[['Invoice', 'Tanggal', 'Potongan Pembayaran', 'Nominal Remit',
+    df = df[['Invoice', 'Tanggal Transaksi', 'Potongan Pembayaran', 'Nominal Remit',
              'Keuntungan Tambahan', 'Kerugian Tambahan']]
 
     # Change Column Name
