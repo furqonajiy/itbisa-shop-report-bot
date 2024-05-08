@@ -17,7 +17,7 @@ def generate_bisainvoice(shp_file, df):
     df['Asuransi'] = 0
 
     # Select Needed Column
-    df = df[['Waktu Pembayaran Dilakukan', 'Marketplace', 'No. Pesanan',
+    df = df[['Waktu Pesanan Dibuat', 'Marketplace', 'No. Pesanan',
              'Perkiraan Ongkos Kirim', 'Asuransi']]
 
     # Change Column Name
