@@ -3,6 +3,7 @@ import logging
 
 import process.bukalapak.v2 as bukalapak_v2
 import process.shopee.v2 as shopee_v2
+import process.shopee.v3 as shopee_v3
 import process.tokopedia.v1 as tokopedia_v1
 import process.tokopedia.v2 as tokopedia_v2
 from process.preprocess import generate_report_list
@@ -23,6 +24,7 @@ def main():
     tokopedia_v1.process(list_report)
     tokopedia_v2.process(list_report)
     shopee_v2.process(list_report)
+    shopee_v3.process(list_report)
 
 
 if __name__ == "__main__":
