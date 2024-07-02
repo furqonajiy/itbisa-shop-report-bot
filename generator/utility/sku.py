@@ -54,3 +54,13 @@ def standardize_sku(df):
                  .str.replace('-ANODE-', '-ANODE-RED-')
                  .str.replace('-CATHODE-', '-CATHODE-RED-')
                  .str.replace('-RED-RED-', '-RED-'))
+
+    # Resistor
+    df['SKU'] = (df['SKU']
+                 .str.replace('-1%-METAL', '')
+                 .str.replace('-1%-CARBON', '')
+                 .str.replace('-5%-METAL', '')
+                 .str.replace('-5%-CARBON', ''))
+
+    df['SKU'] = (df['SKU']
+                 .str.replace('ITBISA-ESP32-WROOM', 'ITBISA-CHIP-ESP32-WROOM'))
