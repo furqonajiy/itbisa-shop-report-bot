@@ -37,7 +37,7 @@ def read_bisatransaksi(shp_file):
         df = pd.read_excel(shp_file, dtype={'Harga Setelah Diskon': str, 'Ongkir': str, 'Alasan Pembatalan': str})
 
         # Remove rows with invalid status
-        search_values = ['Batal', 'Dibatalkan']
+        search_values = ['Belum Bayar', 'Batal', 'Dibatalkan']
         df = df[~df['Status Pesanan'].str.contains('|'.join(search_values)) | df['Alasan Pembatalan'].str.contains('Paket hilang', na=False)]
 
         if len(df) > 0:
