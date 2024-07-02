@@ -25,6 +25,7 @@ VALID_SALDO_KEYWORD = [
 
     # Keuntungan Tambahan
     'Subsidi Kupon Toko',
+    'Pengembalian dana atas ongkir pengganti',
 
     # Kerugian Tambahan
     'Pemotongan Biaya Layanan',
@@ -57,7 +58,8 @@ VALID_TRANSAKSI_KEYWORD = [
     'Pesanan Selesai',
     'Dibatalkan Pembeli',
     'Dibatalkan Penjual [Permintaan Pembeli]',
-    'Pesanan Dikomplain'
+    'Pesanan Dikomplain',
+    'Pesanan Dikembalikan'
 ]
 
 VALID_NOMINAL_REMIT_KEYWORD = [
@@ -80,6 +82,7 @@ VALID_POTONGAN_PEMBAYARAN_KEYWORD = [
 VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
     # Keuntungan Tambahan
     'Subsidi Kupon Toko',
+    'Pengembalian dana atas ongkir pengganti',
 ]
 
 VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
