@@ -12,6 +12,8 @@ VALID_SALDO_KEYWORD = [
 
     # Nominal Remit
     'Penghasilan dari Pesanan',
+    'Penyesuaian untuk',
+    'Penggantian Dana Sebagian Barang Hilang',
 
     # Keuntungan Tambahan
     'Penggantian Dana Penuh',
@@ -38,6 +40,8 @@ VALID_NOMINAL_REMIT_KEYWORD = [
     # Nominal Remit
     'Penghasilan dari Pesanan',
     'Kompensasi kehilangan',
+    'Penyesuaian untuk',
+    'Penggantian Dana Sebagian Barang Hilang'
 ]
 
 VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
