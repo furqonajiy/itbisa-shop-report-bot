@@ -28,7 +28,7 @@ VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
 
 VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
     # Kerugian Tambahan
-    'AAA'
+    'Penyesuaian Saldo Penjual Karena Kekurangan Ongkir Pengembalian'
 ]
 
 VALID_BONUS_KEYWORD = [
