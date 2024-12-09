@@ -10,12 +10,11 @@ def generate_bisaremit(shp_file, df, df_fee):
     logging.info("Generate BisaRemit Shopee from {0} ({1} rows)".format(shp_file, len(df)))
 
     # Select rows which contains invoice number
-    search_values = ['#', 'Penambahan dana']
-    df = df[df['Deskripsi'].str.contains('|'.join(search_values))]
+    search_values = ['-']
+    df = df[~df['No. Pesanan'].str.contains('|'.join(search_values))]
 
     # Generate Invoice from Deskripsi
-    df['Invoice'] = df['Deskripsi'].str.extract(r'(#\S+)')
-    df['Invoice'] = df['Invoice'].str.replace('#', '').str.replace('.', '')
+    df['Invoice'] = df['No. Pesanan']
 
     # Initialize Biaya Layanan and Remit
     df['Potongan Pembayaran'] = 0

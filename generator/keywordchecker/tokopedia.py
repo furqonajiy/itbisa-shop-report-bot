@@ -2,44 +2,6 @@ import logging
 
 from keywordchecker.generic import handle_invalid_keywords
 
-VALID_SALDO_KEYWORD = [
-    # Not Used
-    'Withdrawal',
-    'Penarikan Otomatis',
-
-    # Need to check
-    'Sisa Saldo Mitra dikembalikan',
-    'Penggunaan Saldo Tokopedia untuk pembelian',
-    'Dipotong karena Solusi dari Resolusi',
-    'Dipotong karena Pergantian kurir',
-    'Ganti Kurir ke Kurir Non Promo',
-    'Penarikan subsidi promo ongkir',
-
-    # Nominal Remit
-    'Transaksi Penjualan Berhasil',
-    'Pemotongan Ongkir',
-    'Pemotongan untuk Asuransi',
-    'Pemotongan biaya proteksi produk',
-    'Dipotong karena kelebihan ongkos kirim',
-    'Selisih ongkos kirim',
-
-    # Keuntungan Tambahan
-    'Subsidi Kupon Toko',
-    'Pengembalian dana atas ongkir pengganti',
-
-    # Kerugian Tambahan
-    'Pemotongan Biaya Layanan',
-    'Pemotongan Voucher Merchant',
-    'Pemotongan Saldo untuk Kupon Toko',
-    'Pemotongan Selisih Ongkir',
-
-    # BisaBonus
-    'Cashback pengiriman GrabExpress',
-    'Cashback atas pengiriman cashless JNE',
-    'Cashback atas pengiriman cashless J&T',
-    'Cashback atas pengiriman cashless Lion Parcel'
-]
-
 VALID_TRANSAKSI_KEYWORD = [
     # V1
     'Transaksi selesai..\nDana akan diteruskan ke penjual.',
@@ -83,6 +45,7 @@ VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
     # Keuntungan Tambahan
     'Subsidi Kupon Toko',
     'Pengembalian dana atas ongkir pengganti',
+    'Subsidi Promo Toko',
 ]
 
 VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
@@ -90,6 +53,7 @@ VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
     'Pemotongan Biaya Layanan',
     'Pemotongan Voucher Merchant',
     'Pemotongan Saldo untuk Kupon Toko',
+    'Pemotongan Saldo untuk Promo Toko',
     'Pemotongan Selisih Ongkir',
 ]
 
@@ -101,6 +65,19 @@ VALID_BONUS_KEYWORD = [
     'Cashback atas pengiriman cashless Lion Parcel',
 ]
 
+VALID_SALDO_KEYWORD = [
+    # Not Used
+    'Withdrawal',
+    'Penarikan Otomatis',
+
+    # Need to check
+    'Sisa Saldo Mitra dikembalikan',
+    'Penggunaan Saldo Tokopedia untuk pembelian',
+    'Dipotong karena Solusi dari Resolusi',
+    'Dipotong karena Pergantian kurir',
+    'Ganti Kurir ke Kurir Non Promo',
+    'Penarikan subsidi promo ongkir',
+] + VALID_NOMINAL_REMIT_KEYWORD + VALID_POTONGAN_PEMBAYARAN_KEYWORD + VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD + VALID_KERUGIAN_TAMBAHAN_KEYWORD + VALID_BONUS_KEYWORD
 
 def check_saldo_keyword(tkp_file, df):
     logging.debug("Check BisaSaldo Keyword in {0}".format(tkp_file))

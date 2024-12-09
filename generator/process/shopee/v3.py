@@ -72,7 +72,7 @@ def read_bisafee(shp_file, df_fee):
 
         df_adjust = []
         try:
-            df_adjust = pd.read_excel(shp_file, sheet_name='Adjustment', skiprows=13, dtype={
+            df_adjust = pd.read_excel(shp_file, sheet_name='Adjustment', skiprows=14, dtype={
                 'Biaya Penyesuaian': float
             })
         except ValueError as error:
