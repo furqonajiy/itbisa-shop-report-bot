@@ -55,6 +55,9 @@ VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
     'Pemotongan Saldo untuk Kupon Toko',
     'Pemotongan Saldo untuk Promo Toko',
     'Pemotongan Selisih Ongkir',
+    'Dipotong karena Solusi dari Resolusi',
+    'Dipotong karena Pergantian kurir',
+    'Ganti Kurir ke Kurir Non Promo',
 ]
 
 VALID_BONUS_KEYWORD = [
@@ -73,9 +76,7 @@ VALID_SALDO_KEYWORD = [
     # Need to check
     'Sisa Saldo Mitra dikembalikan',
     'Penggunaan Saldo Tokopedia untuk pembelian',
-    'Dipotong karena Solusi dari Resolusi',
-    'Dipotong karena Pergantian kurir',
-    'Ganti Kurir ke Kurir Non Promo',
+
     'Penarikan subsidi promo ongkir',
 ] + VALID_NOMINAL_REMIT_KEYWORD + VALID_POTONGAN_PEMBAYARAN_KEYWORD + VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD + VALID_KERUGIAN_TAMBAHAN_KEYWORD + VALID_BONUS_KEYWORD
 
