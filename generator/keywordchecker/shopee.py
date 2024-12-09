@@ -18,13 +18,13 @@ VALID_NOMINAL_REMIT_KEYWORD = [
     'Penghasilan dari Pesanan',
     'Kompensasi kehilangan',
     'Penyesuaian untuk',
-    'Penggantian Dana Sebagian Barang Hilang',
-    'Auto-approve compensation without judging'
+    'Penggantian Dana Sebagian Barang Hilang'
 ]
 
 VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
     # Keuntungan Tambahan
-    'Penggantian Dana Penuh'
+    'Penggantian Dana Penuh',
+    'Auto-approve compensation without judging'
 ]
 
 VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
