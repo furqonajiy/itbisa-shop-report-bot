@@ -66,18 +66,17 @@ VALID_BONUS_KEYWORD = [
     'Cashback atas pengiriman cashless JNE',
     'Cashback atas pengiriman cashless J&T',
     'Cashback atas pengiriman cashless Lion Parcel',
+
+    # BisaBonus - Negatif
+    'Penggunaan Saldo Tokopedia untuk pembelian',
+    'Penarikan subsidi promo ongkir penyelesaian kendala',
 ]
 
 VALID_SALDO_KEYWORD = [
     # Not Used
     'Withdrawal',
     'Penarikan Otomatis',
-
-    # Need to check
     'Sisa Saldo Mitra dikembalikan',
-    'Penggunaan Saldo Tokopedia untuk pembelian',
-
-    'Penarikan subsidi promo ongkir',
 ] + VALID_NOMINAL_REMIT_KEYWORD + VALID_POTONGAN_PEMBAYARAN_KEYWORD + VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD + VALID_KERUGIAN_TAMBAHAN_KEYWORD + VALID_BONUS_KEYWORD
 
 def check_saldo_keyword(tkp_file, df):
