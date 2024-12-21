@@ -6,9 +6,11 @@ VALID_TRANSAKSI_KEYWORD = [
     # V1
 
     # V2
+    # V3
     'Belum Bayar',
     'Perlu Dikirim',
     'Sedang Dikirim',
+    'Telah Dikirim',
     'Selesai',
     'Batal'
 ]
