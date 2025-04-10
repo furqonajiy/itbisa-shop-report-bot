@@ -41,7 +41,7 @@ def read_bisatransaksi(shp_file):
         df = df[~df['Status Pesanan'].str.contains('|'.join(search_values)) | df['Alasan Pembatalan'].str.contains('Paket hilang', na=False)]
 
         if len(df) > 0:
-            check_status_keyword("2", shp_file, df)
+            check_status_keyword("3", shp_file, df)
             generate_bisainvoice(shp_file, df)
             generate_bisajual(shp_file, df)
 

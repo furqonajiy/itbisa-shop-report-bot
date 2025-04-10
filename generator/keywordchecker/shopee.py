@@ -12,7 +12,8 @@ VALID_TRANSAKSI_KEYWORD = [
     'Sedang Dikirim',
     'Telah Dikirim',
     'Selesai',
-    'Batal'
+    'Batal',
+    'Pesanan diterima, namun Pembeli masih dapat mengajukan pengembalian hingga '
 ]
 
 VALID_NOMINAL_REMIT_KEYWORD = [
@@ -62,6 +63,12 @@ def check_status_keyword(version, shp_file, df):
     elif version == "2":
         invalid_rows = df[~df['Status Pesanan'].isin(VALID_TRANSAKSI_KEYWORD)]
     elif version == "3":
+        df['Status Pesanan'] = df['Status Pesanan'].str.replace(
+            r'(Pesanan diterima, namun Pembeli masih dapat mengajukan pengembalian hingga )\d{4}-\d{2}-\d{2}\.',
+            r'\1',
+            regex=True
+        )
+        print(df[['Status Pesanan']].to_string())
         invalid_rows = df[~df['Status Pesanan'].isin(VALID_TRANSAKSI_KEYWORD)]
 
     handle_invalid_keywords('BisaTransaksi', shp_file, invalid_rows)
