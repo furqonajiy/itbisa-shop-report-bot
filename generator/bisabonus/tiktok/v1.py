@@ -17,7 +17,7 @@ def generate_bisabonus(tkp_file, df):
 
     # Initialize Jurnal
     df['Akun Debit'] = 'Kas ITBisa'
-    df['Akun Kredit'] = 'Bonus Tokopedia'
+    df['Akun Kredit'] = 'Bonus Tiktok'
 
     # Select Needed Column
     df = df[['Date', 'Akun Debit', 'Akun Kredit', 'Nominal (Rp)', 'Description']]
@@ -34,9 +34,9 @@ def generate_bisabonus(tkp_file, df):
     # Check if file exist
     with pd.ExcelWriter(path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
         writer.book = load_workbook(path)
-        df.to_excel(writer, sheet_name='BisaBonus Tokopedia')
+        df.to_excel(writer, sheet_name='BisaBonus Tiktok')
 
-        sheet = writer.book['BisaBonus Tokopedia']  # Select sheet to be formatted
+        sheet = writer.book['BisaBonus Tiktok']  # Select sheet to be formatted
         sheet.column_dimensions['B'].width = 18  # Tanggal
         sheet.column_dimensions['C'].width = 16  # Akun Debit
         sheet.column_dimensions['D'].width = 16  # Akun Kredit

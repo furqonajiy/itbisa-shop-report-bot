@@ -7,7 +7,7 @@ from keywordchecker.tokopedia import VALID_NOMINAL_REMIT_KEYWORD, VALID_KEUNTUNG
 
 
 def generate_bisaremit(tkp_file, df):
-    logging.info("Generate BisaRemit Tokopedia from {0} ({1} rows)".format(tkp_file, len(df)))
+    logging.info("Generate BisaRemit Tiktok from {0} ({1} rows)".format(tkp_file, len(df)))
 
     # Select rows which contains invoice number
     df = df[df['Description'].str.contains('INV')]
@@ -46,4 +46,4 @@ def generate_bisaremit(tkp_file, df):
             .replace(' v1', '')
             .replace(' v2', '')
             .replace('BisaSaldo', 'BisaLaporan'))
-    bisaremit_to_excel(df, path, 'BisaRemit Tokopedia')
+    bisaremit_to_excel(df, path, 'BisaRemit Tiktok')
