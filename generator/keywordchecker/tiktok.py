@@ -4,24 +4,11 @@ from keywordchecker.generic import handle_invalid_keywords
 
 VALID_TRANSAKSI_KEYWORD = [
     # V1
-    'Transaksi selesai..\nDana akan diteruskan ke penjual.',
-    'Transaksi dibatalkan.',
-    'Pesanan telah dikirim..\nPesanan dalam proses pengiriman oleh kurir.',
-    'Pesanan telah tiba di tujuan..\nDana akan diteruskan ketika barang dikonfirmasi pembeli atau otomatis dalam 48 jam.',
-    'Pemesanan sedang diproses oleh penjual.',
-    'Menunggu Pick Up',
+    'To ship',
+    'Shipped',
+    'Completed',
 
     # V2
-    'Pesanan Diproses',
-    'Menunggu Pickup',
-    'Pesanan Dikirim',
-    'Sedang Dikirim',
-    'Pesanan Tiba',
-    'Pesanan Selesai',
-    'Dibatalkan Pembeli',
-    'Dibatalkan Penjual [Permintaan Pembeli]',
-    'Pesanan Dikomplain',
-    'Pesanan Dikembalikan'
 ]
 
 VALID_NOMINAL_REMIT_KEYWORD = [
@@ -92,7 +79,5 @@ def check_status_keyword(version, tkp_file, df):
 
     if version == "1":
         invalid_rows = df[~df['Order Status'].isin(VALID_TRANSAKSI_KEYWORD)]
-    elif version == "2":
-        invalid_rows = df[~df['Status Terakhir'].isin(VALID_TRANSAKSI_KEYWORD)]
 
     handle_invalid_keywords('BisaTransaksi', tkp_file, invalid_rows)

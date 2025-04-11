@@ -29,11 +29,17 @@ def read_bisatransaksi(ttk_file):
     if cond1 and cond2:
         logging.debug("Read {0}".format(ttk_file))
 
-        df = pd.read_excel(ttk_file, skiprows=4)
+        df = pd.read_excel(ttk_file, skiprows=lambda x: x == 1,
+                           dtype={'Order ID': str, 'Order Status': str,
+                                  'Quantity': int, 'SKU Unit Original Price': int,
+                                  'Original Shipping Fee': int, 'Shipping Insurance': int})
 
         # Remove rows with invalid status
-        search_values = ['Dibatalkan']
-        df = df[~df['Status Terakhir'].str.contains('|'.join(search_values))]
+        df = df[(df['Tokopedia Invoice Number'].isna()) &
+                (df['Order ID'] != 'Platform unique order ID.')]
+        search_values = ['Canceled']
+        df = df[~df['Order Status'].str.contains('|'.join(search_values))]
+        print(df)
 
         if len(df) > 0:
             check_status_keyword("1", ttk_file, df)
