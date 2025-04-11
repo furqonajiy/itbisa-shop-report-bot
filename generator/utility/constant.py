@@ -7,7 +7,9 @@ BISATRANSAKSI_DIR = [
     'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Shopee - BisaTransaksi v3',
 
     'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tokopedia - BisaTransaksi v1',
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tokopedia - BisaTransaksi v2'
+    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tokopedia - BisaTransaksi v2',
+
+    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tiktok - BisaTransaksi v1'
 ]
 
 BISASALDO_DIR = [
@@ -18,6 +20,8 @@ BISASALDO_DIR = [
 
     'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tokopedia - BisaSaldo v1',
     'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tokopedia - BisaSaldo v2',
+
+    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tiktok - BisaSaldo v1',
 ]
 
 BISAFEE_DIR = [
