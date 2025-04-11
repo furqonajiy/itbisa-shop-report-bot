@@ -39,7 +39,6 @@ def read_bisatransaksi(ttk_file):
                 (df['Order ID'] != 'Platform unique order ID.')]
         search_values = ['Canceled']
         df = df[~df['Order Status'].str.contains('|'.join(search_values))]
-        print(df)
 
         if len(df) > 0:
             check_status_keyword("1", ttk_file, df)

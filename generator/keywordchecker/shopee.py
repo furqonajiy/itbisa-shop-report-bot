@@ -6,6 +6,7 @@ VALID_TRANSAKSI_KEYWORD = [
     # V1
 
     # V2
+
     # V3
     'Belum Bayar',
     'Perlu Dikirim',
@@ -22,7 +23,8 @@ VALID_NOMINAL_REMIT_KEYWORD = [
     'Kompensasi kehilangan',
     'Penyesuaian untuk',
     'Penggantian Dana Sebagian Barang Hilang',
-    'Auto-approve compensation without judging'
+    'Auto-approve compensation without judging',
+    'SPinjam untuk Penjual'
 ]
 
 VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
