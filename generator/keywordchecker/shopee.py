@@ -68,7 +68,6 @@ def check_status_keyword(version, shp_file, df):
             r'\1',
             regex=True
         )
-        print(df[['Status Pesanan']].to_string())
         invalid_rows = df[~df['Status Pesanan'].isin(VALID_TRANSAKSI_KEYWORD)]
 
     handle_invalid_keywords('BisaTransaksi', shp_file, invalid_rows)
