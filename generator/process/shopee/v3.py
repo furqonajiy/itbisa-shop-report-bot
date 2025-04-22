@@ -34,14 +34,22 @@ def read_bisatransaksi(shp_file):
     if cond1 and cond2:
         logging.debug("Read BisaTransaksi Shopee {0}".format(shp_file))
 
-        df = pd.read_excel(shp_file, dtype={'Harga Setelah Diskon': str, 'Ongkir': str, 'Alasan Pembatalan': str})
+        df = pd.read_excel(shp_file, dtype={
+            'Harga Setelah Diskon': str,
+            'Ongkir': str,
+            'Alasan Pembatalan': str,
+            'Jumlah': int,
+            'Returned quantity': int
+        })
 
         # Remove rows with invalid status
-        search_values = ['Belum Bayar', 'Batal', 'Dibatalkan']
-        df = df[~df['Status Pesanan'].str.contains('|'.join(search_values)) | df['Alasan Pembatalan'].str.contains('Paket hilang', na=False)]
+        search_values = ['Belum Bayar', 'Batal', 'Dibatalkan', 'Selesai']
+        df = df[~df['Status Pesanan'].str.contains('|'.join(search_values))
+                | df['Alasan Pembatalan'].str.contains('Paket hilang', na=False)
+                | (df['Status Pesanan'].str.contains('Selesai') & (df['Jumlah'] != df['Returned quantity']))]
 
         if len(df) > 0:
-            check_status_keyword("2", shp_file, df)
+            check_status_keyword("3", shp_file, df)
             generate_bisainvoice(shp_file, df)
             generate_bisajual(shp_file, df)
 
