@@ -3,32 +3,23 @@ import logging
 import pandas as pd
 
 from bisaremit.generic import bisaremit_to_excel
-from keywordchecker.tokopedia import VALID_NOMINAL_REMIT_KEYWORD, VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD, VALID_KERUGIAN_TAMBAHAN_KEYWORD, VALID_POTONGAN_PEMBAYARAN_KEYWORD
 
 
 def generate_bisaremit(tkp_file, df):
     logging.info("Generate BisaRemit Tiktok from {0} ({1} rows)".format(tkp_file, len(df)))
 
-    # Select rows which contains invoice number
-    df = df[df['Description'].str.contains('INV')]
-
-    # Generate Invoice from Description
-    df['Invoice'] = df['Description'].str.extract(r'(INV\S+)')
+    # Generate Invoice from Order/adjustment ID
+    df = df[['Order/adjustment ID  ', 'Order created time(UTC)', 'Total settlement amount', 'Total revenue',
+             'Shipping costs passed on to the logistics provider', 'Refund subtotal after seller discounts']]
 
     # Initialize Biaya Layanan and Remit
-    df['Nominal Remit'] = 0
-    df['Potongan Pembayaran'] = 0
+    df['Nominal Remit'] = df['Total revenue'] - df['Refund subtotal after seller discounts']
+    df['Potongan Pembayaran'] = -df['Shipping costs passed on to the logistics provider']
     df['Keuntungan Tambahan'] = 0
-    df['Kerugian Tambahan'] = 0
-
-    # Generate Nominal Remit, Keuntungan Tambahan, Kerugian Tambahan, based on Description
-    df.loc[df['Description'].str.contains('|'.join(VALID_NOMINAL_REMIT_KEYWORD)), 'Nominal Remit'] = df['Nominal (Rp)']
-    df.loc[df['Description'].str.contains('|'.join(VALID_POTONGAN_PEMBAYARAN_KEYWORD)), 'Potongan Pembayaran'] = -df['Nominal (Rp)']
-    df.loc[df['Description'].str.contains('|'.join(VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD)), 'Keuntungan Tambahan'] = df['Nominal (Rp)']
-    df.loc[df['Description'].str.contains('|'.join(VALID_KERUGIAN_TAMBAHAN_KEYWORD)), 'Kerugian Tambahan'] = -df['Nominal (Rp)']
+    df['Kerugian Tambahan'] = df['Total revenue'] - df['Total settlement amount'] - df['Refund subtotal after seller discounts']
 
     # Select Needed Column
-    df = df[['Invoice', 'Date', 'Potongan Pembayaran', 'Nominal Remit',
+    df = df[['Order/adjustment ID  ', 'Order created time(UTC)', 'Potongan Pembayaran', 'Nominal Remit',
              'Keuntungan Tambahan', 'Kerugian Tambahan']]
 
     # Change Column Name
@@ -45,5 +36,5 @@ def generate_bisaremit(tkp_file, df):
     path = (tkp_file
             .replace(' v1', '')
             .replace(' v2', '')
-            .replace('BisaSaldo', 'BisaLaporan'))
+            .replace('BisaFee', 'BisaLaporan'))
     bisaremit_to_excel(df, path, 'BisaRemit Tiktok')

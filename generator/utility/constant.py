@@ -26,7 +26,9 @@ BISASALDO_DIR = [
 
 BISAFEE_DIR = [
     'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Shopee - BisaFee v2',
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Shopee - BisaFee v3'
+    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Shopee - BisaFee v3',
+
+    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tiktok - BisaFee v1'
 ]
 
 BISALAPORAN_BUKALAPAK_DIR = 'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Bukalapak - BisaLaporan v2'

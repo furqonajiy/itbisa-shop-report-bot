@@ -2,11 +2,10 @@ import logging
 
 import pandas as pd
 
-from bisabonus.tiktok.v1 import generate_bisabonus
 from bisainvoice.tiktok.v1 import generate_bisainvoice
 from bisajual.tiktok.v1 import generate_bisajual
 from bisaremit.tiktok.v1 import generate_bisaremit
-from keywordchecker.tiktok import check_saldo_keyword, check_status_keyword
+from keywordchecker.tiktok import check_status_keyword
 from utility.constant import BISALAPORAN_TIKTOK_DIR
 from utility.generic import create_directory
 
@@ -20,7 +19,7 @@ def process(list_report):
         read_bisatransaksi(ttk_file)
 
     for ttk_file in list_report:
-        read_bisasaldo(ttk_file)
+        read_bisafee(ttk_file)
 
 
 def read_bisatransaksi(ttk_file):
@@ -46,15 +45,19 @@ def read_bisatransaksi(ttk_file):
             generate_bisajual(ttk_file, df)
 
 
-def read_bisasaldo(ttk_file):
-    cond1 = 'BisaSaldo v1 Tiktok' in ttk_file
+def read_bisafee(ttk_file):
+    cond1 = 'BisaFee v1 Tiktok' in ttk_file
     cond2 = '~' not in ttk_file
     if cond1 and cond2:
         logging.debug("Read {0}".format(ttk_file))
 
-        df = pd.read_excel(ttk_file, skiprows=6)
+        df = pd.read_excel(ttk_file,
+                           dtype={'Order/adjustment ID  ': str,
+                                  'Order created time(UTC)': str,
+                                  'Total revenue': int,
+                                  'Total settlement amount': int,
+                                  'Refund subtotal after seller discounts': int,
+                                  'Shipping costs passed on to the logistics provider': int})
 
         if len(df) > 0:
-            check_saldo_keyword(ttk_file, df)
             generate_bisaremit(ttk_file, df)
-            generate_bisabonus(ttk_file, df)
