@@ -37,7 +37,7 @@ def read_bisatransaksi(ttk_file):
         # Remove rows with invalid status
         df = df[(df['Tokopedia Invoice Number'].isna()) &
                 (df['Order ID'] != 'Platform unique order ID.')]
-        search_values = ['Canceled']
+        search_values = ['Dibatalkan']
         df = df[~df['Order Status'].str.contains('|'.join(search_values))]
 
         if len(df) > 0:
