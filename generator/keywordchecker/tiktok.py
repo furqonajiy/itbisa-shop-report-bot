@@ -4,9 +4,10 @@ from keywordchecker.generic import handle_invalid_keywords
 
 VALID_TRANSAKSI_KEYWORD = [
     # V1
-    'To ship',
-    'Shipped',
-    'Completed',
+    'Perlu dikirim',
+    'Dikirim',
+    'Selesai',
+    'Dibatalkan'
 
     # V2
 ]
