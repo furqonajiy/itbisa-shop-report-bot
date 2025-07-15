@@ -24,7 +24,7 @@ VALID_NOMINAL_REMIT_KEYWORD = [
     'Penyesuaian untuk',
     'Penggantian Dana Sebagian Barang Hilang',
     'Auto-approve compensation without judging',
-    'SPinjam untuk Penjual'
+    'SPinjam untuk Penjual',
 ]
 
 VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
@@ -34,7 +34,8 @@ VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD = [
 
 VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
     # Kerugian Tambahan
-    'Penyesuaian Saldo Penjual Karena Kekurangan Ongkir Pengembalian'
+    'Penyesuaian Saldo Penjual Karena Kekurangan Ongkir Pengembalian',
+    'Penyesuaian saldo dilakukan untuk pesanan'
 ]
 
 VALID_BONUS_KEYWORD = [
