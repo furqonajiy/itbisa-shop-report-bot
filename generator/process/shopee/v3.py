@@ -20,7 +20,8 @@ def process(list_report):
     for shp_file in list_report:
         read_bisatransaksi(shp_file)
 
-    df_fee = pd.DataFrame(columns=['Invoice', 'Potongan Pembayaran (Fee)', 'Nominal Remit (Fee)', 'Keuntungan Tambahan (Fee)', 'Kerugian Tambahan (Fee)'])
+    df_fee = pd.DataFrame(columns=['Invoice', 'Potongan Pembayaran (Fee)', 'Nominal Remit (Fee)',
+                                   'Keuntungan Tambahan (Fee)', 'Kerugian Tambahan (Fee)', 'Biaya Proses Pesanan'])
     for shp_file in list_report:
         df_fee = read_bisafee(shp_file, df_fee)
 
@@ -76,7 +77,7 @@ def read_bisafee(shp_file, df_fee):
 
         df_raw = pd.read_excel(shp_file, sheet_name='Income', skiprows=5, dtype={
             'Harga Asli Produk': int, 'Total Diskon Produk': int, 'Biaya Administrasi': int, 'Biaya Layanan': int,
-            'Ongkir yang Diteruskan oleh Shopee ke Jasa Kirim': int, 'Total Penghasilan': int})
+            'Biaya Proses Pesanan': int, 'Ongkir yang Diteruskan oleh Shopee ke Jasa Kirim': int, 'Total Penghasilan': int})
 
         df_adjust = []
         try:
