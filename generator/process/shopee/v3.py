@@ -54,18 +54,18 @@ def read_bisatransaksi(shp_file):
             generate_bisajual(shp_file, df)
 
 
-def read_bisasaldo(shp_file, df_fee):
-    cond1 = 'BisaSaldo v3 Shopee' in shp_file
-    cond2 = '~' not in shp_file
+def read_bisasaldo(shp_saldo_file, df_fee):
+    cond1 = 'BisaSaldo v3 Shopee' in shp_saldo_file
+    cond2 = '~' not in shp_saldo_file
     if cond1 and cond2:
-        logging.debug("Read {0}".format(shp_file))
+        logging.debug("Read {0}".format(shp_saldo_file))
 
-        df = pd.read_excel(shp_file, skiprows=17, dtype={'Jumlah': float, 'Saldo Akhir': float})
+        df = pd.read_excel(shp_saldo_file, skiprows=17, dtype={'Jumlah': float, 'Saldo Akhir': float})
 
         if len(df) > 0:
-            check_saldo_keyword(shp_file, df)
-            generate_bisaremit(shp_file, df, df_fee)
-            generate_bisabonus(shp_file, df)
+            check_saldo_keyword(shp_saldo_file, df)
+            generate_bisaremit(shp_saldo_file, df, df_fee)
+            generate_bisabonus(shp_saldo_file, df)
 
 
 def read_bisafee(shp_file, df_fee):
