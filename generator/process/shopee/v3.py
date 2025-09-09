@@ -75,7 +75,7 @@ def read_bisafee(shp_file, df_fee):
         logging.debug("Read {0}".format(shp_file))
 
         df_raw = pd.read_excel(shp_file, sheet_name='Income', skiprows=5, dtype={
-            'Harga Asli Produk': int, 'Total Diskon Produk': int, 'Biaya Administrasi': int, 'Biaya Layanan (termasuk PPN 11%)': int,
+            'Harga Asli Produk': int, 'Total Diskon Produk': int, 'Biaya Administrasi': int, 'Biaya Layanan': int,
             'Ongkir yang Diteruskan oleh Shopee ke Jasa Kirim': int, 'Total Penghasilan': int})
 
         df_adjust = []
