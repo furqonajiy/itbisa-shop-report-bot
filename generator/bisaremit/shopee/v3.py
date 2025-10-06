@@ -6,8 +6,8 @@ from bisaremit.generic import bisaremit_to_excel
 from keywordchecker.shopee import VALID_NOMINAL_REMIT_KEYWORD, VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD, VALID_KERUGIAN_TAMBAHAN_KEYWORD
 
 
-def generate_bisaremit(shp_file, df, df_fee):
-    logging.info("Generate BisaRemit Shopee from {0} ({1} rows)".format(shp_file, len(df)))
+def generate_bisaremit(shp_saldo_file, df, df_fee):
+    logging.info("Generate BisaRemit Shopee from {0} ({1} rows)".format(shp_saldo_file, len(df)))
 
     # Select rows which contains invoice number
     search_values = ['-']
@@ -24,9 +24,7 @@ def generate_bisaremit(shp_file, df, df_fee):
 
     # Generate Nominal Remit, Keuntungan Tambahan, Kerugian Tambahan, based on Deskripsi
     df.loc[df['Deskripsi'].str.contains('|'.join(VALID_NOMINAL_REMIT_KEYWORD)), 'Nominal Remit'] = df['Jumlah']
-
     df.loc[df['Deskripsi'].str.contains('|'.join(VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD)), 'Keuntungan Tambahan'] = df['Jumlah']
-
     df.loc[df['Deskripsi'].str.contains('|'.join(VALID_KERUGIAN_TAMBAHAN_KEYWORD)), 'Kerugian Tambahan'] = -df['Jumlah']
 
     # Select Needed Column
@@ -54,7 +52,7 @@ def generate_bisaremit(shp_file, df, df_fee):
              'Keuntungan Tambahan', 'Kerugian Tambahan']].set_index('Invoice')
 
     # Export to Existing WorkBook
-    path = (shp_file
+    path = (shp_saldo_file
             .replace(' v1', '')
             .replace(' v2', '')
             .replace(' v3', '')

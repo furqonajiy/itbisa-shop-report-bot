@@ -20,7 +20,8 @@ def process(list_report):
     for shp_file in list_report:
         read_bisatransaksi(shp_file)
 
-    df_fee = pd.DataFrame(columns=['Invoice', 'Potongan Pembayaran (Fee)', 'Nominal Remit (Fee)', 'Keuntungan Tambahan (Fee)', 'Kerugian Tambahan (Fee)'])
+    df_fee = pd.DataFrame(columns=['Invoice', 'Potongan Pembayaran (Fee)', 'Nominal Remit (Fee)',
+                                   'Keuntungan Tambahan (Fee)', 'Kerugian Tambahan (Fee)', 'Biaya Proses Pesanan'])
     for shp_file in list_report:
         df_fee = read_bisafee(shp_file, df_fee)
 
@@ -54,18 +55,18 @@ def read_bisatransaksi(shp_file):
             generate_bisajual(shp_file, df)
 
 
-def read_bisasaldo(shp_file, df_fee):
-    cond1 = 'BisaSaldo v3 Shopee' in shp_file
-    cond2 = '~' not in shp_file
+def read_bisasaldo(shp_saldo_file, df_fee):
+    cond1 = 'BisaSaldo v3 Shopee' in shp_saldo_file
+    cond2 = '~' not in shp_saldo_file
     if cond1 and cond2:
-        logging.debug("Read {0}".format(shp_file))
+        logging.debug("Read {0}".format(shp_saldo_file))
 
-        df = pd.read_excel(shp_file, skiprows=17, dtype={'Jumlah': float, 'Saldo Akhir': float})
+        df = pd.read_excel(shp_saldo_file, skiprows=17, dtype={'Jumlah': float, 'Saldo Akhir': float})
 
         if len(df) > 0:
-            check_saldo_keyword(shp_file, df)
-            generate_bisaremit(shp_file, df, df_fee)
-            generate_bisabonus(shp_file, df)
+            check_saldo_keyword(shp_saldo_file, df)
+            generate_bisaremit(shp_saldo_file, df, df_fee)
+            generate_bisabonus(shp_saldo_file, df)
 
 
 def read_bisafee(shp_file, df_fee):
@@ -75,8 +76,8 @@ def read_bisafee(shp_file, df_fee):
         logging.debug("Read {0}".format(shp_file))
 
         df_raw = pd.read_excel(shp_file, sheet_name='Income', skiprows=5, dtype={
-            'Harga Asli Produk': int, 'Total Diskon Produk': int, 'Biaya Administrasi': int, 'Biaya Layanan (termasuk PPN 11%)': int,
-            'Ongkir yang Diteruskan oleh Shopee ke Jasa Kirim': int, 'Total Penghasilan': int})
+            'Harga Asli Produk': int, 'Total Diskon Produk': int, 'Biaya Administrasi': int, 'Biaya Layanan': int,
+            'Biaya Proses Pesanan': int, 'Ongkir yang Diteruskan oleh Shopee ke Jasa Kirim': int, 'Total Penghasilan': int})
 
         df_adjust = []
         try:

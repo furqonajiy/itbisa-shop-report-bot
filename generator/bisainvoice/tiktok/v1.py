@@ -12,8 +12,8 @@ def generate_bisainvoice(ttk_file, df):
     df = df.dropna(axis=0, subset=['Order ID'])
     df = df.drop_duplicates(subset=['Order ID'])
 
-    # Add New Column contain 'Tiktok'
-    df['Marketplace'] = 'Tiktok'
+    # Select Marketplace Tiktok / Tokopedia
+    df['Marketplace'] = df['Purchase Channel'].str.title()
 
     # Select Needed Column
     df = df[['Created Time', 'Marketplace', 'Order ID',
