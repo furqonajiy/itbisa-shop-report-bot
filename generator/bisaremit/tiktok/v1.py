@@ -9,7 +9,7 @@ def generate_bisaremit(tkp_file, df):
     logging.info("Generate BisaRemit Tiktok from {0} ({1} rows)".format(tkp_file, len(df)))
 
     # Generate Invoice from Order/adjustment ID
-    df = df[['Order/adjustment ID  ', 'Order created time(UTC)', 'Total settlement amount', 'Total Revenue',
+    df = df[['Order/adjustment ID  ', 'Order created time', 'Total settlement amount', 'Total Revenue',
              'Shipping costs passed on to the logistics provider', 'Refund subtotal after seller discounts']]
 
     # Initialize Biaya Layanan and Remit
