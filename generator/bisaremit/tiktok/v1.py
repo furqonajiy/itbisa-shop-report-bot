@@ -13,10 +13,10 @@ def generate_bisaremit(tkp_file, df):
              'Shipping costs passed on to the logistics provider', 'Refund subtotal after seller discounts']]
 
     # Initialize Biaya Layanan and Remit
-    df['Nominal Remit'] = df['Total revenue'] - df['Refund subtotal after seller discounts']
+    df['Nominal Remit'] = df['Total Revenue'] - df['Refund subtotal after seller discounts']
     df['Potongan Pembayaran'] = -df['Shipping costs passed on to the logistics provider']
     df['Keuntungan Tambahan'] = 0
-    df['Kerugian Tambahan'] = df['Total revenue'] - df['Total settlement amount'] - df['Refund subtotal after seller discounts']
+    df['Kerugian Tambahan'] = df['Total Revenue'] - df['Total settlement amount'] - df['Refund subtotal after seller discounts']
 
     # Select Needed Column
     df = df[['Order/adjustment ID  ', 'Order created time(UTC)', 'Potongan Pembayaran', 'Nominal Remit',
