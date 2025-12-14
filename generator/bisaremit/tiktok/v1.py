@@ -19,7 +19,7 @@ def generate_bisaremit(tkp_file, df):
     df['Kerugian Tambahan'] = df['Total Revenue'] - df['Total settlement amount'] - df['Refund subtotal after seller discounts']
 
     # Select Needed Column
-    df = df[['Order/adjustment ID  ', 'Order created time(UTC)', 'Potongan Pembayaran', 'Nominal Remit',
+    df = df[['Order/adjustment ID  ', 'Order created time', 'Potongan Pembayaran', 'Nominal Remit',
              'Keuntungan Tambahan', 'Kerugian Tambahan']]
 
     # Change Column Name
