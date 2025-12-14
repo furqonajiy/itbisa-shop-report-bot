@@ -53,8 +53,8 @@ def read_bisafee(ttk_file):
 
         df = pd.read_excel(ttk_file,
                            dtype={'Order/adjustment ID  ': str,
-                                  'Order created time(UTC)': str,
-                                  'Total revenue': int,
+                                  'Order created time': str,
+                                  'Total Revenue': int,
                                   'Total settlement amount': int,
                                   'Refund subtotal after seller discounts': int,
                                   'Shipping costs passed on to the logistics provider': int})
