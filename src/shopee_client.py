@@ -39,6 +39,11 @@ from src import config, shopee_auth
 # Public surface
 # ============================================================
 
+# Shopee's wallet API rejects windows > 15 days. We slice the
+# requested period into 15-day chunks and walk each chunk's pages.
+_WALLET_MAX_WINDOW_DAYS = 15
+
+
 def describe() -> str:
     return "Shopee"
 
@@ -57,6 +62,13 @@ def get_wallet_transactions(
       page_no:          int (1-indexed)
       page_size:        int (max 100 per docs)
 
+    Implementation note:
+      Shopee caps the (create_time_to - create_time_from) window at
+      15 days. A monthly query (28-31 days) gets rejected with
+      'wallet.time_invalid'. We slice the requested period into
+      15-day chunks internally and concatenate results, so callers
+      can pass any window length they want.
+
     Each yielded transaction dict typically contains:
       transaction_type   ('ORDER_INCOME', 'WITHDRAWAL', 'ADJUSTMENT', ...)
       reason             (free-text Bahasa)
@@ -68,6 +80,24 @@ def get_wallet_transactions(
     Raises RuntimeError on platform-level error, or RefreshTokenExpiredError
     if the refresh chain is dead.
     """
+    window_seconds = _WALLET_MAX_WINDOW_DAYS * 86400
+    current = int(start_ts_unix)
+    end = int(end_ts_unix)
+    window_index = 0
+
+    while current < end:
+        window_end = min(current + window_seconds, end)
+        window_index += 1
+        print(
+            f"  [shopee] window {window_index}: "
+            f"{current} → {window_end} ({(window_end - current) // 86400}d)"
+        )
+        yield from _walk_wallet_window(current, window_end)
+        current = window_end
+
+
+def _walk_wallet_window(start_ts: int, end_ts: int) -> Iterator[dict]:
+    """Paginates ONE ≤15-day window of wallet transactions."""
     path = "/api/v2/payment/get_wallet_transaction_list"
     page_no = 1
     page_size = config.SHOPEE_WALLET_PAGE_SIZE
@@ -76,11 +106,14 @@ def get_wallet_transactions(
         body = {
             "page_no":          page_no,
             "page_size":        page_size,
-            "create_time_from": int(start_ts_unix),
-            "create_time_to":   int(end_ts_unix),
+            "create_time_from": start_ts,
+            "create_time_to":   end_ts,
         }
         response = _call_signed("POST", path, body=body)
-        _check_ok(response, context=f"wallet_transaction_list page={page_no}")
+        _check_ok(
+            response,
+            context=f"wallet_transaction_list window={start_ts}-{end_ts} page={page_no}",
+        )
 
         payload = response.json().get("response") or {}
         rows = payload.get("transaction_list") or []

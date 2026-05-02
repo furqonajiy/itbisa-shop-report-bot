@@ -91,6 +91,11 @@ def iter_statements(
             "statement_time_ge": str(int(start_ts_unix)),
             "statement_time_lt": str(int(end_ts_unix)),
             "page_size":         str(config.TIKTOKSHOP_FINANCE_PAGE_SIZE),
+            # 202309 statements REQUIRES both of these (HTTP 400 / code
+            # 36009004 'SortField is a required field' otherwise). Order
+            # is irrelevant for our aggregation, so DESC by statement_time.
+            "sort_field":        "statement_time",
+            "sort_order":        "DESC",
         }
         if page_token:
             extra_query["page_token"] = page_token
