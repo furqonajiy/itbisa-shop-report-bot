@@ -1,0 +1,10 @@
+# Python dependencies for itbisa-shop-report-bot.
+# Pinned versions for reproducibility.
+
+# PR 1: discovery + auth scaffolding only.
+requests==2.32.3        # HTTP calls to Shopee, TikTok Shop, Telegram
+python-dotenv==1.0.1    # Loads .env file for local development
+
+# PR 2 will add:
+#   pandas==2.2.3
+#   openpyxl==3.1.5
