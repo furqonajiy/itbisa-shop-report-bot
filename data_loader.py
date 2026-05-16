@@ -10,8 +10,27 @@ from config import (
     COL_JUAL_AKUN, COL_JUAL_KODE_UNIK, COL_JUAL_OMZET, COL_JUAL_QTY,
     COL_JUAL_TAMBAHAN, COL_JUAL_TANGGAL, COL_STOK_LUAR_NEGERI, COL_STOK_QTY,
     COL_STOK_TANGGAL_BAYAR, COL_STOK_TOKO, COL_STOK_TOTAL_HPP,
-    EXCLUDED_SKUS, JUAL_SHEETS, REQUIRED_JUAL_SHEET, STOK_SHEET,
+    EXCLUDED_SKUS, JUAL_SHEETS, MIGRASI_PREFIX, REQUIRED_JUAL_SHEET, STOK_SHEET,
 )
+
+
+def _is_migrasi(s: pd.Series) -> pd.Series:
+    return s.astype(str).str.startswith(MIGRASI_PREFIX, na=False)
+
+
+def _drop_duplicate_migrasi(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop Migrasi rows for SKUs that also have non-Migrasi (real purchase) data.
+    Keep Migrasi rows where they're the only source of HPP info for the SKU."""
+    is_mig = _is_migrasi(df["toko"])
+    skus_with_real = set(df.loc[~is_mig, "SKU"].unique())
+    to_drop = is_mig & df["SKU"].isin(skus_with_real)
+
+    n_drop = int(to_drop.sum())
+    n_keep_mig = int((is_mig & ~to_drop).sum())
+    if n_drop or n_keep_mig:
+        print(f"  → Migrasi: drop {n_drop:,} duplikat (SKU sudah ada di non-Migrasi), "
+              f"keep {n_keep_mig:,} (satu-satunya sumber HPP)")
+    return df[~to_drop].copy()
 
 
 def load_stok_files(file_paths: list[Path]) -> pd.DataFrame:
@@ -56,6 +75,8 @@ def load_stok_files(file_paths: list[Path]) -> pd.DataFrame:
     n_dup = before_dedup - len(df)
     print(f"  → Stok bersih: {len(df):,} baris (dari {raw_count:,} mentah, "
           f"hapus {n_dup:,} duplikat)")
+
+    df = _drop_duplicate_migrasi(df)
     return df
 
 
