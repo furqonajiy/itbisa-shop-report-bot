@@ -1,4 +1,4 @@
-"""Excel report writer with styling helpers."""
+"""Excel report writer."""
 from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
@@ -10,14 +10,13 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from config import (
-    ALERT_TEXT_COLOR, FONT_NAME, FMT_DEC, FMT_NUM, FMT_PCT, FMT_RP,
+    ALERT_TEXT_COLOR, FMT_DEC, FMT_NUM, FMT_PCT, FMT_RP, FONT_NAME,
     GREEN_FILL_COLOR, HEADER_BG_COLOR, HEADER_TEXT_COLOR, LIGHT_GRAY_COLOR,
     MARGIN_THRESHOLD_KANDIDAT, PRICE_SCENARIOS, RED_FILL_COLOR,
     TARGET_MARGIN_KOREKSI, TITLE_COLOR, TOP_N_PER_PLATFORM, YELLOW_FILL_COLOR,
 )
 from tables import build_top_per_platform
 
-# Reusable styles
 HEADER_FONT = Font(name=FONT_NAME, bold=True, color=HEADER_TEXT_COLOR, size=11)
 HEADER_FILL = PatternFill("solid", start_color=HEADER_BG_COLOR)
 TITLE_FONT = Font(name=FONT_NAME, bold=True, size=14, color=TITLE_COLOR)
@@ -40,7 +39,6 @@ THIN_BORDER = Border(
 
 def write_headers(ws: Worksheet, row: int, headers: list[str],
                   widths: list[float] | None = None) -> None:
-    """Write a styled header row with optional column widths."""
     for i, h in enumerate(headers, start=1):
         c = ws.cell(row=row, column=i, value=h)
         c.font = HEADER_FONT
@@ -55,10 +53,6 @@ def write_headers(ws: Worksheet, row: int, headers: list[str],
 def write_data_rows(ws: Worksheet, start_row: int, df: pd.DataFrame,
                     formats: list[str | None] | None = None,
                     negative_highlight_col: int | None = None) -> None:
-    """Write data rows; optionally highlight whole row red if a column < 0.
-
-    `negative_highlight_col` is 1-indexed (Excel column number).
-    """
     for r_idx, (_, row) in enumerate(df.iterrows()):
         for c_idx, val in enumerate(row, start=1):
             if pd.isna(val):
@@ -79,7 +73,6 @@ def write_data_rows(ws: Worksheet, start_row: int, df: pd.DataFrame,
 
 def _build_findings(sku_agg: pd.DataFrame, tables: dict,
                     sku_no_hpp: list[str]) -> list[str]:
-    """Generate data-driven findings narrative as a list of lines."""
     lines: list[str] = []
 
     rugi = tables["rugi"]
@@ -103,7 +96,8 @@ def _build_findings(sku_agg: pd.DataFrame, tables: dict,
             note = ""
             if r["restock_di_tahun"] and pd.notna(r["qty_setelah_restock"]) and r["qty_terjual"] > 0:
                 pct = r["qty_setelah_restock"] / r["qty_terjual"] * 100
-                note = f", restock tahun ini langsung {r['qty_setelah_restock']:,.0f} pcs terjual ({pct:.0f}%)"
+                note = (f", restock tahun ini langsung "
+                        f"{r['qty_setelah_restock']:,.0f} pcs terjual ({pct:.0f}%)")
             lines.append(
                 f"   • {r['SKU']} — {r['qty_terjual']:,.0f} pcs, "
                 f"margin {r['margin_pct']:.1f}%, stok {r['sisa_stok']:,.0f}{note}."
@@ -137,18 +131,30 @@ def _build_findings(sku_agg: pd.DataFrame, tables: dict,
         )
     lines.append("")
 
+    supplier = tables.get("supplier", {})
+    comp = supplier.get("comparison", pd.DataFrame())
+    volatile = supplier.get("volatile", pd.DataFrame())
+    if len(comp) > 0 or len(volatile) > 0:
+        lines.append("🏭 SUPPLIER INSIGHT (China direct vs Market):")
+        stop_china = comp[comp["rekomendasi"].astype(str).str.startswith("🔴")]
+        if len(stop_china) > 0:
+            lines.append(f"   • {len(stop_china)} SKU lebih murah dari Market dibanding China — pertimbangkan stop reorder China")
+            for _, r in stop_china.head(3).iterrows():
+                lines.append(f"     - {r['SKU']}: HPP China Rp {r['hpp_china']:,.0f} vs Market Rp {r['hpp_market']:,.0f}")
+        if len(volatile) > 0:
+            lines.append(f"   • {len(volatile)} SKU dengan HPP China tidak konsisten (CV > 15%)")
+        lines.append("")
+
     if sku_no_hpp:
         lines.append(
-            f"CATATAN: {len(sku_no_hpp)} SKU dijual tanpa HPP (di-exclude): "
-            + ", ".join(sku_no_hpp)
+            f"CATATAN: {len(sku_no_hpp)} SKU dijual tanpa HPP (excluded): "
+            + ", ".join(sku_no_hpp[:10])
+            + ("..." if len(sku_no_hpp) > 10 else "")
         )
     return lines
 
 
-def _write_summary(ws: Worksheet, year: int, jual: pd.DataFrame,
-                   sku_agg: pd.DataFrame, tables: dict,
-                   sku_no_hpp: list[str]) -> None:
-    """Write executive summary sheet with totals and findings."""
+def _write_summary(ws, year, jual, sku_agg, tables, sku_no_hpp):
     ws["A1"] = f"LAPORAN ANALISA PENJUALAN ITBISA SHOP {year}"
     ws["A1"].font = BIG_TITLE_FONT
     ws.merge_cells("A1:D1")
@@ -199,7 +205,7 @@ def _write_summary(ws: Worksheet, year: int, jual: pd.DataFrame,
     for i, line in enumerate(findings, start=22):
         c = ws.cell(row=i, column=1, value=line)
         c.font = NORMAL_FONT
-        if line and any(line.startswith(em) for em in ["🔴", "🟢", "⭐", "💰", "🏪"]):
+        if line and any(line.startswith(em) for em in ["🔴", "🟢", "⭐", "💰", "🏪", "🏭"]):
             c.font = BOLD_FONT
         ws.merge_cells(start_row=i, start_column=1, end_row=i, end_column=10)
 
@@ -207,18 +213,17 @@ def _write_summary(ws: Worksheet, year: int, jual: pd.DataFrame,
     ws.column_dimensions["B"].width = 22
 
 
-def _write_diminati(ws: Worksheet, df: pd.DataFrame) -> None:
+def _write_diminati(ws, df):
     ws["A1"] = "TABEL 1: BARANG PALING DIMINATI (sort by Qty Terjual)"
     ws["A1"].font = TITLE_FONT
     ws.merge_cells("A1:I1")
-    ws["A2"] = "Avg Qty/Order TINGGI = banyak reseller borongan. RENDAH = banyak transaksi retail."
+    ws["A2"] = "Avg Qty/Order TINGGI = reseller borongan. RENDAH = retail individual."
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:I2")
     write_headers(ws, 4,
         ["SKU", "Qty Terjual", "Jumlah Transaksi", "Avg Qty/Order",
          "Harga Jual Avg", "Omzet", "HPP/buah", "Profit", "Margin %"],
-        widths=[38, 13, 13, 13, 15, 18, 13, 18, 12],
-    )
+        widths=[38, 13, 13, 13, 15, 18, 13, 18, 12])
     df = df.copy()
     df["margin_frac"] = df["margin_pct"] / 100
     out = df[["SKU", "qty_terjual", "jumlah_transaksi", "avg_qty_per_order",
@@ -229,11 +234,11 @@ def _write_diminati(ws: Worksheet, df: pd.DataFrame) -> None:
     ws.freeze_panes = "B5"
 
 
-def _write_profit(ws: Worksheet, df: pd.DataFrame) -> None:
+def _write_profit(ws, df):
     ws["A1"] = "TABEL 2: BARANG PENYUMBANG PROFIT TERBESAR"
     ws["A1"].font = TITLE_FONT
     ws.merge_cells("A1:H1")
-    ws["A2"] = "Sort by total Profit (Rupiah). Profit/buah penting untuk lihat efisiensi per unit."
+    ws["A2"] = "Sort by total Profit (Rupiah)."
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:H2")
     write_headers(ws, 4,
@@ -250,16 +255,16 @@ def _write_profit(ws: Worksheet, df: pd.DataFrame) -> None:
     ws.freeze_panes = "B5"
 
 
-def _write_rugi(ws: Worksheet, df: pd.DataFrame) -> None:
+def _write_rugi(ws, df):
     ws["A1"] = "TABEL 3: BARANG RUGI / SALAH PASANG HARGA"
     ws["A1"].font = TITLE_FONT
     ws.merge_cells("A1:I1")
-    ws["A2"] = "Total Cost = HPP + |Admin/buah|. Selisih = Harga - Total Cost. Selisih NEGATIF = jual di bawah modal."
+    ws["A2"] = "Selisih = Harga Jual - (HPP + |Admin|). NEGATIF = jual di bawah modal."
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:I2")
 
     if len(df) == 0:
-        ws["A4"] = "(tidak ada barang rugi — kerja bagus!)"
+        ws["A4"] = "(tidak ada barang rugi)"
         ws["A4"].font = BOLD_FONT
         return
 
@@ -277,7 +282,6 @@ def _write_rugi(ws: Worksheet, df: pd.DataFrame) -> None:
     row_rec = 5 + len(df) + 2
     ws.cell(row=row_rec, column=1,
             value=f"REKOMENDASI HARGA KOREKSI (target margin {TARGET_MARGIN_KOREKSI*100:.0f}%):").font = BOLD_FONT
-    ws.merge_cells(start_row=row_rec, start_column=1, end_row=row_rec, end_column=5)
     for i, (_, r) in enumerate(df.iterrows(), start=row_rec + 1):
         cost = r["hpp_wa"] + abs(r["biaya_admin_per_buah"])
         rekom = cost / (1 - TARGET_MARGIN_KOREKSI)
@@ -288,11 +292,11 @@ def _write_rugi(ws: Worksheet, df: pd.DataFrame) -> None:
         c.fill = GREEN_FILL
 
 
-def _write_borderline(ws: Worksheet, df: pd.DataFrame) -> None:
+def _write_borderline(ws, df):
     ws["A1"] = "TABEL 4: MARGIN BORDERLINE 0-5% (RAWAN RUGI)"
     ws["A1"].font = TITLE_FONT
     ws.merge_cells("A1:H1")
-    ws["A2"] = "Margin tipis: rentan rugi kalau biaya admin naik atau ada diskon. Naikkan ~10-15%."
+    ws["A2"] = "Margin tipis: rentan rugi kalau biaya admin naik atau diskon."
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:H2")
 
@@ -313,15 +317,15 @@ def _write_borderline(ws: Worksheet, df: pd.DataFrame) -> None:
         formats=[None, FMT_NUM, FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, FMT_RP])
 
 
-def _write_kandidat(ws: Worksheet, df: pd.DataFrame) -> None:
+def _write_kandidat(ws, df):
     ws["A1"] = "TABEL 5: KANDIDAT NAIK HARGA"
     ws["A1"].font = TITLE_FONT
     ws.merge_cells("A1:M1")
-    ws["A2"] = (f"Kriteria: top 20% qty terjual + margin ≥{MARGIN_THRESHOLD_KANDIDAT:.0f}% "
-                "+ stok ada. Score = 60% velocity + 40% margin headroom.")
+    ws["A2"] = (f"Kriteria: top 20% qty + margin ≥{MARGIN_THRESHOLD_KANDIDAT:.0f}% "
+                "+ stok ada. Score = 60% velocity + 40% margin.")
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:M2")
-    ws["A3"] = '⚠ "Qty Setelah Restock" tinggi = restock baru cepat habis = sinyal harga underpriced.'
+    ws["A3"] = '⚠ "Qty Setelah Restock" tinggi = restock baru cepat habis = harga underpriced.'
     ws["A3"].font = ALERT_FONT
     ws.merge_cells("A3:M3")
 
@@ -353,19 +357,17 @@ def _write_kandidat(ws: Worksheet, df: pd.DataFrame) -> None:
     formats += [FMT_RP, None]
     write_data_rows(ws, 6, out, formats=formats)
 
-    # Highlight top 5 with yellow
-    end_col = len(headers)
     n_top = min(5, len(df))
     for r in range(6, 6 + n_top):
-        for c in range(1, end_col + 1):
+        for c in range(1, len(headers) + 1):
             ws.cell(row=r, column=c).fill = YELLOW_FILL
 
 
-def _write_platform(ws: Worksheet, plat_df: pd.DataFrame, jual: pd.DataFrame) -> None:
+def _write_platform(ws, plat_df, jual):
     ws["A1"] = "TABEL 6: BREAKDOWN PER PLATFORM"
     ws["A1"].font = TITLE_FONT
     ws.merge_cells("A1:I1")
-    ws["A2"] = "Lihat margin dan biaya admin per platform. Platform dengan admin% tinggi = perlu evaluasi."
+    ws["A2"] = "Lihat margin dan biaya admin per platform."
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:I2")
     write_headers(ws, 4,
@@ -397,7 +399,7 @@ def _write_platform(ws: Worksheet, plat_df: pd.DataFrame, jual: pd.DataFrame) ->
         row_cur += 3 + len(top)
 
 
-def _write_full_data(ws: Worksheet, sku_agg: pd.DataFrame) -> None:
+def _write_full_data(ws, sku_agg):
     ws["A1"] = "DATA LENGKAP PER SKU"
     ws["A1"].font = TITLE_FONT
     ws.merge_cells("A1:Q1")
@@ -411,7 +413,6 @@ def _write_full_data(ws: Worksheet, sku_agg: pd.DataFrame) -> None:
                "Lot Beli", "Restock Tahun"]
     widths = [38, 12, 8, 13, 16, 12, 16, 16, 12, 16, 12, 14, 11, 12, 12, 9, 11]
     write_headers(ws, 3, headers, widths=widths)
-
     df_full = sku_agg[cols].sort_values("profit", ascending=False).copy()
     df_full["margin_pct"] = df_full["margin_pct"] / 100
     df_full["restock_di_tahun"] = df_full["restock_di_tahun"].map({True: "Ya", False: "Tidak"})
@@ -422,9 +423,92 @@ def _write_full_data(ws: Worksheet, sku_agg: pd.DataFrame) -> None:
     ws.freeze_panes = "B4"
 
 
+def _write_supplier_analysis(ws, supplier_tables):
+    ws["A1"] = "TABEL 8: SUPPLIER ANALYSIS — CHINA DIRECT vs MARKET BUY"
+    ws["A1"].font = TITLE_FONT
+    ws.merge_cells("A1:I1")
+    ws["A2"] = ("China = Ocistok/Martkita/Aliexpress/Jasa Impor (import langsung). "
+                "Market = beli ulang dari Shopee/Tokopedia/Bukalapak/Tiktok.")
+    ws["A2"].font = SUB_FONT
+    ws.merge_cells("A2:I2")
+
+    row_cur = 4
+
+    # Section A: China vs Market comparison (most actionable)
+    comp = supplier_tables["comparison"]
+    ws.cell(row=row_cur, column=1, value="A. PERBANDINGAN CHINA vs MARKET (SKU dengan kedua sumber)").font = TITLE_FONT
+    row_cur += 1
+    if len(comp) == 0:
+        ws.cell(row=row_cur, column=1, value="(tidak ada SKU dengan pembelian dari China DAN Market)").font = NORMAL_FONT
+        row_cur += 2
+    else:
+        write_headers(ws, row_cur,
+            ["SKU", "Qty Terjual", "n China", "HPP China",
+             "n Market", "HPP Market", "Selisih (M−C)", "CV China", "Rekomendasi"],
+            widths=[38, 12, 9, 14, 9, 14, 14, 10, 40])
+        out = comp[["SKU", "qty_terjual", "n_china", "hpp_china",
+                    "n_market", "hpp_market", "selisih_market_vs_china",
+                    "cv_china", "rekomendasi"]]
+        write_data_rows(ws, row_cur + 1, out,
+            formats=[None, FMT_NUM, FMT_NUM, FMT_RP, FMT_NUM, FMT_RP, FMT_RP, FMT_PCT, None])
+        # Highlight rows with "STOP" recommendation in red
+        for i in range(len(comp)):
+            if str(comp.iloc[i]["rekomendasi"]).startswith("🔴"):
+                for c in range(1, 10):
+                    ws.cell(row=row_cur + 1 + i, column=c).fill = RED_FILL
+        row_cur += len(comp) + 3
+
+    # Section B: China-only with high HPP variance
+    vol = supplier_tables["volatile"]
+    ws.cell(row=row_cur, column=1, value="B. CHINA-ONLY DENGAN HPP TIDAK KONSISTEN (CV > 15%)").font = TITLE_FONT
+    row_cur += 1
+    if len(vol) == 0:
+        ws.cell(row=row_cur, column=1, value="(tidak ada SKU dengan variance HPP tinggi dari China)").font = NORMAL_FONT
+        row_cur += 2
+    else:
+        write_headers(ws, row_cur,
+            ["SKU", "Qty Terjual", "n China", "HPP Min", "HPP Max", "HPP Avg", "CV %", "Rekomendasi"],
+            widths=[38, 12, 9, 13, 13, 13, 10, 40])
+        out = vol[["SKU", "qty_terjual", "n_china", "hpp_min_china",
+                   "hpp_max_china", "hpp_china", "cv_china", "rekomendasi"]]
+        write_data_rows(ws, row_cur + 1, out,
+            formats=[None, FMT_NUM, FMT_NUM, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, None])
+        row_cur += len(vol) + 3
+
+    # Section C: China-only top sellers (opportunity to test market)
+    co = supplier_tables["china_only"]
+    ws.cell(row=row_cur, column=1, value=f"C. TOP CHINA-ONLY (potensi test market buy)").font = TITLE_FONT
+    row_cur += 1
+    if len(co) == 0:
+        ws.cell(row=row_cur, column=1, value="(tidak ada)").font = NORMAL_FONT
+        row_cur += 2
+    else:
+        write_headers(ws, row_cur,
+            ["SKU", "Qty Terjual", "n China", "HPP China"],
+            widths=[38, 12, 9, 14])
+        out = co[["SKU", "qty_terjual", "n_china", "hpp_china"]]
+        write_data_rows(ws, row_cur + 1, out,
+            formats=[None, FMT_NUM, FMT_NUM, FMT_RP])
+        row_cur += len(co) + 3
+
+    # Section D: Market-only top sellers (opportunity to test China import)
+    mo = supplier_tables["market_only"]
+    ws.cell(row=row_cur, column=1, value=f"D. TOP MARKET-ONLY (potensi test import China)").font = TITLE_FONT
+    row_cur += 1
+    if len(mo) == 0:
+        ws.cell(row=row_cur, column=1, value="(tidak ada)").font = NORMAL_FONT
+    else:
+        write_headers(ws, row_cur,
+            ["SKU", "Qty Terjual", "n Market", "HPP Market"],
+            widths=[38, 12, 9, 14])
+        out = mo[["SKU", "qty_terjual", "n_market", "hpp_market"]]
+        write_data_rows(ws, row_cur + 1, out,
+            formats=[None, FMT_NUM, FMT_NUM, FMT_RP])
+
+
 def write_report(output_path: Path, year: int, jual: pd.DataFrame,
                  sku_agg: pd.DataFrame, tables: dict, sku_no_hpp: list[str]) -> None:
-    """Orchestrate writing of all 8 sheets to a single Excel file."""
+    """Write all sheets to a single Excel file."""
     wb = Workbook()
     ws = wb.active
     ws.title = "00_Summary"
@@ -437,6 +521,8 @@ def write_report(output_path: Path, year: int, jual: pd.DataFrame,
     _write_kandidat(wb.create_sheet("05_Kandidat_Naik_Harga"), tables["kandidat"])
     _write_platform(wb.create_sheet("06_Per_Platform"), tables["platform"], jual)
     _write_full_data(wb.create_sheet("07_Data_Lengkap_per_SKU"), sku_agg)
+    if "supplier" in tables:
+        _write_supplier_analysis(wb.create_sheet("08_Supplier_Analysis"), tables["supplier"])
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(output_path)

@@ -1,39 +1,37 @@
-"""Main orchestrator for ITBisa sales analysis report.
-
-Usage:
-    python main.py                       # analyze current year
-    python main.py --year 2024           # analyze specific year
-    python main.py --year 2024 --data-dir /custom/path
-"""
+"""Main orchestrator for ITBisa sales analysis."""
 from __future__ import annotations
 import argparse
 import sys
 from datetime import datetime
 from pathlib import Path
 
-from config import (DATA_DIR, OUTPUT_DIR, STOK_FILENAME, JUAL_FILENAME, OUTPUT_FILENAME)
-from data_loader import clean_jual, load_jual, load_stok
 from analysis import (aggregate_by_sku, calculate_hpp_wa, calculate_qty_setelah_restock,
                        enrich_with_profit, find_sku_without_hpp)
-from tables import (build_table_borderline, build_table_diminati, build_table_kandidat,
-                     build_table_platform, build_table_profit, build_table_rugi)
+from config import DATA_DIR, JUAL_GLOB, OUTPUT_DIR, OUTPUT_FILENAME, STOK_GLOB
+from data_loader import clean_jual, load_jual_files, load_stok_files
 from excel_writer import write_report
+from tables import (build_supplier_analysis, build_table_borderline, build_table_diminati,
+                     build_table_kandidat, build_table_platform, build_table_profit,
+                     build_table_rugi)
 
 
 def run_analysis(year: int, data_dir: Path = DATA_DIR,
                  output_dir: Path = OUTPUT_DIR) -> Path:
-    """Run end-to-end analysis pipeline. Returns path to generated Excel."""
-    stok_path = data_dir / STOK_FILENAME.format(year=year)
-    jual_path = data_dir / JUAL_FILENAME.format(year=year)
     output_path = output_dir / OUTPUT_FILENAME.format(year=year)
 
     print(f"\n{'='*60}")
     print(f"ANALISA PENJUALAN ITBISA — TAHUN {year}")
     print(f"{'='*60}\n")
 
-    stok = load_stok(stok_path)
-    jual_raw = load_jual(jual_path)
-    jual_clean, _ = clean_jual(jual_raw)
+    stok_files = sorted(data_dir.glob(STOK_GLOB))
+    jual_files = sorted(data_dir.glob(JUAL_GLOB))
+
+    stok = load_stok_files(stok_files)
+    jual_raw = load_jual_files(jual_files)
+    jual_clean, _ = clean_jual(jual_raw, year=year)
+
+    if len(jual_clean) == 0:
+        raise ValueError(f"Tidak ada data jual untuk tahun {year}")
 
     hpp_agg = calculate_hpp_wa(stok)
     sku_no_hpp = find_sku_without_hpp(jual_clean, hpp_agg)
@@ -51,6 +49,7 @@ def run_analysis(year: int, data_dir: Path = DATA_DIR,
         "borderline": build_table_borderline(sku_agg),
         "kandidat": build_table_kandidat(sku_agg),
         "platform": build_table_platform(jual_with_profit),
+        "supplier": build_supplier_analysis(stok, sku_agg),
     }
 
     write_report(output_path, year, jual_with_profit, sku_agg, tables, sku_no_hpp)
@@ -65,15 +64,11 @@ def run_analysis(year: int, data_dir: Path = DATA_DIR,
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Generate ITBisa sales analysis Excel report."
-    )
+    parser = argparse.ArgumentParser(description="Generate ITBisa sales analysis Excel report.")
     parser.add_argument("--year", type=int, default=datetime.now().year,
                         help="Year to analyze (default: current year)")
-    parser.add_argument("--data-dir", type=Path, default=DATA_DIR,
-                        help=f"Input data directory (default: {DATA_DIR})")
-    parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR,
-                        help=f"Output directory (default: {OUTPUT_DIR})")
+    parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
+    parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     args = parser.parse_args()
 
     try:
