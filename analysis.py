@@ -1,16 +1,29 @@
-"""Calculate HPP, profit per transaction, and aggregate metrics by SKU."""
+"""HPP, profit, and per-SKU aggregation."""
 from __future__ import annotations
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
 
+from config import CHINA_KEYWORDS, MARKET_KEYWORDS
+
+
+def classify_supplier(toko, luar_negeri) -> str:
+    """Return 'China', 'Market', or 'Other'."""
+    if pd.notna(luar_negeri) and luar_negeri == 1:
+        return "China"
+    if pd.isna(toko):
+        return "Other"
+    t = str(toko).lower()
+    if any(k in t for k in CHINA_KEYWORDS):
+        return "China"
+    if any(k in t for k in MARKET_KEYWORDS):
+        return "Market"
+    return "Other"
+
 
 def calculate_hpp_wa(stok: pd.DataFrame) -> pd.DataFrame:
-    """Calculate weighted-average HPP per SKU from historical purchases.
-
-    Formula: HPP_WA = sum(total_hpp_rp) / sum(qty_beli) grouped by SKU.
-    """
+    """Weighted-average HPP per SKU from all historical purchases."""
     agg = stok.groupby("SKU").agg(
         total_qty_beli=("qty_beli", "sum"),
         total_hpp_sum=("total_hpp", "sum"),
@@ -18,28 +31,20 @@ def calculate_hpp_wa(stok: pd.DataFrame) -> pd.DataFrame:
         tanggal_pembelian_terakhir=("tanggal_bayar", "max"),
     ).reset_index()
     agg["hpp_wa"] = agg["total_hpp_sum"] / agg["total_qty_beli"]
-    print(f"✓ HPP weighted average dihitung untuk {len(agg)} SKU")
+    print(f"✓ HPP weighted average: {len(agg):,} SKU")
     return agg
 
 
 def find_sku_without_hpp(jual: pd.DataFrame, hpp_agg: pd.DataFrame) -> list[str]:
-    """Return SKUs present in jual but missing from stok (no HPP data)."""
-    sku_jual = set(jual["SKU"].unique())
-    sku_hpp = set(hpp_agg["SKU"].unique())
-    return sorted(sku_jual - sku_hpp)
+    return sorted(set(jual["SKU"].unique()) - set(hpp_agg["SKU"].unique()))
 
 
 def enrich_with_profit(jual: pd.DataFrame, hpp_agg: pd.DataFrame) -> pd.DataFrame:
-    """Add profit columns to jual. Rows without HPP are excluded with a warning.
-
-    Profit formula: omzet - (hpp_wa * qty_jual) + tambahan + kode_unik.
-    Tambahan and kode_unik are already signed (negative = biaya).
-    """
+    """Add profit columns; drop rows whose SKU has no HPP."""
     sku_no_hpp = find_sku_without_hpp(jual, hpp_agg)
     if sku_no_hpp:
         excluded_qty = jual[jual["SKU"].isin(sku_no_hpp)]["qty_jual"].sum()
-        print(f"⚠ {len(sku_no_hpp)} SKU dijual tanpa data HPP "
-              f"(di-exclude, {excluded_qty:,.0f} pcs):")
+        print(f"⚠ {len(sku_no_hpp)} SKU dijual tanpa HPP (excluded, {excluded_qty:,.0f} pcs):")
         for s in sku_no_hpp:
             print(f"    - {s}")
 
@@ -52,7 +57,7 @@ def enrich_with_profit(jual: pd.DataFrame, hpp_agg: pd.DataFrame) -> pd.DataFram
 
 
 def aggregate_by_sku(jual: pd.DataFrame, hpp_agg: pd.DataFrame, year: int) -> pd.DataFrame:
-    """Aggregate enriched jual into per-SKU metrics, joined with stock info."""
+    """Per-SKU aggregation joined with stock info."""
     sku_agg = jual.groupby("SKU").agg(
         qty_terjual=("qty_jual", "sum"),
         jumlah_transaksi=("Invoice", "nunique"),
@@ -78,19 +83,17 @@ def aggregate_by_sku(jual: pd.DataFrame, hpp_agg: pd.DataFrame, year: int) -> pd
         on="SKU", how="left",
     )
     sku_agg["sisa_stok"] = sku_agg["total_qty_beli"] - sku_agg["qty_terjual"]
-
-    year_start = datetime(year, 1, 1)
-    sku_agg["restock_di_tahun"] = sku_agg["tanggal_pembelian_terakhir"] >= year_start
+    sku_agg["restock_di_tahun"] = sku_agg["tanggal_pembelian_terakhir"] >= datetime(year, 1, 1)
     return sku_agg
 
 
 def calculate_qty_setelah_restock(sku_agg: pd.DataFrame, jual: pd.DataFrame) -> pd.DataFrame:
-    """For SKUs with restock in analysis year, count qty sold after last restock."""
-    def compute(row: pd.Series) -> float:
+    """For SKUs restocked in the analysis year, count qty sold after last restock."""
+    def compute(row):
         if not row["restock_di_tahun"] or pd.isna(row["tanggal_pembelian_terakhir"]):
             return np.nan
-        last_restock = row["tanggal_pembelian_terakhir"]
-        post = jual[(jual["SKU"] == row["SKU"]) & (jual["tanggal_pesan"] >= last_restock)]
+        post = jual[(jual["SKU"] == row["SKU"])
+                    & (jual["tanggal_pesan"] >= row["tanggal_pembelian_terakhir"])]
         return float(post["qty_jual"].sum()) if len(post) > 0 else 0.0
 
     sku_agg["qty_setelah_restock"] = sku_agg.apply(compute, axis=1)
