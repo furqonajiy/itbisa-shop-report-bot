@@ -42,10 +42,13 @@ data/
 python main.py                  # analisa tahun berjalan
 python main.py --year 2026      # analisa tahun spesifik
 python main.py --year 2024      # analisa tahun historis
+python main.py --all            # SEMUA tahun yang ditemukan di data (sekali run)
 python main.py --year 2024 --data-dir /custom/path --output-dir /custom/out
 ```
 
 Year filter berdasarkan `Tanggal Pesan`. Semua file jual di folder di-load, lalu di-filter ke tahun yang diminta.
+
+Mode `--all` generate satu file Excel per tahun (mis. `Analisa_Penjualan_ITBisa_2018.xlsx` sampai `..._2026.xlsx`) dan tampilkan ringkasan profit semua tahun di akhir console output. Cocok untuk lihat tren multi-tahun.
 
 ### 3. Lihat hasil
 
