@@ -1,266 +1,163 @@
-# itbisa-shop-report-bot
+# ITBisa Shop Report Bot
 
-Generates the **BisaLaporan** finance reports (BisaInvoice, BisaJual,
-BisaRemit, BisaFee, BisaBonus) for Shopee Indonesia and TikTok Shop
-Indonesia — same shape as the legacy `itbisa-bisalaporan` Python
-generator, but driven entirely from the Shopee Open API and TikTok
-Shop Open API instead of the manually-downloaded seller-center Excel
-exports.
+Tool standalone untuk generate laporan analisa penjualan ITBisa Shop dari data Shopee, Tokopedia, dan TikTok Shop. Dirancang untuk dirun berulang tanpa memerlukan Claude/internet.
 
-> **Status: PR 1 — scaffolding + token bootstrap + reason-code
-> discovery.** The xlsx generators come in PR 2; the Worker
-> integration (`/report_shop_shopee`, `/report_shop_tiktokshop`,
-> `/report_order_all`) comes in PR 3. See
-> [Roadmap](#roadmap) below.
+## Setup
 
-## What it does (when complete)
+Persyaratan: **Python 3.10+**
 
-User types `/report_shop_shopee 2026-01` in Telegram →
-`@ITBisaShopBot` Worker dispatches a workflow on this repo →
-GitHub Actions calls the marketplace API for the period →
-generates a single xlsx with all five sheets →
-commits the xlsx to the `bot-state` branch under `output/shopee/` →
-sends the file to Telegram via `sendDocument`.
-
-You then `git pull` on your machine and copy the xlsx into the
-matching folder under
-`H:\My Drive\...\BisaLaporan - Marketplace\` — same place the
-legacy generator wrote to.
-
-Two output formats per platform:
-
-```text
-ITBisa_com_-_BisaLaporan_Shopee_2026-04.xlsx        # finalized month
-ITBisa_com_-_BisaLaporan_Shopee_2026-04-15.xlsx     # in-progress month
+```bash
+cd itbisa-shop-report-bot
+pip install -r requirements.txt
 ```
 
-The TikTok Shop workflow produces both `Tiktok` and `Tokopedia` xlsx
-files, since the same TikTok Open API serves both purchase channels
-(split by `purchase_channel`).
+## Cara Pakai
 
-## Architecture
+### 1. Siapkan data
 
-```text
-User (Telegram)
-  → @ITBisaShopBot (Cloudflare Worker)
-      → workflow_dispatch (this repo)
-          → Python: pull API data → build xlsx → commit + Telegram
+Tempatkan file Excel di folder `data/`:
 
-Token chain: independent per repo
-  Same Shopee partner key + TikTok app secret as the order bots,
-  but each repo holds its own data/*_tokens.json on its own
-  bot-state branch. You re-authorize Shopee + TikTok once during
-  setup so the new repo gets a fresh token pair that does not
-  collide with the order bots' rotation.
+- `Stok_<tahun>.xlsx` — file stock dengan sheet `BisaStok` (headers di baris ke-2, kolom kategori di baris ke-1)
+- `Jual_<tahun>.xlsx` — file penjualan dengan sheet `BisaJualShopee` (wajib) dan `BisaJualTiktok` (opsional, berisi Tokopedia + Tiktok)
 
-State on bot-state branch
-  data/shopee_tokens.json
-  data/tiktokshop_tokens.json
-  state/shopee_periods.json        (PR 2)
-  state/tiktokshop_periods.json    (PR 2)
-  output/shopee/*.xlsx              (PR 2)
-  output/tiktokshop/*.xlsx          (PR 2)
-  output/tokopedia/*.xlsx           (PR 3)
-
-Source of truth: API only
-  Shopee:  payment.get_wallet_transaction_list   → BisaRemit, BisaBonus, KERUGIAN/KEUNTUNGAN TAMBAHAN
-           payment.get_escrow_detail             → BisaFee per order
-           order.get_order_list + get_order_detail → BisaInvoice, BisaJual
-
-  TikTok:  finance.statements + statement_transactions  → BisaRemit, BisaBonus, KERUGIAN/KEUNTUNGAN
-           finance.order_settlements                    → BisaFee per order
-           order.search                                 → BisaInvoice, BisaJual
-           split by purchase_channel: TIKTOK | TOKOPEDIA → 2 xlsx
+Contoh struktur:
+```
+data/
+├── Stok_2026.xlsx
+└── Jual_2026.xlsx
 ```
 
-## Project structure
+### 2. Jalankan analisa
 
-```text
+```bash
+# Analisa tahun berjalan (default: tahun sekarang)
+python main.py
+
+# Analisa tahun spesifik
+python main.py --year 2024
+
+# Custom path
+python main.py --year 2024 --data-dir /path/to/data --output-dir /path/to/output
+```
+
+### 3. Lihat hasil
+
+File output ada di folder `output/`:
+- `Analisa_Penjualan_ITBisa_<tahun>.xlsx` — 8 sheet lengkap
+
+## Struktur Output Excel
+
+| Sheet | Isi |
+|-------|-----|
+| `00_Summary` | Ringkasan performa + temuan utama (data-driven narrative) |
+| `01_Paling_Diminati` | Top 40 SKU by Qty Terjual |
+| `02_Profit_Tertinggi` | Top 40 SKU by Total Profit |
+| `03_Barang_Rugi` | SKU rugi + rekomendasi harga koreksi |
+| `04_Margin_Borderline` | SKU margin 0-5% (rawan rugi) |
+| `05_Kandidat_Naik_Harga` | SKU rekomendasi naik harga + skenario +10%/+15%/+20% |
+| `06_Per_Platform` | Breakdown per Shopee/Tokopedia/Tiktok + top SKU per platform |
+| `07_Data_Lengkap_per_SKU` | Full per-SKU table untuk drill-down manual |
+
+## Struktur Project
+
+```
 itbisa-shop-report-bot/
-├── .github/workflows/
-│   ├── shopee_report.yml           (PR 3)
-│   └── tiktokshop_report.yml       (PR 3)
-├── data/                           # bot-state: token files only
-│   ├── shopee_tokens.json
-│   └── tiktokshop_tokens.json
-├── output/                         # bot-state: generated xlsx (PR 2+)
-├── state/                          # bot-state: period tracking (PR 2+)
-├── scripts/
-│   ├── bootstrap_shopee_tokens.py        ✅ PR 1
-│   ├── bootstrap_tiktokshop_tokens.py    ✅ PR 1
-│   └── dump_reason_codes.py              ✅ PR 1
-├── src/
-│   ├── __init__.py                       ✅ PR 1
-│   ├── main.py                           ✅ PR 1 (CLI orchestrator, discovery mode)
-│   ├── config.py                         ✅ PR 1
-│   ├── discovery.py                      ✅ PR 1 (reason-code aggregation)
-│   ├── shopee_auth.py                    ✅ PR 1
-│   ├── shopee_client.py                  ✅ PR 1 (auth + wallet endpoint)
-│   ├── tiktokshop_auth.py                ✅ PR 1
-│   ├── tiktokshop_client.py              ✅ PR 1 (auth + finance statements)
-│   ├── telegram_sender.py                ✅ PR 1
-│   ├── reason_mapping/                   (PR 2)
-│   ├── generators/                       (PR 2)
-│   ├── excel_writer.py                   (PR 2)
-│   ├── sku_normalizer.py                 (PR 2)
-│   └── state_manager.py                  (PR 2)
-├── requirements.txt
-├── .env.example
+├── README.md             # this file
+├── requirements.txt      # Python dependencies
 ├── .gitignore
-└── README.md
+├── config.py             # constants (paths, thresholds, colors, column names)
+├── data_loader.py        # load & clean stok/jual Excel files
+├── analysis.py           # HPP weighted average + profit + per-SKU aggregation
+├── tables.py             # table builders (diminati, profit, rugi, kandidat, dll.)
+├── excel_writer.py       # Excel output with styling helpers
+├── main.py               # entry point with CLI
+├── data/                 # input files (gitignored)
+└── output/               # generated reports
 ```
 
-## Initial setup (PR 1)
+## Metodologi Analisa
 
-### 1. Clone and install
-
-```bash
-conda create -n itbisa_shop_report_bot python=3.11
-conda activate itbisa_shop_report_bot
-cd C:\path\to\itbisa-shop-report-bot
-python -m pip install -r requirements.txt
+### HPP (Harga Pokok Penjualan)
+**Weighted Average** dari semua pembelian historis per SKU:
+```
+HPP_WA = sum(Total_HPP_Rp) / sum(Banyak_Barang_Buah)  per SKU
 ```
 
-### 2. Configure secrets
-
-Copy `.env.example` to `.env` and fill in. **Use the same Shopee
-partner key and TikTok app secret as the order bots.**
-
-### 3. Bootstrap tokens (independent from the order bots)
-
-You authorize the shop fresh for this repo so it gets its own
-token pair — no collision with the order bots' rotation.
-
-```bash
-# Shopee:
-#   1. Log into Shopee Open Platform Console.
-#   2. Open your app → Authorize → confirm shop.
-#   3. Copy "code" from the redirect URL.
-#   4. Run:
-python scripts/bootstrap_shopee_tokens.py
-
-# TikTok Shop:
-#   1. Log into TikTok Shop Partner Center.
-#   2. Open your app → authorize for shop.
-#   3. Copy "auth_code" from the redirect URL.
-#   4. Run:
-python scripts/bootstrap_tiktokshop_tokens.py
+### Profit per Transaksi
+```
+Untung = Omzet − (HPP_WA × Qty_Jual) + Tambahan + Kode_Unik
 ```
 
-This writes `data/shopee_tokens.json` and `data/tiktokshop_tokens.json`.
+`Tambahan` dan `Kode_Unik` sudah signed di source data (negatif = biaya admin). Tidak perlu di-negate lagi.
 
-### 4. Push to GitHub
+### Exclusions Otomatis (data jual)
+1. Baris dengan SKU null
+2. Invoice diawali `"Dummy"` (test data)
+3. `Void = True` (pesanan dibatalkan)
+4. SKU di `EXCLUDED_SKUS` set (default: `ITBISA-BUBBLE-WRAP`)
+5. Baris dengan numeric invalid (header row yang ke-scatter di tengah data)
 
-```bash
-git checkout -b feature/initialize-app
-git add .
-git commit -m "PR 1: scaffold, auth, token bootstrap, reason-code discovery"
-git push origin feature/initialize-app
+SKU yang dijual tapi tidak ada HPP-nya di stok: di-warning ke console dan di-exclude dari analisa profit.
+
+### Kriteria "Kandidat Naik Harga"
+SKU yang lolos **3 filter**:
+- Qty terjual ≥ persentil 80 (top 20% paling laku)
+- Margin saat ini ≥ 15%
+- Sisa stok > 0
+
+Lalu di-scoring dengan formula:
+```
+Score = 0.6 × normalize(Qty_Terjual) + 0.4 × normalize(Margin_pct)
 ```
 
-Once merged into main, manually create the `bot-state` branch and
-push the two token JSON files there. The PR 3 workflow will overlay
-them at runtime.
+## Konfigurasi Threshold
 
-```bash
-git checkout --orphan bot-state
-git rm -rf .
-mkdir -p data
-cp /path/to/shopee_tokens.json data/
-cp /path/to/tiktokshop_tokens.json data/
-git add data/
-git commit -m "Bootstrap initial state files"
-git push origin bot-state
+Edit `config.py` untuk mengubah parameter analisa tanpa mengubah logic:
+
+| Parameter | Default | Arti |
+|-----------|---------|------|
+| `QTY_PERCENTILE` | `0.80` | Persentil qty terjual untuk kandidat naik harga |
+| `MARGIN_THRESHOLD_KANDIDAT` | `15.0` | Margin minimum (%) untuk kandidat |
+| `MARGIN_BORDERLINE_MIN/MAX` | `0.0 / 5.0` | Range margin borderline (%) |
+| `TARGET_MARGIN_KOREKSI` | `0.15` | Target margin untuk rekomendasi harga koreksi |
+| `SCORE_WEIGHT_VELOCITY/MARGIN` | `0.6 / 0.4` | Bobot scoring |
+| `PRICE_SCENARIOS` | `[0.10, 0.15, 0.20]` | Skenario kenaikan harga |
+| `TOP_N_DIMINATI` / `TOP_N_PROFIT` | `40 / 40` | Top N untuk tabel |
+| `EXCLUDED_SKUS` | `{"ITBISA-BUBBLE-WRAP"}` | SKU yang di-exclude |
+
+## Console Logging
+
+Script menulis log Bahasa Indonesia ke console:
+
+```
+✓ Membaca file stok: Stok_2026.xlsx
+  Stok valid rows: 186 (dari 261 mentah)
+✓ Membaca file jual: Jual_2026.xlsx
+  Loaded BisaJualShopee: 2025 rows
+  Loaded BisaJualTiktok: 682 rows
+✓ Cleaning jual:
+  - Total mentah         :   2707
+  - Dibuang (Dummy)      :      4
+  - Dibuang (invalid)    :     38
+  - Total bersih         :   2663
+✓ HPP weighted average dihitung untuk 132 SKU
+⚠ 2 SKU dijual tanpa data HPP (di-exclude, 6 pcs):
+    - ITBISA-NPN-2N2222-TO92
+    - 20aPCS-ITBISA-SOCKET-IC-DIP28-NARROW
+✓ Menulis laporan ke output/Analisa_Penjualan_ITBisa_2026.xlsx
 ```
 
-### 5. Configure GitHub Secrets (when PR 3 lands)
+## Troubleshooting
 
-Go to **Settings → Secrets and variables → Actions** and add:
+**`FileNotFoundError`**: pastikan file Excel ada di `data/` dengan nama yang persis sesuai (`Stok_2026.xlsx`, `Jual_2026.xlsx`).
 
-- `SHOPEE_PARTNER_ID`
-- `SHOPEE_PARTNER_KEY`
-- `SHOPEE_SHOP_ID`
-- `TIKTOKSHOP_APP_KEY`
-- `TIKTOKSHOP_APP_SECRET`
-- `TIKTOKSHOP_SHOP_ID`
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
+**`Kolom hilang di sheet...`**: struktur Excel berubah. Cek nama kolom di file vs `config.py` (kolom raw dengan `\n` newlines).
 
-## Discovery — `dump_reason_codes.py`
+**Pandas warning soal data validation**: bisa diabaikan, ini limitasi openpyxl untuk fitur data validation di Excel yang tidak relevan untuk read-only access.
 
-Before PR 2 can be written, we need to know **every distinct reason
-code / adjustment type** that appears in your wallet transactions
-and finance statements. The legacy generator handled this with
-hand-maintained Bahasa keyword lists in
-`generator/keywordchecker/{shopee,tiktok,tokopedia}.py`. The API
-returns typed reason codes per row, so we can replace those lists
-with a clean code → bucket mapping — but only after we see what
-codes the platforms actually return for your shop.
+## Catatan Pengembangan
 
-Run once per month for January 2026 → today and paste the output
-back to me. I will use it to build the reason-mapping table in
-PR 2.
-
-**Recommended — single command per month, both platforms:**
-
-```bash
-# Walks both Shopee + TikTok Shop sequentially, saves discovery_*.json
-# for each, and pings Telegram with start/end heartbeats.
-python -m src.main --period 2026-01
-python -m src.main --period 2026-02
-python -m src.main --period 2026-03
-python -m src.main --period 2026-04
-```
-
-Useful flags:
-
-```bash
-python -m src.main --period 2026-01 --platform shopee     # one platform only
-python -m src.main --period 2026-01 --platform tiktokshop
-python -m src.main --period 2026-01 --no-save             # skip JSON dump
-python -m src.main --period 2026-01 --no-telegram         # skip heartbeats
-```
-
-**Alternative — direct script for one platform at a time** (no Telegram, no auth health-check):
-
-```bash
-python scripts/dump_reason_codes.py --platform shopee     --period 2026-01
-python scripts/dump_reason_codes.py --platform tiktokshop --period 2026-01
-```
-
-Both entry points share the same discovery logic in `src/discovery.py`
-and produce identical `discovery_<platform>_<period>.json` files.
-
-The script prints to stdout AND writes `discovery_<platform>_<period>.json`
-for offline review. Both outputs are gitignored — they contain
-shop-internal financial data.
-
-## Roadmap
-
-| PR  | Scope                                                                                                  | Status     |
-| --- | ------------------------------------------------------------------------------------------------------ | ---------- |
-| 1   | Repo scaffold, `config.py`, auth modules, minimal clients, `bootstrap_*` scripts, `dump_reason_codes`  | ✅ this PR |
-| 2   | Reason-mapping tables, BisaInvoice + BisaJual + BisaRemit generators, xlsx writer, `main.py` for one period via CLI, state tracking | 🔜       |
-| 3   | BisaFee, BisaBonus, Tokopedia split, Worker `/report_shop_*` commands, workflow_dispatch, range backfill | 🔜       |
-
-## Cost
-
-Free forever once running. GitHub Actions free-tier minutes only.
-Each report run is well under one minute of compute even for a full
-month. No server, no VM, no database.
-
-## Cross-references
-
-- **`itbisa-shopee-order-bot`** — source for `shopee_auth.py`,
-  `shopee_client.py` signing logic. Independent token chain.
-- **`itbisa-tiktokshop-order-bot`** — source for `tiktokshop_auth.py`,
-  `tiktokshop_client.py` signing + shop_cipher caching. Independent
-  token chain.
-- **`itbisa-shop-stock-bot`** (a.k.a. `itbisa-inventory-bot`) — same
-  setup pattern as this repo (independent tokens, two bootstrap
-  scripts, bot-state branch contract).
-- **`itbisa-shop-telegram-bot`** — Cloudflare Worker. PR 3 will add
-  the three `/report_*` commands here.
-- **`itbisa-bisalaporan`** (legacy) — manual Python generator.
-  Reference for output sheet shapes and the SKU normalization
-  rules that PR 2 will lift verbatim.
+- File ini **standalone** — bisa dirun tanpa Claude/AI
+- **Idempotent** — dirun berulang menghasilkan output sama (selama input sama)
+- **Memory-friendly** — sudah ditest dengan ribuan baris transaksi
+- Untuk monthly use: file `Jual_<tahun>.xlsx` di-update terus-menerus, script analisanya membaca state terbaru saat dirun
