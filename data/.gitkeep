@@ -1,3 +1,0 @@
-# This file exists only to preserve the data/ directory in git.
-# Token JSON files are written here by scripts/bootstrap_*_tokens.py
-# and committed to the bot-state branch (NOT main).
