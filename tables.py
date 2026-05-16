@@ -6,8 +6,8 @@ import pandas as pd
 
 from analysis import classify_supplier
 from config import (
-    HPP_VARIANCE_THRESHOLD, MARGIN_BORDERLINE_MAX, MARGIN_BORDERLINE_MIN,
-    MARGIN_THRESHOLD_KANDIDAT, PRICE_SCENARIOS, QTY_PERCENTILE,
+    HPP_VARIANCE_THRESHOLD, MARKUP_BORDERLINE_MAX, MARKUP_BORDERLINE_MIN,
+    MARKUP_THRESHOLD_KANDIDAT, PRICE_SCENARIOS, QTY_PERCENTILE,
     SCORE_WEIGHT_MARGIN, SCORE_WEIGHT_VELOCITY, SUPPLIER_TOP_N_SINGLE_SOURCE,
     TOP_N_DIMINATI, TOP_N_PROFIT,
 )
@@ -37,8 +37,8 @@ def build_table_rugi(sku_agg: pd.DataFrame) -> pd.DataFrame:
 
 def build_table_borderline(sku_agg: pd.DataFrame) -> pd.DataFrame:
     return (sku_agg[
-        (sku_agg["margin_pct"] >= MARGIN_BORDERLINE_MIN) &
-        (sku_agg["margin_pct"] < MARGIN_BORDERLINE_MAX)
+        (sku_agg["markup_pct"] >= MARKUP_BORDERLINE_MIN) &
+        (sku_agg["markup_pct"] < MARKUP_BORDERLINE_MAX)
     ].copy().sort_values("qty_terjual", ascending=False).reset_index(drop=True))
 
 
@@ -48,7 +48,7 @@ def build_table_kandidat(sku_agg: pd.DataFrame) -> pd.DataFrame:
 
     kandidat = sku_agg[
         (sku_agg["qty_terjual"] >= qty_threshold) &
-        (sku_agg["margin_pct"] >= MARGIN_THRESHOLD_KANDIDAT) &
+        (sku_agg["markup_pct"] >= MARKUP_THRESHOLD_KANDIDAT) &
         (sku_agg["sisa_stok"] > 0)
     ].copy()
 
@@ -56,10 +56,10 @@ def build_table_kandidat(sku_agg: pd.DataFrame) -> pd.DataFrame:
         return kandidat
 
     kandidat["score_velocity"] = _normalize(kandidat["qty_terjual"])
-    kandidat["score_margin"] = _normalize(kandidat["margin_pct"])
+    kandidat["score_markup"] = _normalize(kandidat["markup_pct"])
     kandidat["score_total"] = (
         kandidat["score_velocity"] * SCORE_WEIGHT_VELOCITY +
-        kandidat["score_margin"] * SCORE_WEIGHT_MARGIN
+        kandidat["score_markup"] * SCORE_WEIGHT_MARGIN
     ).round(1)
 
     for pct in PRICE_SCENARIOS:
@@ -78,8 +78,8 @@ def _saran_kandidat(r) -> str:
     if (r["restock_di_tahun"] and pd.notna(r["qty_setelah_restock"])
             and r["qty_setelah_restock"] > r["qty_terjual"] * 0.5):
         return "🔥 Restock cepat habis — naik 15-20%"
-    if r["margin_pct"] > 50:
-        return "✅ Margin tinggi, naik 10-15%"
+    if r["markup_pct"] > 100:
+        return "✅ Markup tinggi (>100%), naik 10-15%"
     if r["score_total"] > 50:
         return "⭐ Top performer, naik 10%"
     return "Naik 5-10% bertahap, monitor"

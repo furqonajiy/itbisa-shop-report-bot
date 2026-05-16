@@ -28,17 +28,21 @@ def run_analysis(year: int, data_dir: Path = DATA_DIR,
 
     stok = load_stok_files(stok_files)
     jual_raw = load_jual_files(jual_files)
-    jual_clean, _ = clean_jual(jual_raw, year=year)
+    jual_full_clean, _ = clean_jual(jual_raw, year=None)
+    jual_year = jual_full_clean[jual_full_clean["tanggal_pesan"].dt.year == year].copy()
+    print(f"  Filter tahun {year}: {len(jual_year):,} transaksi dari {len(jual_full_clean):,}")
 
-    if len(jual_clean) == 0:
+    if len(jual_year) == 0:
         raise ValueError(f"Tidak ada data jual untuk tahun {year}")
 
     hpp_agg = calculate_hpp_wa(stok)
-    sku_no_hpp = find_sku_without_hpp(jual_clean, hpp_agg)
-    jual_with_profit = enrich_with_profit(jual_clean, hpp_agg)
+    sku_no_hpp = find_sku_without_hpp(jual_year, hpp_agg)
+    jual_with_profit = enrich_with_profit(jual_year, hpp_agg)
+
+    qty_jual_all_time = jual_full_clean.groupby("SKU")["qty_jual"].sum()
 
     print("✓ Aggregasi per SKU")
-    sku_agg = aggregate_by_sku(jual_with_profit, hpp_agg, year)
+    sku_agg = aggregate_by_sku(jual_with_profit, hpp_agg, year, qty_jual_all_time)
     sku_agg = calculate_qty_setelah_restock(sku_agg, jual_with_profit)
 
     print("✓ Membangun tabel analisa")

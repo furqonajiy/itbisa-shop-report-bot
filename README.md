@@ -57,7 +57,7 @@ Year filter berdasarkan `Tanggal Pesan`. Semua file jual di folder di-load, lalu
 | `01_Paling_Diminati` | Top 40 SKU by Qty Terjual |
 | `02_Profit_Tertinggi` | Top 40 SKU by Total Profit |
 | `03_Barang_Rugi` | SKU rugi + rekomendasi harga koreksi |
-| `04_Margin_Borderline` | SKU margin 0-5% (rawan rugi) |
+| `04_Margin_Borderline` | SKU markup 0-30% atas HPP (di bawah floor, wajib review) |
 | `05_Kandidat_Naik_Harga` | SKU rekomendasi naik harga + skenario +10%/+15%/+20% |
 | `06_Per_Platform` | Breakdown Shopee/Tiktok/Tokopedia/Bukalapak/CoD + top SKU per platform |
 | `07_Data_Lengkap_per_SKU` | Full per-SKU table untuk drill-down |
@@ -97,10 +97,41 @@ itbisa-shop-report-bot/
 ## Metodologi
 
 ### HPP (Harga Pokok Penjualan)
-**Weighted Average** dari SEMUA pembelian historis per SKU. Combined dari semua `Stok_*.xlsx` files di folder.
+**Weighted Average dengan Ocistok-Priority**:
+- Kalau SKU ada pembelian dari Ocistok/Martkita (China direct) → WA dari pembelian Ocistok/Martkita **saja** (abaikan market buy & supplier lain)
+- Kalau tidak → WA dari pembelian yang ada (semua supplier)
+
+Rasionalnya: Ocistok/Martkita adalah supplier utama dan stabil. HPP dari market-buy biasanya lebih mahal/fluktuatif (untuk testing pasar). Untuk cost basis yang representatif ke kondisi sourcing aktual, prioritaskan Ocistok.
+
+Inventory metrics (`total_qty_beli`, `sisa_stok`) tetap pakai SEMUA pembelian (tidak filtered ke Ocistok saja).
+
+Combined dari semua `Stok_*.xlsx` files di folder.
 ```
-HPP_WA = sum(Total_HPP_Rp) / sum(Banyak_Barang_Buah)  per SKU
+HPP_WA[sku] = sum(Total_HPP_Rp) / sum(Banyak_Barang_Buah)
+  ↳ filtered ke pembelian Ocistok/Martkita kalau ada, else pakai semua
 ```
+
+Kolom `HPP Source` di sheet `07_Data_Lengkap_per_SKU` menunjukkan source-nya per SKU.
+
+### Margin Floor: Markup 30% UNIFORM
+**Semua SKU wajib markup minimum 30% atas HPP** untuk dianggap "aman tidak rugi".
+
+Rule: **Harga jual minimum = HPP × 1.30**
+
+Contoh: HPP Rp 1,000 → jual minimum Rp 1,300. Setelah dipotong biaya admin Shopee (~12%) atau Tiktok (~21%), masih ada untung tipis atau balik modal.
+
+**Bedakan dengan gross margin** (yang sering disebut "margin" umumnya):
+- **Markup** (yang dipakai di sini): `(Jual − HPP) / HPP × 100` — over cost
+- **Margin** (kontekstual): `Profit / Omzet × 100` — after admin/biaya
+
+Threshold ini berlaku untuk:
+- Sheet `04_Margin_Borderline` → SKU dengan markup 0-30% (di bawah floor, wajib review)
+- Sheet `05_Kandidat_Naik_Harga` → filter markup ≥ 30% (sudah di atas floor, layak push lebih tinggi)
+- Sheet `03_Barang_Rugi` → rekomendasi harga koreksi = HPP × 1.30
+
+Sheet `07_Data_Lengkap_per_SKU` menampilkan **dua kolom**: Markup % (rule) dan Margin % (konteks).
+
+Catatan: pricing aktual tetap competitor-aware. Kalau kompetitor harga lebih rendah, Anda boleh terima markup di bawah 30% (mis. untuk SKU stok lama harus dihabiskan) — tapi laporan tetap flag sebagai "perlu attention".
 
 ### Profit per Transaksi
 ```
@@ -121,15 +152,33 @@ SKU yang dijual tanpa HPP: di-warning ke console, di-exclude dari profit.
 ### Dedup Stok
 Saat load multiple stok files, dedup berdasarkan `(SKU, Tanggal_Bayar, Qty_Beli, Total_HPP)` — keep first.
 
+### Migrasi Entries (Inventory Carry-Over)
+Di akhir tahun (31 Des 23:59), file `Stok_<tahun-1>.xlsx` "ditutup" dan **sisa stok yang belum terjual** dicatat ulang ke file tahun baru dengan prefix `"Migrasi - "` di kolom Toko. Ini cuma penanda referensi inventory, bukan pembelian baru — supaya buku kas tidak double-counted.
+
+**Masalah jika di-treat sebagai pembelian normal:**
+- HPP_WA terinflasi/terdistorsi (cost basis dihitung 2x: dari historical asli + dari Migrasi)
+- Total qty beli over-counted (Migrasi qty + original qty)
+- Sisa stok over-counted
+
+**Penanganan otomatis di script:**
+- Migrasi entries (deteksi via prefix `MIGRASI_PREFIX` di `config.py`) **di-drop dari HPP_WA dan total_qty_beli** kalau SKU yang sama juga punya non-Migrasi data (dari file historis atau pembelian baru)
+- Migrasi entries **dipertahankan** kalau itu satu-satunya sumber HPP untuk SKU tersebut (mis., user cuma load Stok_2026 tanpa historis) — supaya tidak kehilangan data
+- Sisa stok dihitung pakai **all-time qty terjual** (bukan cuma tahun analisa), supaya sisa stok = total real bought - total real sold
+
+Output console contoh:
+```
+→ Migrasi: drop 125 duplikat (SKU sudah ada di non-Migrasi), keep 0 (satu-satunya sumber HPP)
+```
+
 ### Kandidat Naik Harga
 SKU yang lolos 3 filter:
 - Qty terjual ≥ persentil 80 (top 20% paling laku)
-- Margin ≥ 15%
+- Markup ≥ 30% atas HPP (di atas floor)
 - Sisa stok > 0
 
 Scoring:
 ```
-Score = 0.6 × normalize(Qty_Terjual) + 0.4 × normalize(Margin_pct)
+Score = 0.6 × normalize(Qty_Terjual) + 0.4 × normalize(Markup_pct)
 ```
 
 ## Konfigurasi
@@ -139,9 +188,9 @@ Edit `config.py`:
 | Parameter | Default | Arti |
 |---|---|---|
 | `QTY_PERCENTILE` | `0.80` | Persentil qty untuk kandidat |
-| `MARGIN_THRESHOLD_KANDIDAT` | `15.0` | Margin minimum (%) untuk kandidat |
-| `MARGIN_BORDERLINE_MIN/MAX` | `0.0 / 5.0` | Range margin borderline (%) |
-| `TARGET_MARGIN_KOREKSI` | `0.15` | Target margin rekomendasi harga koreksi |
+| `MARKUP_THRESHOLD_KANDIDAT` | `30.0` | Markup minimum (%) atas HPP untuk kandidat |
+| `MARKUP_BORDERLINE_MIN/MAX` | `0.0 / 30.0` | Range markup borderline (%) |
+| `TARGET_MARKUP_KOREKSI` | `0.30` | Target markup atas HPP untuk rekomendasi harga koreksi (jual = HPP × 1.30) |
 | `PRICE_SCENARIOS` | `[0.10, 0.15, 0.20]` | Skenario kenaikan harga |
 | `CHINA_KEYWORDS` | `["ocistok", "martkita", ...]` | Keyword untuk klasifikasi supplier China |
 | `MARKET_KEYWORDS` | `["shopee ", ...]` | Keyword untuk klasifikasi supplier Market |

@@ -23,11 +23,16 @@ REQUIRED_JUAL_SHEET = "BisaJualShopee"
 
 EXCLUDED_SKUS = {"ITBISA-BUBBLE-WRAP"}
 
+# Inventory carry-over marker: toko names starting with this prefix represent
+# year-end stock migrated to the new year file, NOT real purchases.
+# Excluded from HPP_WA when matching real purchase data exists for the same SKU.
+MIGRASI_PREFIX = "Migrasi"
+
 QTY_PERCENTILE = 0.80
-MARGIN_THRESHOLD_KANDIDAT = 15.0
-MARGIN_BORDERLINE_MIN = 0.0
-MARGIN_BORDERLINE_MAX = 5.0
-TARGET_MARGIN_KOREKSI = 0.15
+MARKUP_THRESHOLD_KANDIDAT = 30.0
+MARKUP_BORDERLINE_MIN = 0.0
+MARKUP_BORDERLINE_MAX = 30.0
+TARGET_MARKUP_KOREKSI = 0.30
 
 SCORE_WEIGHT_VELOCITY = 0.6
 SCORE_WEIGHT_MARGIN = 0.4

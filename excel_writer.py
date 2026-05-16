@@ -12,8 +12,8 @@ from openpyxl.worksheet.worksheet import Worksheet
 from config import (
     ALERT_TEXT_COLOR, FMT_DEC, FMT_NUM, FMT_PCT, FMT_RP, FONT_NAME,
     GREEN_FILL_COLOR, HEADER_BG_COLOR, HEADER_TEXT_COLOR, LIGHT_GRAY_COLOR,
-    MARGIN_THRESHOLD_KANDIDAT, PRICE_SCENARIOS, RED_FILL_COLOR,
-    TARGET_MARGIN_KOREKSI, TITLE_COLOR, TOP_N_PER_PLATFORM, YELLOW_FILL_COLOR,
+    MARKUP_THRESHOLD_KANDIDAT, PRICE_SCENARIOS, RED_FILL_COLOR,
+    TARGET_MARKUP_KOREKSI, TITLE_COLOR, TOP_N_PER_PLATFORM, YELLOW_FILL_COLOR,
 )
 from tables import build_top_per_platform
 
@@ -79,13 +79,12 @@ def _build_findings(sku_agg: pd.DataFrame, tables: dict,
     if len(rugi) > 0:
         lines.append("🔴 BARANG RUGI YANG HARUS SEGERA DINAIKKAN HARGANYA:")
         for _, r in rugi.head(5).iterrows():
-            cost = r["hpp_wa"] + abs(r["biaya_admin_per_buah"])
-            rekom = cost / (1 - TARGET_MARGIN_KOREKSI)
+            rekom = r["hpp_wa"] * (1 + TARGET_MARKUP_KOREKSI)
             lines.append(
                 f"   • {r['SKU']} — terjual {r['qty_terjual']:,.0f} pcs, "
-                f"RUGI Rp {r['profit']:,.0f}. Cost Rp {cost:,.0f}, "
+                f"RUGI Rp {r['profit']:,.0f}. HPP Rp {r['hpp_wa']:,.0f}, "
                 f"dijual Rp {r['harga_jual_avg']:,.0f}. "
-                f"Saran: Rp {rekom:,.0f} (margin {TARGET_MARGIN_KOREKSI*100:.0f}%)."
+                f"Saran: Rp {rekom:,.0f} (HPP × {1 + TARGET_MARKUP_KOREKSI:.2f}, markup {TARGET_MARKUP_KOREKSI*100:.0f}%)."
             )
         lines.append("")
 
@@ -100,7 +99,7 @@ def _build_findings(sku_agg: pd.DataFrame, tables: dict,
                         f"{r['qty_setelah_restock']:,.0f} pcs terjual ({pct:.0f}%)")
             lines.append(
                 f"   • {r['SKU']} — {r['qty_terjual']:,.0f} pcs, "
-                f"margin {r['margin_pct']:.1f}%, stok {r['sisa_stok']:,.0f}{note}."
+                f"markup {r['markup_pct']:.1f}%, stok {r['sisa_stok']:,.0f}{note}."
             )
         lines.append("")
 
@@ -185,7 +184,7 @@ def _write_summary(ws, year, jual, sku_agg, tables, sku_no_hpp):
         ("Margin Keseluruhan", margin, FMT_PCT),
         ("", "", ""),
         ("Barang RUGI Total", len(tables["rugi"]), FMT_NUM),
-        ("Margin Borderline 0-5%", len(tables["borderline"]), FMT_NUM),
+        ("Markup di Bawah Floor 30%", len(tables["borderline"]), FMT_NUM),
         ("Kandidat Naik Harga", len(tables["kandidat"]), FMT_NUM),
     ]
     for i, (lbl, val, fmt) in enumerate(summary, start=6):
@@ -281,24 +280,24 @@ def _write_rugi(ws, df):
 
     row_rec = 5 + len(df) + 2
     ws.cell(row=row_rec, column=1,
-            value=f"REKOMENDASI HARGA KOREKSI (target margin {TARGET_MARGIN_KOREKSI*100:.0f}%):").font = BOLD_FONT
+            value=f"REKOMENDASI HARGA KOREKSI (target markup {TARGET_MARKUP_KOREKSI*100:.0f}% atas HPP):").font = BOLD_FONT
     for i, (_, r) in enumerate(df.iterrows(), start=row_rec + 1):
-        cost = r["hpp_wa"] + abs(r["biaya_admin_per_buah"])
-        rekom = cost / (1 - TARGET_MARGIN_KOREKSI)
+        rekom = r["hpp_wa"] * (1 + TARGET_MARKUP_KOREKSI)
         ws.cell(row=i, column=1, value=r["SKU"]).font = NORMAL_FONT
         ws.cell(row=i, column=2, value=f"Sekarang: Rp {r['harga_jual_avg']:,.0f}").font = NORMAL_FONT
+        ws.cell(row=i, column=3, value=f"HPP: Rp {r['hpp_wa']:,.0f}").font = NORMAL_FONT
         c = ws.cell(row=i, column=4, value=f"Rekomendasi: Rp {rekom:,.0f}")
         c.font = BOLD_FONT
         c.fill = GREEN_FILL
 
 
 def _write_borderline(ws, df):
-    ws["A1"] = "TABEL 4: MARGIN BORDERLINE 0-5% (RAWAN RUGI)"
+    ws["A1"] = "TABEL 4: MARKUP < 30% (HARGA DI BAWAH FLOOR — PERLU NAIK HARGA)"
     ws["A1"].font = TITLE_FONT
-    ws.merge_cells("A1:H1")
-    ws["A2"] = "Margin tipis: rentan rugi kalau biaya admin naik atau diskon."
+    ws.merge_cells("A1:I1")
+    ws["A2"] = "Floor: harga jual minimal HPP × 1.30. SKU di sini di bawah floor — wajib review (kecuali ada alasan kompetitif)."
     ws["A2"].font = SUB_FONT
-    ws.merge_cells("A2:H2")
+    ws.merge_cells("A2:I2")
 
     if len(df) == 0:
         ws["A4"] = "(tidak ada SKU dalam kategori ini)"
@@ -306,23 +305,37 @@ def _write_borderline(ws, df):
         return
 
     write_headers(ws, 4,
-        ["SKU", "Qty Terjual", "HPP/buah", "Admin/buah",
-         "Harga Jual Avg", "Profit/buah", "Margin %", "Profit Total"],
-        widths=[38, 13, 13, 13, 15, 13, 12, 18])
+        ["SKU", "Qty Terjual", "HPP/buah", "Admin/buah", "Harga Jual Avg",
+         "Markup %", "Margin %", "Profit/buah", "Profit Total"],
+        widths=[38, 13, 13, 13, 15, 11, 11, 13, 18])
     df = df.copy()
+    df["markup_frac"] = df["markup_pct"] / 100
     df["margin_frac"] = df["margin_pct"] / 100
-    out = df[["SKU", "qty_terjual", "hpp_wa", "biaya_admin_per_buah",
-              "harga_jual_avg", "profit_per_buah", "margin_frac", "profit"]]
+    df["harga_target"] = df["hpp_wa"] * (1 + 0.30)
+    out = df[["SKU", "qty_terjual", "hpp_wa", "biaya_admin_per_buah", "harga_jual_avg",
+              "markup_frac", "margin_frac", "profit_per_buah", "profit"]]
     write_data_rows(ws, 5, out,
-        formats=[None, FMT_NUM, FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, FMT_RP])
+        formats=[None, FMT_NUM, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, FMT_PCT, FMT_RP, FMT_RP])
+
+    row_rec = 5 + len(df) + 2
+    ws.cell(row=row_rec, column=1,
+            value="REKOMENDASI HARGA TARGET (HPP × 1.30):").font = BOLD_FONT
+    for i, (_, r) in enumerate(df.iterrows(), start=row_rec + 1):
+        target = r["hpp_wa"] * 1.30
+        ws.cell(row=i, column=1, value=r["SKU"]).font = NORMAL_FONT
+        ws.cell(row=i, column=2, value=f"Sekarang: Rp {r['harga_jual_avg']:,.0f}").font = NORMAL_FONT
+        ws.cell(row=i, column=3, value=f"HPP: Rp {r['hpp_wa']:,.0f}").font = NORMAL_FONT
+        c = ws.cell(row=i, column=4, value=f"Target: Rp {target:,.0f}")
+        c.font = BOLD_FONT
+        c.fill = GREEN_FILL
 
 
 def _write_kandidat(ws, df):
     ws["A1"] = "TABEL 5: KANDIDAT NAIK HARGA"
     ws["A1"].font = TITLE_FONT
     ws.merge_cells("A1:M1")
-    ws["A2"] = (f"Kriteria: top 20% qty + margin ≥{MARGIN_THRESHOLD_KANDIDAT:.0f}% "
-                "+ stok ada. Score = 60% velocity + 40% margin.")
+    ws["A2"] = (f"Kriteria: top 20% qty + markup ≥ {MARKUP_THRESHOLD_KANDIDAT:.0f}% atas HPP "
+                "+ stok ada. Score = 60% velocity + 40% markup.")
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:M2")
     ws["A3"] = '⚠ "Qty Setelah Restock" tinggi = restock baru cepat habis = harga underpriced.'
@@ -335,7 +348,7 @@ def _write_kandidat(ws, df):
         return
 
     pcts = PRICE_SCENARIOS
-    headers = ["SKU", "Score", "Qty Terjual", "Margin %", "Harga Sekarang",
+    headers = ["SKU", "Score", "Qty Terjual", "Markup %", "Harga Sekarang",
                "Sisa Stok", "Restock Tahun?", "Qty Setelah Restock"]
     headers += [f"Harga +{int(p*100)}%" for p in pcts]
     headers += [f"Proyeksi Profit +{int(pcts[0]*100)}%", "Saran"]
@@ -343,10 +356,10 @@ def _write_kandidat(ws, df):
     write_headers(ws, 5, headers, widths=widths)
 
     df = df.copy()
-    df["margin_frac"] = df["margin_pct"] / 100
+    df["markup_frac"] = df["markup_pct"] / 100
     df["restock_str"] = df["restock_di_tahun"].map({True: "Ya", False: "Tidak"})
 
-    out_cols = ["SKU", "score_total", "qty_terjual", "margin_frac", "harga_jual_avg",
+    out_cols = ["SKU", "score_total", "qty_terjual", "markup_frac", "harga_jual_avg",
                 "sisa_stok", "restock_str", "qty_setelah_restock"]
     out_cols += [f"harga_+{int(p*100)}pct" for p in pcts]
     out_cols += [f"proyeksi_profit_+{int(pcts[0]*100)}pct", "saran"]
@@ -402,24 +415,25 @@ def _write_platform(ws, plat_df, jual):
 def _write_full_data(ws, sku_agg):
     ws["A1"] = "DATA LENGKAP PER SKU"
     ws["A1"].font = TITLE_FONT
-    ws.merge_cells("A1:Q1")
+    ws.merge_cells("A1:S1")
     cols = ["SKU", "qty_terjual", "jumlah_transaksi", "avg_qty_per_order", "omzet",
-            "hpp_wa", "hpp_cost", "biaya_admin", "biaya_admin_per_buah", "profit",
-            "profit_per_buah", "harga_jual_avg", "margin_pct", "total_qty_beli",
-            "sisa_stok", "jumlah_pembelian", "restock_di_tahun"]
+            "hpp_wa", "hpp_source", "hpp_cost", "biaya_admin", "biaya_admin_per_buah",
+            "profit", "profit_per_buah", "harga_jual_avg", "markup_pct", "margin_pct",
+            "total_qty_beli", "sisa_stok", "jumlah_pembelian", "restock_di_tahun"]
     headers = ["SKU", "Qty Terjual", "Trans", "Avg Qty/Order", "Omzet", "HPP/Buah",
-               "HPP Total", "Biaya Admin", "Admin/Buah", "Profit", "Profit/Buah",
-               "Harga Jual Avg", "Margin %", "Total Dibeli", "Sisa Stok",
-               "Lot Beli", "Restock Tahun"]
-    widths = [38, 12, 8, 13, 16, 12, 16, 16, 12, 16, 12, 14, 11, 12, 12, 9, 11]
+               "HPP Source", "HPP Total", "Biaya Admin", "Admin/Buah", "Profit",
+               "Profit/Buah", "Harga Jual Avg", "Markup %", "Margin %",
+               "Total Dibeli", "Sisa Stok", "Lot Beli", "Restock Tahun"]
+    widths = [38, 12, 8, 13, 16, 12, 10, 16, 16, 12, 16, 12, 14, 11, 11, 12, 12, 9, 11]
     write_headers(ws, 3, headers, widths=widths)
     df_full = sku_agg[cols].sort_values("profit", ascending=False).copy()
+    df_full["markup_pct"] = df_full["markup_pct"] / 100
     df_full["margin_pct"] = df_full["margin_pct"] / 100
     df_full["restock_di_tahun"] = df_full["restock_di_tahun"].map({True: "Ya", False: "Tidak"})
     write_data_rows(ws, 4, df_full,
-        formats=[None, FMT_NUM, FMT_NUM, FMT_DEC, FMT_RP, FMT_RP, FMT_RP, FMT_RP,
-                 FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, FMT_NUM, FMT_NUM, FMT_NUM, None],
-        negative_highlight_col=10)
+        formats=[None, FMT_NUM, FMT_NUM, FMT_DEC, FMT_RP, FMT_RP, None, FMT_RP, FMT_RP,
+                 FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, FMT_PCT, FMT_NUM, FMT_NUM, FMT_NUM, None],
+        negative_highlight_col=11)
     ws.freeze_panes = "B4"
 
 
