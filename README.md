@@ -43,12 +43,15 @@ python main.py                  # analisa tahun berjalan
 python main.py --year 2026      # analisa tahun spesifik
 python main.py --year 2024      # analisa tahun historis
 python main.py --all            # SEMUA tahun yang ditemukan di data (sekali run)
+python main.py --ab-test        # analisa A/B test (perubahan harga)
 python main.py --year 2024 --data-dir /custom/path --output-dir /custom/out
 ```
 
 Year filter berdasarkan `Tanggal Pesan`. Semua file jual di folder di-load, lalu di-filter ke tahun yang diminta.
 
 Mode `--all` generate satu file Excel per tahun (mis. `Analisa_Penjualan_ITBisa_2018.xlsx` sampai `..._2026.xlsx`) dan tampilkan ringkasan profit semua tahun di akhir console output. Cocok untuk lihat tren multi-tahun.
+
+Mode `--ab-test` baca config dari `data/ab_tests.xlsx` (template di-auto-create kalau belum ada), generate `output/Analisa_AB_Test.xlsx` dengan perbandingan metrik sebelum vs sesudah perubahan harga. Lihat section "A/B Testing" di bawah.
 
 ### 3. Lihat hasil
 
@@ -245,6 +248,48 @@ ANALISA PENJUALAN ITBISA — TAHUN 2026
 **`Tidak ada data jual untuk tahun X`** — tahun X tidak punya transaksi setelah filtering. Cek `Tanggal Pesan` di file jual.
 
 **Pandas warning soal data validation** — bisa diabaikan, limitasi openpyxl saat read xlsx dengan dropdown/data validation.
+
+## A/B Testing — Track Perubahan Harga
+
+Untuk menjawab pertanyaan: **"Setelah saya naikkan harga X, apakah penjualan turun atau tetap stabil?"**
+
+### Workflow
+
+1. **Pertama kali**: jalankan `python main.py --ab-test`. Script otomatis bikin template `data/ab_tests.xlsx`.
+
+2. **Isi template**: tambahkan baris untuk setiap perubahan harga yang mau dilacak:
+
+| SKU | Tanggal Perubahan | Nama Test | Catatan |
+|---|---|---|---|
+| ITBISA-IC-NE555P-DIP8 | 2026-05-17 | NE555P Price Bump May 2026 | 599 → 699 (1pcs), 50pcs → 689, 1000pcs → 679 |
+| ITBISA-IC-PC817-DIP4 | 2026-06-01 | PC817 normalisasi | dari 480 ke 550 |
+
+3. **Run analisa**: `python main.py --ab-test` → output `output/Analisa_AB_Test.xlsx`
+
+### Apa yang Dihitung
+
+Untuk setiap test:
+- **Pre-period**: semua transaksi SKU itu SEBELUM tanggal perubahan (full data, bisa multi-tahun)
+- **Post-period**: semua transaksi SKU itu SEJAK tanggal perubahan
+- **Daily rates** (qty/day, omzet/day, profit/day) untuk fair comparison karena window pre vs post biasanya beda panjang
+- **Avg unit price** sebelum vs sesudah → verify perubahan harga benar terdeteksi di data
+- **Markup % & margin %** sebelum vs sesudah
+- **Delta %** untuk setiap metric
+- **Verdict** otomatis: ✅ Effective / 🟡 Mixed / 🔴 Bad / ⚪ Inconclusive
+
+### Verdict Logic
+
+- ✅ **Effective**: profit/day naik > 5%, qty/day turun < 10%
+- 🟡 **Mixed**: profit/day naik > 5%, tapi qty/day turun > 10% (margin naik tapi customer berkurang)
+- 🔴 **Bad**: profit/day turun > 5%
+- ⚪ **Inconclusive**: data sedikit (< 3 hari post) atau perubahan tidak signifikan
+
+### Catatan
+- Harga otomatis di-derive dari `Omzet / Qty_Jual` per transaksi — Anda tidak perlu input harga lama/baru manual
+- Multi-tier (1pcs/50pcs/1000pcs) di-blend menjadi avg unit price (tidak dipisah per tier)
+- Window full data: pre bisa multi-tahun, post mulai dari tanggal perubahan
+- Disarankan tunggu minimal 1-2 minggu sebelum interpretasi hasil (default warning di < 3 hari)
+- HPP yang dipakai untuk profit calc adalah HPP_WA terkini (dari semua stok files)
 
 ## Catatan
 
