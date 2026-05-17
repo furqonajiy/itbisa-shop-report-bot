@@ -64,6 +64,16 @@ FMT_NUM = '#,##0;[Red](#,##0);"-"'
 FMT_PCT = '0.0%;[Red](0.0%);"-"'
 FMT_DEC = "#,##0.0"
 
+# A/B Testing config
+AB_TESTS_FILENAME = "ab_tests.xlsx"
+AB_TESTS_SHEET = "BisaABTest"
+AB_TESTS_OUTPUT_FILENAME = "Analisa_AB_Test.xlsx"
+COL_AB_SKU = "SKU"
+COL_AB_TANGGAL = "Tanggal Perubahan"
+COL_AB_NAMA = "Nama Test"
+COL_AB_CATATAN = "Catatan"
+AB_MIN_DAYS_POST = 3
+
 # Source column names (raw from Excel with embedded newlines)
 COL_STOK_SKU = "SKU"
 COL_STOK_QTY = "Banyak\nBarang\n(Buah)"
