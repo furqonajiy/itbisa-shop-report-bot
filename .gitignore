@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+
+# Data & output (these are confidential)
+data/*.xlsx
+data/*.xls
+output/*.xlsx
+
+# Keep folder structure
+!data/.gitkeep
+!output/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
