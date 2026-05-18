@@ -10,10 +10,14 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from config import (
-    ALERT_TEXT_COLOR, FMT_DEC, FMT_NUM, FMT_PCT, FMT_RP, FONT_NAME,
-    GREEN_FILL_COLOR, HEADER_BG_COLOR, HEADER_TEXT_COLOR, LIGHT_GRAY_COLOR,
-    MARKUP_THRESHOLD_KANDIDAT, PRICE_SCENARIOS, RED_FILL_COLOR,
-    TARGET_MARKUP_KOREKSI, TITLE_COLOR, TOP_N_PER_PLATFORM, YELLOW_FILL_COLOR,
+    ALERT_TEXT_COLOR, BLUE_FILL_COLOR, FMT_DEC, FMT_NUM, FMT_PCT, FMT_RP,
+    FONT_NAME, GREEN_FILL_COLOR, HEADER_BG_COLOR, HEADER_TEXT_COLOR,
+    LEAD_TIME_CHINA_MONTHS, LEAD_TIME_MARKET_MONTHS, LIGHT_GRAY_COLOR,
+    MARKUP_THRESHOLD_KANDIDAT, ORANGE_FILL_COLOR, OVERSTOCK_MONTHS,
+    PRICE_SCENARIOS, RED_FILL_COLOR, ROP_SOON_RATIO, ROP_URGENT_RATIO,
+    SAFETY_MULT_MODERATE, SAFETY_MULT_STABLE, SAFETY_MULT_VOLATILE,
+    SLOW_DEAD_MAX_VELOCITY, TARGET_MARKUP_KOREKSI, TARGET_MONTHS_POST_REORDER,
+    TITLE_COLOR, TOP_N_PER_PLATFORM, YELLOW_FILL_COLOR,
 )
 from tables import build_top_per_platform
 
@@ -26,8 +30,10 @@ NORMAL_FONT = Font(name=FONT_NAME, size=10)
 BOLD_FONT = Font(name=FONT_NAME, bold=True, size=10)
 ALERT_FONT = Font(name=FONT_NAME, italic=True, size=10, color=ALERT_TEXT_COLOR)
 RED_FILL = PatternFill("solid", start_color=RED_FILL_COLOR)
+ORANGE_FILL = PatternFill("solid", start_color=ORANGE_FILL_COLOR)
 GREEN_FILL = PatternFill("solid", start_color=GREEN_FILL_COLOR)
 YELLOW_FILL = PatternFill("solid", start_color=YELLOW_FILL_COLOR)
+BLUE_FILL = PatternFill("solid", start_color=BLUE_FILL_COLOR)
 LIGHT_FILL = PatternFill("solid", start_color=LIGHT_GRAY_COLOR)
 THIN_BORDER = Border(
     left=Side(style="thin", color="CCCCCC"),
@@ -144,6 +150,24 @@ def _build_findings(sku_agg: pd.DataFrame, tables: dict,
             lines.append(f"   • {len(volatile)} SKU dengan HPP China tidak konsisten (CV > 15%)")
         lines.append("")
 
+    reorder = tables.get("reorder", {})
+    if reorder:
+        n_stockout = len(reorder.get("stockout", []))
+        n_urgent = len(reorder.get("urgent", []))
+        n_now = len(reorder.get("now", []))
+        n_over = len(reorder.get("overstock", []))
+        if n_stockout + n_urgent + n_now + n_over > 0:
+            lines.append("📦 REORDER PRIORITAS (lihat sheet 09 untuk detail):")
+            if n_stockout > 0:
+                lines.append(f"   • 🔴 {n_stockout} SKU sudah STOCKOUT — kehilangan sales sekarang")
+            if n_urgent > 0:
+                lines.append(f"   • 🔴 {n_urgent} SKU URGENT reorder — stok hampir habis")
+            if n_now > 0:
+                lines.append(f"   • 🟠 {n_now} SKU perlu reorder minggu ini")
+            if n_over > 0:
+                lines.append(f"   • 🔵 {n_over} SKU overstock (> {OVERSTOCK_MONTHS:.0f} bulan cadangan) — stop reorder")
+            lines.append("")
+
     if sku_no_hpp:
         lines.append(
             f"CATATAN: {len(sku_no_hpp)} SKU dijual tanpa HPP (excluded): "
@@ -204,7 +228,7 @@ def _write_summary(ws, year, jual, sku_agg, tables, sku_no_hpp):
     for i, line in enumerate(findings, start=22):
         c = ws.cell(row=i, column=1, value=line)
         c.font = NORMAL_FONT
-        if line and any(line.startswith(em) for em in ["🔴", "🟢", "⭐", "💰", "🏪", "🏭"]):
+        if line and any(line.startswith(em) for em in ["🔴", "🟢", "⭐", "💰", "🏪", "🏭", "📦"]):
             c.font = BOLD_FONT
         ws.merge_cells(start_row=i, start_column=1, end_row=i, end_column=10)
 
@@ -220,16 +244,16 @@ def _write_diminati(ws, df):
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:I2")
     write_headers(ws, 4,
-        ["SKU", "Qty Terjual", "Jumlah Transaksi", "Avg Qty/Order",
-         "Harga Jual Avg", "Omzet", "HPP/buah", "Profit", "Margin %"],
-        widths=[38, 13, 13, 13, 15, 18, 13, 18, 12])
+                  ["SKU", "Qty Terjual", "Jumlah Transaksi", "Avg Qty/Order",
+                   "Harga Jual Avg", "Omzet", "HPP/buah", "Profit", "Margin %"],
+                  widths=[38, 13, 13, 13, 15, 18, 13, 18, 12])
     df = df.copy()
     df["margin_frac"] = df["margin_pct"] / 100
     out = df[["SKU", "qty_terjual", "jumlah_transaksi", "avg_qty_per_order",
               "harga_jual_avg", "omzet", "hpp_wa", "profit", "margin_frac"]]
     write_data_rows(ws, 5, out,
-        formats=[None, FMT_NUM, FMT_NUM, FMT_DEC, FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_PCT],
-        negative_highlight_col=8)
+                    formats=[None, FMT_NUM, FMT_NUM, FMT_DEC, FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_PCT],
+                    negative_highlight_col=8)
     ws.freeze_panes = "B5"
 
 
@@ -241,16 +265,16 @@ def _write_profit(ws, df):
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:H2")
     write_headers(ws, 4,
-        ["SKU", "Total Profit", "Profit/Buah", "Qty Terjual",
-         "Margin %", "Omzet", "Harga Jual Avg", "HPP/Buah"],
-        widths=[38, 18, 13, 13, 12, 18, 15, 13])
+                  ["SKU", "Total Profit", "Profit/Buah", "Qty Terjual",
+                   "Margin %", "Omzet", "Harga Jual Avg", "HPP/Buah"],
+                  widths=[38, 18, 13, 13, 12, 18, 15, 13])
     df = df.copy()
     df["margin_frac"] = df["margin_pct"] / 100
     out = df[["SKU", "profit", "profit_per_buah", "qty_terjual",
               "margin_frac", "omzet", "harga_jual_avg", "hpp_wa"]]
     write_data_rows(ws, 5, out,
-        formats=[None, FMT_RP, FMT_RP, FMT_NUM, FMT_PCT, FMT_RP, FMT_RP, FMT_RP],
-        negative_highlight_col=2)
+                    formats=[None, FMT_RP, FMT_RP, FMT_NUM, FMT_PCT, FMT_RP, FMT_RP, FMT_RP],
+                    negative_highlight_col=2)
     ws.freeze_panes = "B5"
 
 
@@ -268,15 +292,15 @@ def _write_rugi(ws, df):
         return
 
     write_headers(ws, 4,
-        ["SKU", "Qty Terjual", "HPP/buah", "Admin/buah", "Total Cost/buah",
-         "Harga Jual Avg", "Selisih", "Profit/buah", "Total Profit"],
-        widths=[38, 13, 13, 13, 15, 15, 13, 13, 18])
+                  ["SKU", "Qty Terjual", "HPP/buah", "Admin/buah", "Total Cost/buah",
+                   "Harga Jual Avg", "Selisih", "Profit/buah", "Total Profit"],
+                  widths=[38, 13, 13, 13, 15, 15, 13, 13, 18])
     out = df[["SKU", "qty_terjual", "hpp_wa", "biaya_admin_per_buah",
               "total_cost_per_buah", "harga_jual_avg", "selisih_harga",
               "profit_per_buah", "profit"]]
     write_data_rows(ws, 5, out,
-        formats=[None, FMT_NUM, FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_RP],
-        negative_highlight_col=9)
+                    formats=[None, FMT_NUM, FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_RP],
+                    negative_highlight_col=9)
 
     row_rec = 5 + len(df) + 2
     ws.cell(row=row_rec, column=1,
@@ -305,9 +329,9 @@ def _write_borderline(ws, df):
         return
 
     write_headers(ws, 4,
-        ["SKU", "Qty Terjual", "HPP/buah", "Admin/buah", "Harga Jual Avg",
-         "Markup %", "Margin %", "Profit/buah", "Profit Total"],
-        widths=[38, 13, 13, 13, 15, 11, 11, 13, 18])
+                  ["SKU", "Qty Terjual", "HPP/buah", "Admin/buah", "Harga Jual Avg",
+                   "Markup %", "Margin %", "Profit/buah", "Profit Total"],
+                  widths=[38, 13, 13, 13, 15, 11, 11, 13, 18])
     df = df.copy()
     df["markup_frac"] = df["markup_pct"] / 100
     df["margin_frac"] = df["margin_pct"] / 100
@@ -315,7 +339,7 @@ def _write_borderline(ws, df):
     out = df[["SKU", "qty_terjual", "hpp_wa", "biaya_admin_per_buah", "harga_jual_avg",
               "markup_frac", "margin_frac", "profit_per_buah", "profit"]]
     write_data_rows(ws, 5, out,
-        formats=[None, FMT_NUM, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, FMT_PCT, FMT_RP, FMT_RP])
+                    formats=[None, FMT_NUM, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, FMT_PCT, FMT_RP, FMT_RP])
 
     row_rec = 5 + len(df) + 2
     ws.cell(row=row_rec, column=1,
@@ -384,16 +408,16 @@ def _write_platform(ws, plat_df, jual):
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:I2")
     write_headers(ws, 4,
-        ["Platform", "Transaksi", "Qty", "Omzet", "HPP",
-         "Biaya Admin", "Profit", "Margin %", "Admin %"],
-        widths=[15, 12, 13, 18, 18, 18, 18, 12, 12])
+                  ["Platform", "Transaksi", "Qty", "Omzet", "HPP",
+                   "Biaya Admin", "Profit", "Margin %", "Admin %"],
+                  widths=[15, 12, 13, 18, 18, 18, 18, 12, 12])
     plat_df = plat_df.copy()
     plat_df["margin_frac"] = plat_df["margin_pct"] / 100
     plat_df["admin_frac"] = plat_df["admin_pct"] / 100
     out = plat_df[["akun_penjual", "transaksi", "qty", "omzet", "hpp",
                    "biaya_admin", "profit", "margin_frac", "admin_frac"]]
     write_data_rows(ws, 5, out,
-        formats=[None, FMT_NUM, FMT_NUM, FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, FMT_PCT])
+                    formats=[None, FMT_NUM, FMT_NUM, FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, FMT_PCT])
 
     section_row = 5 + len(plat_df) + 2
     ws.cell(row=section_row, column=1, value="TOP SKU BY PROFIT — PER PLATFORM").font = TITLE_FONT
@@ -407,8 +431,8 @@ def _write_platform(ws, plat_df, jual):
         write_headers(ws, row_cur + 1, ["SKU", "Qty", "Omzet", "Profit"],
                       widths=[38, 12, 18, 18])
         write_data_rows(ws, row_cur + 2, top,
-            formats=[None, FMT_NUM, FMT_RP, FMT_RP],
-            negative_highlight_col=4)
+                        formats=[None, FMT_NUM, FMT_RP, FMT_RP],
+                        negative_highlight_col=4)
         row_cur += 3 + len(top)
 
 
@@ -431,9 +455,9 @@ def _write_full_data(ws, sku_agg):
     df_full["margin_pct"] = df_full["margin_pct"] / 100
     df_full["restock_di_tahun"] = df_full["restock_di_tahun"].map({True: "Ya", False: "Tidak"})
     write_data_rows(ws, 4, df_full,
-        formats=[None, FMT_NUM, FMT_NUM, FMT_DEC, FMT_RP, FMT_RP, None, FMT_RP, FMT_RP,
-                 FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, FMT_PCT, FMT_NUM, FMT_NUM, FMT_NUM, None],
-        negative_highlight_col=11)
+                    formats=[None, FMT_NUM, FMT_NUM, FMT_DEC, FMT_RP, FMT_RP, None, FMT_RP, FMT_RP,
+                             FMT_RP, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, FMT_PCT, FMT_NUM, FMT_NUM, FMT_NUM, None],
+                    negative_highlight_col=11)
     ws.freeze_panes = "B4"
 
 
@@ -448,7 +472,6 @@ def _write_supplier_analysis(ws, supplier_tables):
 
     row_cur = 4
 
-    # Section A: China vs Market comparison (most actionable)
     comp = supplier_tables["comparison"]
     ws.cell(row=row_cur, column=1, value="A. PERBANDINGAN CHINA vs MARKET (SKU dengan kedua sumber)").font = TITLE_FONT
     row_cur += 1
@@ -457,22 +480,20 @@ def _write_supplier_analysis(ws, supplier_tables):
         row_cur += 2
     else:
         write_headers(ws, row_cur,
-            ["SKU", "Qty Terjual", "n China", "HPP China",
-             "n Market", "HPP Market", "Selisih (M−C)", "CV China", "Rekomendasi"],
-            widths=[38, 12, 9, 14, 9, 14, 14, 10, 40])
+                      ["SKU", "Qty Terjual", "n China", "HPP China",
+                       "n Market", "HPP Market", "Selisih (M−C)", "CV China", "Rekomendasi"],
+                      widths=[38, 12, 9, 14, 9, 14, 14, 10, 40])
         out = comp[["SKU", "qty_terjual", "n_china", "hpp_china",
                     "n_market", "hpp_market", "selisih_market_vs_china",
                     "cv_china", "rekomendasi"]]
         write_data_rows(ws, row_cur + 1, out,
-            formats=[None, FMT_NUM, FMT_NUM, FMT_RP, FMT_NUM, FMT_RP, FMT_RP, FMT_PCT, None])
-        # Highlight rows with "STOP" recommendation in red
+                        formats=[None, FMT_NUM, FMT_NUM, FMT_RP, FMT_NUM, FMT_RP, FMT_RP, FMT_PCT, None])
         for i in range(len(comp)):
             if str(comp.iloc[i]["rekomendasi"]).startswith("🔴"):
                 for c in range(1, 10):
                     ws.cell(row=row_cur + 1 + i, column=c).fill = RED_FILL
         row_cur += len(comp) + 3
 
-    # Section B: China-only with high HPP variance
     vol = supplier_tables["volatile"]
     ws.cell(row=row_cur, column=1, value="B. CHINA-ONLY DENGAN HPP TIDAK KONSISTEN (CV > 15%)").font = TITLE_FONT
     row_cur += 1
@@ -481,15 +502,14 @@ def _write_supplier_analysis(ws, supplier_tables):
         row_cur += 2
     else:
         write_headers(ws, row_cur,
-            ["SKU", "Qty Terjual", "n China", "HPP Min", "HPP Max", "HPP Avg", "CV %", "Rekomendasi"],
-            widths=[38, 12, 9, 13, 13, 13, 10, 40])
+                      ["SKU", "Qty Terjual", "n China", "HPP Min", "HPP Max", "HPP Avg", "CV %", "Rekomendasi"],
+                      widths=[38, 12, 9, 13, 13, 13, 10, 40])
         out = vol[["SKU", "qty_terjual", "n_china", "hpp_min_china",
                    "hpp_max_china", "hpp_china", "cv_china", "rekomendasi"]]
         write_data_rows(ws, row_cur + 1, out,
-            formats=[None, FMT_NUM, FMT_NUM, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, None])
+                        formats=[None, FMT_NUM, FMT_NUM, FMT_RP, FMT_RP, FMT_RP, FMT_PCT, None])
         row_cur += len(vol) + 3
 
-    # Section C: China-only top sellers (opportunity to test market)
     co = supplier_tables["china_only"]
     ws.cell(row=row_cur, column=1, value=f"C. TOP CHINA-ONLY (potensi test market buy)").font = TITLE_FONT
     row_cur += 1
@@ -498,14 +518,13 @@ def _write_supplier_analysis(ws, supplier_tables):
         row_cur += 2
     else:
         write_headers(ws, row_cur,
-            ["SKU", "Qty Terjual", "n China", "HPP China"],
-            widths=[38, 12, 9, 14])
+                      ["SKU", "Qty Terjual", "n China", "HPP China"],
+                      widths=[38, 12, 9, 14])
         out = co[["SKU", "qty_terjual", "n_china", "hpp_china"]]
         write_data_rows(ws, row_cur + 1, out,
-            formats=[None, FMT_NUM, FMT_NUM, FMT_RP])
+                        formats=[None, FMT_NUM, FMT_NUM, FMT_RP])
         row_cur += len(co) + 3
 
-    # Section D: Market-only top sellers (opportunity to test China import)
     mo = supplier_tables["market_only"]
     ws.cell(row=row_cur, column=1, value=f"D. TOP MARKET-ONLY (potensi test import China)").font = TITLE_FONT
     row_cur += 1
@@ -513,15 +532,162 @@ def _write_supplier_analysis(ws, supplier_tables):
         ws.cell(row=row_cur, column=1, value="(tidak ada)").font = NORMAL_FONT
     else:
         write_headers(ws, row_cur,
-            ["SKU", "Qty Terjual", "n Market", "HPP Market"],
-            widths=[38, 12, 9, 14])
+                      ["SKU", "Qty Terjual", "n Market", "HPP Market"],
+                      widths=[38, 12, 9, 14])
         out = mo[["SKU", "qty_terjual", "n_market", "hpp_market"]]
         write_data_rows(ws, row_cur + 1, out,
-            formats=[None, FMT_NUM, FMT_NUM, FMT_RP])
+                        formats=[None, FMT_NUM, FMT_NUM, FMT_RP])
+
+
+_REORDER_BUCKET_HEADERS = [
+    "SKU", "Sisa Stok", "V 3mo", "V 6mo", "V 12mo",
+    "Vel. Pakai", "Basis", "Volatility", "Max 1 Order",
+    "Lead (bln)", "ROP", "Bulan Cover", "Suggest Order",
+    "Last Purchase",
+]
+_REORDER_BUCKET_WIDTHS = [38, 11, 10, 10, 10, 11, 7, 10, 11, 10, 11, 11, 13, 13]
+_REORDER_BUCKET_COLS = [
+    "SKU", "sisa_stok", "v3mo", "v6mo", "v12mo",
+    "velocity_used", "velocity_basis", "volatility", "max_single_order",
+    "lead_months", "rop_final", "months_cover", "qty_order_suggest",
+    "last_purchase",
+]
+_REORDER_BUCKET_FORMATS = [
+    None, FMT_NUM, FMT_DEC, FMT_DEC, FMT_DEC,
+    FMT_DEC, None, None, FMT_NUM,
+    FMT_DEC, FMT_DEC, FMT_DEC, FMT_NUM,
+    "yyyy-mm-dd",
+]
+
+
+def _write_reorder_bucket(ws, row_cur, title, df, fill_color):
+    c = ws.cell(row=row_cur, column=1, value=title)
+    c.font = TITLE_FONT
+    c.fill = fill_color
+    row_cur += 1
+    if len(df) == 0:
+        ws.cell(row=row_cur, column=1, value="(tidak ada SKU dalam kategori ini)").font = NORMAL_FONT
+        return row_cur + 2
+    write_headers(ws, row_cur, _REORDER_BUCKET_HEADERS, widths=_REORDER_BUCKET_WIDTHS)
+    out = df[_REORDER_BUCKET_COLS]
+    write_data_rows(ws, row_cur + 1, out, formats=_REORDER_BUCKET_FORMATS)
+    return row_cur + len(df) + 3
+
+
+def _write_reorder_analysis(ws, reorder_tables, today=None):
+    if today is None:
+        today = datetime.now()
+
+    ws["A1"] = "TABEL 9: ANALISA REORDER — KAPAN & BERAPA BANYAK"
+    ws["A1"].font = TITLE_FONT
+    ws.merge_cells("A1:N1")
+    ws["A2"] = (f"Snapshot per {today.strftime('%d %B %Y')}. "
+                "Sisa stok dan velocity berdasarkan SEMUA data (lintas tahun), "
+                "bukan hanya tahun analisa.")
+    ws["A2"].font = SUB_FONT
+    ws.merge_cells("A2:N2")
+
+    row_cur = 4
+
+    ws.cell(row=row_cur, column=1, value="METODOLOGI").font = TITLE_FONT
+    row_cur += 1
+    method_lines = [
+        f"• Velocity = rata-rata qty terjual per bulan. Window 6mo default, fallback 12mo/24mo.",
+        f"• CV (volatility) = std/avg qty bulanan. <{int(0.3*100)}%=Stabil, "
+        f"<{int(0.7*100)}%=Moderate, ≥{int(0.7*100)}%=Volatile.",
+        f"• Safety multiplier × lead demand: Stabil={SAFETY_MULT_STABLE}×, "
+        f"Moderate={SAFETY_MULT_MODERATE}×, Volatile={SAFETY_MULT_VOLATILE}×.",
+        f"• Lead time: China direct={LEAD_TIME_CHINA_MONTHS} bulan, "
+        f"Market buy={LEAD_TIME_MARKET_MONTHS} bulan (≈ 1 minggu).",
+        "• ROP = MAX dari (a) lead demand × safety multiplier, "
+        "(b) lead demand + max 1 order (proteksi bulk buyer).",
+        f"• Target setelah reorder: {TARGET_MONTHS_POST_REORDER} bulan cadangan + lead time.",
+        f"• SKU dengan velocity < {SLOW_DEAD_MAX_VELOCITY}/bulan diklasifikasi 'Slow/Dead', tidak masuk reorder rule.",
+    ]
+    for line in method_lines:
+        c = ws.cell(row=row_cur, column=1, value=line)
+        c.font = NORMAL_FONT
+        ws.merge_cells(start_row=row_cur, start_column=1, end_row=row_cur, end_column=14)
+        row_cur += 1
+    row_cur += 1
+
+    ws.cell(row=row_cur, column=1, value="RINGKASAN STATUS").font = TITLE_FONT
+    row_cur += 1
+    status_order = [
+        ("🔴 STOCKOUT", "stockout", RED_FILL),
+        ("🔴 Reorder URGENT", "urgent", RED_FILL),
+        ("🟠 Reorder Now", "now", ORANGE_FILL),
+        ("🟡 Reorder Soon", "soon", YELLOW_FILL),
+        ("🟢 Healthy", "healthy", GREEN_FILL),
+        ("🔵 Overstock", "overstock", BLUE_FILL),
+        ("💤 Slow/Dead", "slow_dead", LIGHT_FILL),
+    ]
+    for label, key, fill in status_order:
+        n = len(reorder_tables[key])
+        lbl = ws.cell(row=row_cur, column=1, value=label)
+        lbl.font = NORMAL_FONT
+        lbl.fill = fill
+        val = ws.cell(row=row_cur, column=2, value=n)
+        val.font = BOLD_FONT
+        val.number_format = FMT_NUM
+        row_cur += 1
+    row_cur += 2
+
+    buckets = [
+        ("A. 🔴 STOCKOUT — SUDAH HABIS, KEHILANGAN SALES", "stockout", RED_FILL),
+        ("B. 🔴 REORDER URGENT — Sisa < ROP × 0.7, RESIKO STOCKOUT SEBELUM BARANG DATANG",
+         "urgent", RED_FILL),
+        (f"C. 🟠 REORDER NOW — Sisa < ROP, BISA REORDER MINGGU INI",
+         "now", ORANGE_FILL),
+        (f"D. 🟡 REORDER SOON — Sisa < ROP × {ROP_SOON_RATIO}, MULAI SIAP-SIAP",
+         "soon", YELLOW_FILL),
+        (f"E. 🔵 OVERSTOCK — Sisa > {OVERSTOCK_MONTHS:.0f} bulan cadangan, STOP REORDER",
+         "overstock", BLUE_FILL),
+    ]
+    for title, key, fill in buckets:
+        row_cur = _write_reorder_bucket(ws, row_cur, title, reorder_tables[key], fill)
+
+
+def _write_reorder_full(ws, reorder_full):
+    ws["A1"] = "DATA LENGKAP REORDER PER SKU"
+    ws["A1"].font = TITLE_FONT
+    ws.merge_cells("A1:T1")
+    headers = ["SKU", "Status", "Sisa Stok", "V 3mo", "V 6mo", "V 12mo", "V 24mo",
+               "Vel. Pakai", "Basis", "CV", "Volatility", "Safety ×",
+               "Max 1 Order", "Lead (bln)", "Lead Demand",
+               "ROP Safety", "ROP Bulk", "ROP Final",
+               "Bulan Cover", "Suggest Order"]
+    widths = [38, 22, 11, 10, 10, 10, 10, 11, 7, 8, 10, 9,
+              12, 11, 12, 12, 12, 12, 12, 13]
+    write_headers(ws, 3, headers, widths=widths)
+    cols = ["SKU", "status", "sisa_stok", "v3mo", "v6mo", "v12mo", "v24mo",
+            "velocity_used", "velocity_basis", "cv", "volatility", "safety_mult",
+            "max_single_order", "lead_months", "lead_demand",
+            "rop_safety", "rop_bulk", "rop_final", "months_cover", "qty_order_suggest"]
+    formats = [None, None, FMT_NUM, FMT_DEC, FMT_DEC, FMT_DEC, FMT_DEC,
+               FMT_DEC, None, FMT_DEC, None, FMT_DEC,
+               FMT_NUM, FMT_DEC, FMT_DEC,
+               FMT_DEC, FMT_DEC, FMT_DEC, FMT_DEC, FMT_NUM]
+    out = reorder_full[cols]
+    write_data_rows(ws, 4, out, formats=formats)
+
+    status_to_fill = {
+        "🔴 STOCKOUT": RED_FILL, "🔴 Reorder URGENT": RED_FILL,
+        "🟠 Reorder Now": ORANGE_FILL, "🟡 Reorder Soon": YELLOW_FILL,
+        "🟢 Healthy": GREEN_FILL, "🔵 Overstock": BLUE_FILL,
+        "💤 Slow/Dead": LIGHT_FILL,
+    }
+    for r_idx in range(len(out)):
+        st = out.iloc[r_idx]["status"]
+        fill = status_to_fill.get(st)
+        if fill is not None:
+            ws.cell(row=4 + r_idx, column=2).fill = fill
+    ws.freeze_panes = "B4"
 
 
 def write_report(output_path: Path, year: int, jual: pd.DataFrame,
-                 sku_agg: pd.DataFrame, tables: dict, sku_no_hpp: list[str]) -> None:
+                 sku_agg: pd.DataFrame, tables: dict, sku_no_hpp: list[str],
+                 today=None) -> None:
     """Write all sheets to a single Excel file."""
     wb = Workbook()
     ws = wb.active
@@ -537,6 +703,62 @@ def write_report(output_path: Path, year: int, jual: pd.DataFrame,
     _write_full_data(wb.create_sheet("07_Data_Lengkap_per_SKU"), sku_agg)
     if "supplier" in tables:
         _write_supplier_analysis(wb.create_sheet("08_Supplier_Analysis"), tables["supplier"])
+    if "reorder" in tables:
+        _write_reorder_analysis(wb.create_sheet("09_Reorder_Analysis"),
+                                tables["reorder"], today=today)
+        _write_reorder_full(wb.create_sheet("10_Reorder_Data_Lengkap"),
+                            tables["reorder"]["full"])
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(output_path)
+    print(f"✓ Menulis laporan ke {output_path}")
+
+
+def write_reorder_standalone(output_path: Path, reorder_tables: dict,
+                             today=None) -> None:
+    """Standalone reorder report (for --reorder CLI flag)."""
+    if today is None:
+        today = datetime.now()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "00_Reorder_Summary"
+
+    ws["A1"] = "LAPORAN ANALISA REORDER — ITBISA SHOP"
+    ws["A1"].font = BIG_TITLE_FONT
+    ws.merge_cells("A1:F1")
+    full = reorder_tables["full"]
+    ws["A2"] = (f"Snapshot per {today.strftime('%d %B %Y %H:%M')}  |  "
+                f"Total SKU dianalisa: {len(full):,}")
+    ws["A2"].font = SUB_FONT
+    ws.merge_cells("A2:F2")
+
+    _write_reorder_analysis(wb.create_sheet("01_Reorder_Action"),
+                            reorder_tables, today=today)
+    _write_reorder_full(wb.create_sheet("02_Reorder_Data_Lengkap"),
+                        reorder_tables["full"])
+
+    ws["A4"] = "Ringkasan status di sheet ini, detail di sheet 01 dan 02."
+    ws["A4"].font = NORMAL_FONT
+    status_order = [
+        ("🔴 STOCKOUT", "stockout", RED_FILL),
+        ("🔴 Reorder URGENT", "urgent", RED_FILL),
+        ("🟠 Reorder Now", "now", ORANGE_FILL),
+        ("🟡 Reorder Soon", "soon", YELLOW_FILL),
+        ("🟢 Healthy", "healthy", GREEN_FILL),
+        ("🔵 Overstock", "overstock", BLUE_FILL),
+        ("💤 Slow/Dead", "slow_dead", LIGHT_FILL),
+    ]
+    for i, (label, key, fill) in enumerate(status_order, start=6):
+        n = len(reorder_tables[key])
+        lbl = ws.cell(row=i, column=1, value=label)
+        lbl.font = BOLD_FONT
+        lbl.fill = fill
+        val = ws.cell(row=i, column=2, value=n)
+        val.font = BOLD_FONT
+        val.number_format = FMT_NUM
+    ws.column_dimensions["A"].width = 28
+    ws.column_dimensions["B"].width = 14
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(output_path)
