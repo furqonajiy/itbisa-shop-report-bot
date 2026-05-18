@@ -1,11 +1,18 @@
-"""HPP, profit, and per-SKU aggregation."""
+"""HPP, profit, per-SKU aggregation, and reorder metrics."""
 from __future__ import annotations
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
 
-from config import CHINA_KEYWORDS, MARKET_KEYWORDS
+from config import (
+    BULK_CHINA_SHARE_THRESHOLD, CHINA_KEYWORDS, CV_MODERATE_MAX, CV_STABLE_MAX,
+    LEAD_TIME_CHINA_MONTHS, LEAD_TIME_MARKET_MONTHS, MARKET_KEYWORDS,
+    OVERSTOCK_MONTHS, ROP_NOW_RATIO, ROP_SOON_RATIO, ROP_URGENT_RATIO,
+    SAFETY_MULT_MODERATE, SAFETY_MULT_STABLE, SAFETY_MULT_VOLATILE,
+    SLOW_DEAD_MAX_VELOCITY, TARGET_MONTHS_POST_REORDER,
+    VELOCITY_MIN_ACTIVE_MONTHS,
+)
 
 
 def classify_supplier(toko, luar_negeri) -> str:
@@ -35,8 +42,8 @@ def calculate_hpp_wa(stok: pd.DataFrame) -> pd.DataFrame:
 
     skus_with_ocistok = set(stok[stok["supplier_type"] == "China"]["SKU"].unique())
     in_hpp = (
-        (stok["SKU"].isin(skus_with_ocistok) & (stok["supplier_type"] == "China"))
-        | (~stok["SKU"].isin(skus_with_ocistok))
+            (stok["SKU"].isin(skus_with_ocistok) & (stok["supplier_type"] == "China"))
+            | (~stok["SKU"].isin(skus_with_ocistok))
     )
 
     hpp_data = stok[in_hpp]
@@ -119,7 +126,7 @@ def aggregate_by_sku(jual: pd.DataFrame, hpp_agg: pd.DataFrame, year: int,
         sku_agg["hpp_wa"] > 0,
         (sku_agg["harga_jual_avg"] - sku_agg["hpp_wa"]) / sku_agg["hpp_wa"] * 100,
         np.nan,
-    )
+        )
 
     if qty_jual_all_time is not None:
         sku_agg["qty_terjual_all_time"] = sku_agg["SKU"].map(qty_jual_all_time).fillna(0)
@@ -142,3 +149,160 @@ def calculate_qty_setelah_restock(sku_agg: pd.DataFrame, jual: pd.DataFrame) -> 
 
     sku_agg["qty_setelah_restock"] = sku_agg.apply(compute, axis=1)
     return sku_agg
+
+
+def _velocity_window(jual_sku: pd.DataFrame, today: pd.Timestamp,
+                     months: int) -> tuple[float, float, int, float]:
+    """Return (avg_monthly_qty, std_monthly_qty, n_active_months, max_single_order)
+    for the trailing window. Missing months padded as 0."""
+    cutoff = today - pd.DateOffset(months=months)
+    win = jual_sku[jual_sku["tanggal_pesan"] >= cutoff]
+    if len(win) == 0:
+        return 0.0, 0.0, 0, 0.0
+    monthly = win.groupby(win["tanggal_pesan"].dt.to_period("M"))["qty_jual"].sum()
+    all_m = pd.period_range(cutoff.to_period("M"), today.to_period("M"), freq="M")
+    monthly = monthly.reindex(all_m, fill_value=0)
+    return (
+        float(monthly.mean()),
+        float(monthly.std()) if len(monthly) > 1 else 0.0,
+        int((monthly > 0).sum()),
+        float(win["qty_jual"].max()),
+    )
+
+
+def _classify_volatility(cv: float) -> tuple[str, float]:
+    if cv < CV_STABLE_MAX:
+        return "Stabil", SAFETY_MULT_STABLE
+    if cv < CV_MODERATE_MAX:
+        return "Moderate", SAFETY_MULT_MODERATE
+    return "Volatile", SAFETY_MULT_VOLATILE
+
+
+def _classify_status(sisa: float, vel: float, rop: float,
+                     months_cover: float) -> tuple[str, float]:
+    if vel < SLOW_DEAD_MAX_VELOCITY:
+        return "💤 Slow/Dead", -50.0
+    if sisa <= 0:
+        return "🔴 STOCKOUT", 100.0
+    if sisa < rop * ROP_URGENT_RATIO:
+        return "🔴 Reorder URGENT", 90.0 - min(80.0, months_cover * 20)
+    if sisa < rop * ROP_NOW_RATIO:
+        return "🟠 Reorder Now", 60.0 - min(40.0, months_cover * 10)
+    if sisa < rop * ROP_SOON_RATIO:
+        return "🟡 Reorder Soon", 30.0
+    if months_cover > OVERSTOCK_MONTHS:
+        return "🔵 Overstock", -10.0
+    return "🟢 Healthy", 0.0
+
+
+def _compute_china_share(stok: pd.DataFrame) -> pd.Series:
+    """Per-SKU fraction of qty_beli that came from China sources."""
+    stok = stok.copy()
+    stok["_is_china"] = stok.apply(
+        lambda r: classify_supplier(r.get("toko"), r.get("luar_negeri")) == "China", axis=1
+    )
+    qty_china = stok[stok["_is_china"]].groupby("SKU")["qty_beli"].sum()
+    qty_total = stok.groupby("SKU")["qty_beli"].sum()
+    return (qty_china / qty_total).fillna(0)
+
+
+def compute_reorder_metrics(stok: pd.DataFrame, jual: pd.DataFrame,
+                            today: pd.Timestamp | None = None) -> pd.DataFrame:
+    """Build per-SKU reorder analysis DataFrame.
+    `today` defaults to datetime.now() — controls velocity windows and 'as of' date.
+    `jual` must be the FULL cleaned jual (all years), not year-filtered."""
+    if today is None:
+        today = pd.Timestamp(datetime.now().date())
+
+    qty_beli_total = stok.groupby("SKU")["qty_beli"].sum()
+    qty_jual_total = jual.groupby("SKU")["qty_jual"].sum()
+    last_purchase = stok.groupby("SKU")["tanggal_bayar"].max()
+    n_purchases = stok.groupby("SKU").size()
+    omzet_total = jual.groupby("SKU")["omzet"].sum()
+    china_share = _compute_china_share(stok)
+    is_bulk_china = china_share >= BULK_CHINA_SHARE_THRESHOLD
+
+    all_skus = sorted(set(qty_beli_total.index) | set(qty_jual_total.index))
+
+    rows = []
+    for sku in all_skus:
+        sub = jual[jual["SKU"] == sku]
+        v3, _, _, _ = _velocity_window(sub, today, 3)
+        v6, std6, n6, max6 = _velocity_window(sub, today, 6)
+        v12, std12, n12, max12 = _velocity_window(sub, today, 12)
+        v24, std24, n24, _ = _velocity_window(sub, today, 24)
+
+        if n6 >= VELOCITY_MIN_ACTIVE_MONTHS:
+            vel, basis, cv = v6, "6mo", (std6 / v6 if v6 > 0 else 0.0)
+        elif n12 >= VELOCITY_MIN_ACTIVE_MONTHS:
+            vel, basis, cv = v12, "12mo", (std12 / v12 if v12 > 0 else 0.0)
+        elif n24 >= 1:
+            vel, basis, cv = v24, "24mo", (std24 / v24 if v24 > 0 else 0.0)
+        else:
+            vel, basis, cv = 0.0, "—", 0.0
+
+        bulk_risk = max12 if max12 > 0 else max6
+
+        qty_b = float(qty_beli_total.get(sku, 0))
+        qty_s = float(qty_jual_total.get(sku, 0))
+        sisa = qty_b - qty_s
+
+        vol_cat, safety_mult = _classify_volatility(cv)
+        is_china_bulk = bool(is_bulk_china.get(sku, False))
+        lead = LEAD_TIME_CHINA_MONTHS if is_china_bulk else LEAD_TIME_MARKET_MONTHS
+        lead_demand = vel * lead
+
+        rop_safety = lead_demand * safety_mult
+        rop_bulk = lead_demand + bulk_risk
+        rop_final = max(rop_safety, rop_bulk)
+
+        target_qty = vel * TARGET_MONTHS_POST_REORDER
+        months_cover = sisa / vel if vel > 0 else float("inf")
+
+        status, urgency = _classify_status(sisa, vel, rop_final, months_cover)
+
+        if vel > 0 and sisa < rop_final:
+            qty_suggest = max(0.0, target_qty - sisa + lead_demand)
+        else:
+            qty_suggest = 0.0
+
+        rows.append({
+            "SKU": sku,
+            "sisa_stok": sisa,
+            "qty_beli_all_time": qty_b,
+            "qty_jual_all_time": qty_s,
+            "v3mo": v3, "v6mo": v6, "v12mo": v12, "v24mo": v24,
+            "velocity_basis": basis,
+            "velocity_used": vel,
+            "cv": cv,
+            "volatility": vol_cat,
+            "safety_mult": safety_mult,
+            "max_single_order": bulk_risk,
+            "bulk_china_share": float(china_share.get(sku, 0)),
+            "is_bulk_china": is_china_bulk,
+            "lead_months": lead,
+            "lead_demand": lead_demand,
+            "rop_safety": rop_safety,
+            "rop_bulk": rop_bulk,
+            "rop_final": rop_final,
+            "target_qty_post_reorder": target_qty,
+            "months_cover": months_cover,
+            "status": status,
+            "urgency_score": urgency,
+            "qty_order_suggest": qty_suggest,
+            "last_purchase": last_purchase.get(sku),
+            "n_purchases": int(n_purchases.get(sku, 0)),
+            "omzet_all_time": float(omzet_total.get(sku, 0)),
+        })
+
+    df = pd.DataFrame(rows)
+    counts = df["status"].value_counts().to_dict()
+    print(f"✓ Reorder analysis: {len(df):,} SKU "
+          f"(STOCKOUT: {counts.get('🔴 STOCKOUT', 0)}, "
+          f"URGENT: {counts.get('🔴 Reorder URGENT', 0)}, "
+          f"Now: {counts.get('🟠 Reorder Now', 0)}, "
+          f"Soon: {counts.get('🟡 Reorder Soon', 0)}, "
+          f"Healthy: {counts.get('🟢 Healthy', 0)}, "
+          f"Overstock: {counts.get('🔵 Overstock', 0)}, "
+          f"Dead: {counts.get('💤 Slow/Dead', 0)})")
+    return df

@@ -37,9 +37,9 @@ def build_table_rugi(sku_agg: pd.DataFrame) -> pd.DataFrame:
 
 def build_table_borderline(sku_agg: pd.DataFrame) -> pd.DataFrame:
     return (sku_agg[
-        (sku_agg["markup_pct"] >= MARKUP_BORDERLINE_MIN) &
-        (sku_agg["markup_pct"] < MARKUP_BORDERLINE_MAX)
-    ].copy().sort_values("qty_terjual", ascending=False).reset_index(drop=True))
+                (sku_agg["markup_pct"] >= MARKUP_BORDERLINE_MIN) &
+                (sku_agg["markup_pct"] < MARKUP_BORDERLINE_MAX)
+                ].copy().sort_values("qty_terjual", ascending=False).reset_index(drop=True))
 
 
 def build_table_kandidat(sku_agg: pd.DataFrame) -> pd.DataFrame:
@@ -50,7 +50,7 @@ def build_table_kandidat(sku_agg: pd.DataFrame) -> pd.DataFrame:
         (sku_agg["qty_terjual"] >= qty_threshold) &
         (sku_agg["markup_pct"] >= MARKUP_THRESHOLD_KANDIDAT) &
         (sku_agg["sisa_stok"] > 0)
-    ].copy()
+        ].copy()
 
     if len(kandidat) == 0:
         return kandidat
@@ -58,8 +58,8 @@ def build_table_kandidat(sku_agg: pd.DataFrame) -> pd.DataFrame:
     kandidat["score_velocity"] = _normalize(kandidat["qty_terjual"])
     kandidat["score_markup"] = _normalize(kandidat["markup_pct"])
     kandidat["score_total"] = (
-        kandidat["score_velocity"] * SCORE_WEIGHT_VELOCITY +
-        kandidat["score_markup"] * SCORE_WEIGHT_MARGIN
+            kandidat["score_velocity"] * SCORE_WEIGHT_VELOCITY +
+            kandidat["score_markup"] * SCORE_WEIGHT_MARGIN
     ).round(1)
 
     for pct in PRICE_SCENARIOS:
@@ -67,7 +67,7 @@ def build_table_kandidat(sku_agg: pd.DataFrame) -> pd.DataFrame:
 
     base = PRICE_SCENARIOS[0]
     kandidat[f"proyeksi_profit_+{int(base*100)}pct"] = (
-        kandidat["profit"] + kandidat["qty_terjual"] * kandidat["harga_jual_avg"] * base
+            kandidat["profit"] + kandidat["qty_terjual"] * kandidat["harga_jual_avg"] * base
     ).round(0)
 
     kandidat["saran"] = kandidat.apply(_saran_kandidat, axis=1)
@@ -106,7 +106,7 @@ def build_top_per_platform(jual: pd.DataFrame, platform: str, top_n: int) -> pd.
         omzet=("omzet", "sum"),
         profit=("profit", "sum"),
     ).reset_index().sort_values("profit", ascending=False)
-        .head(top_n).reset_index(drop=True))
+            .head(top_n).reset_index(drop=True))
 
 
 def build_supplier_analysis(stok: pd.DataFrame, sku_agg: pd.DataFrame) -> dict:
@@ -145,7 +145,7 @@ def build_supplier_analysis(stok: pd.DataFrame, sku_agg: pd.DataFrame) -> dict:
         (df["hpp_china"] > 0) & (df["n_china"] > 1),
         (df["hpp_max_china"] - df["hpp_min_china"]) / df["hpp_china"],
         np.nan,
-    )
+        )
     df["rekomendasi"] = df.apply(_saran_supplier, axis=1)
 
     df = df.merge(sku_agg[["SKU", "qty_terjual", "profit"]], on="SKU", how="left")
@@ -190,3 +190,22 @@ def _saran_supplier(r) -> str:
     if has_market:
         return "💡 Pertimbangkan test import China"
     return "—"
+
+
+def build_reorder_tables(reorder_df: pd.DataFrame) -> dict:
+    """Split reorder DataFrame by status into actionable buckets for Excel sheet."""
+    by_status = lambda s: reorder_df[reorder_df["status"] == s].sort_values(
+        "urgency_score", ascending=False).reset_index(drop=True)
+
+    return {
+        "stockout": by_status("🔴 STOCKOUT"),
+        "urgent": by_status("🔴 Reorder URGENT"),
+        "now": by_status("🟠 Reorder Now"),
+        "soon": by_status("🟡 Reorder Soon"),
+        "healthy": by_status("🟢 Healthy"),
+        "overstock": reorder_df[reorder_df["status"] == "🔵 Overstock"].sort_values(
+            "months_cover", ascending=False).reset_index(drop=True),
+        "slow_dead": reorder_df[reorder_df["status"] == "💤 Slow/Dead"].sort_values(
+            "sisa_stok", ascending=False).reset_index(drop=True),
+        "full": reorder_df.sort_values("urgency_score", ascending=False).reset_index(drop=True),
+    }
