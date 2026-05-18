@@ -39,22 +39,36 @@ data/
 ### 2. Jalankan analisa
 
 ```bash
-python main.py                  # analisa tahun berjalan
-python main.py --year 2026      # analisa tahun spesifik
-python main.py --year 2024      # analisa tahun historis
-python main.py --all            # SEMUA tahun yang ditemukan di data (sekali run)
+python main.py                  # default: analisa sales tahun berjalan
+python main.py --sales 2026     # analisa sales tahun spesifik
+python main.py --sales 2024     # analisa sales tahun historis
+python main.py --sales          # analisa sales SEMUA tahun yang ditemukan
 python main.py --reorder        # analisa reorder standalone (cepat)
 python main.py --ab-test        # analisa A/B test (perubahan harga)
-python main.py --year 2024 --data-dir /custom/path --output-dir /custom/out
+python main.py --all            # RUN SEMUANYA: sales all + reorder + ab-test
+python main.py --sales 2024 --data-dir /custom/path --output-dir /custom/out
 ```
+
+CLI ringkasan:
+
+| Flag | Fungsi |
+|---|---|
+| (tanpa flag) | Sales tahun berjalan |
+| `--sales` | Sales SEMUA tahun (1 file per tahun di output/) |
+| `--sales 2026` | Sales tahun spesifik |
+| `--reorder` | Reorder standalone (`Analisa_Reorder.xlsx`) |
+| `--ab-test` | A/B test (`Analisa_AB_Test.xlsx`). Auto-create template kalau belum ada |
+| `--all` | Run semuanya: `--sales` (semua tahun) + `--reorder` + `--ab-test` (kalau template ada) |
 
 Year filter berdasarkan `Tanggal Pesan`. Semua file jual di folder di-load, lalu di-filter ke tahun yang diminta.
 
-Mode `--all` generate satu file Excel per tahun (mis. `Analisa_Penjualan_ITBisa_2018.xlsx` sampai `..._2026.xlsx`) dan tampilkan ringkasan profit semua tahun di akhir console output. Cocok untuk lihat tren multi-tahun.
+Mode `--sales` (tanpa argumen) generate satu file Excel per tahun (mis. `Analisa_Penjualan_ITBisa_2018.xlsx` sampai `..._2026.xlsx`) dan tampilkan ringkasan profit semua tahun di akhir console output. Cocok untuk lihat tren multi-tahun.
 
 Mode `--reorder` generate `output/Analisa_Reorder.xlsx` yang fokus ke pertanyaan "kapan harus restock dan berapa banyak?". Output mandiri tanpa analisa tahunan — lebih cepat. Berlaku snapshot per tanggal run (forward-looking, bukan retrospective). Lihat section "Reorder Analysis" di bawah.
 
 Mode `--ab-test` baca config dari `data/ab_tests.xlsx` (template di-auto-create kalau belum ada), generate `output/Analisa_AB_Test.xlsx` dengan perbandingan metrik sebelum vs sesudah perubahan harga. Lihat section "A/B Testing" di bawah.
+
+Mode `--all` jalankan ketiganya berurutan. AB test akan **dilewati otomatis** (tidak auto-create template) kalau `ab_tests.xlsx` belum ada — supaya `--all` non-destructive. Run `--ab-test` sekali untuk setup template, lalu `--all` akan ikut menjalankannya.
 
 ### 3. Lihat hasil
 
@@ -325,8 +339,10 @@ ANALISA PENJUALAN ITBISA — TAHUN 2026
 
 1. Update `Jual_2026.xlsx` dari export Shopee/Tiktok terbaru
 2. Update `Stok_2026.xlsx` dengan pembelian baru
-3. Run `python main.py` (default current year) → laporan lengkap dengan reorder sheet
-4. Atau quick check: `python main.py --reorder` → cuma laporan reorder
+3. Run `python main.py --all` → semua laporan sekaligus (sales semua tahun + reorder + ab-test kalau dikonfig)
+4. Atau quick check:
+    - `python main.py` → cuma sales tahun berjalan
+    - `python main.py --reorder` → cuma reorder
 5. Buka Excel output, baca sheet `00_Summary` dulu untuk overview cepat, lalu `09_Reorder_Analysis` untuk action list
 
 ## Troubleshooting

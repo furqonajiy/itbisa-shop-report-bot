@@ -195,29 +195,92 @@ def run_ab_test(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Pat
     return output_path
 
 
+def _run_ab_test_if_configured(data_dir: Path, output_dir: Path) -> Path | None:
+    """For --all mode: run AB test only if template exists with rows. Skip silently otherwise."""
+    ab_config_path = data_dir / AB_TESTS_FILENAME
+    if not ab_config_path.exists():
+        print(f"⊘ A/B test dilewati: {AB_TESTS_FILENAME} belum ada.")
+        print(f"  Run 'python main.py --ab-test' untuk setup template.")
+        return None
+
+    ab_tests = load_ab_tests(ab_config_path)
+    if len(ab_tests) == 0:
+        print(f"⊘ A/B test dilewati: {AB_TESTS_FILENAME} kosong.")
+        return None
+
+    _stok, jual_full_clean, hpp_agg, _qty = _load_all(data_dir)
+    print(f"\n--- Menganalisa {len(ab_tests)} test ---")
+    today = datetime.now()
+    results = analyze_ab_tests(ab_tests, jual_full_clean, hpp_agg, today)
+    output_path = output_dir / AB_TESTS_OUTPUT_FILENAME
+    write_ab_test_report(output_path, results, today)
+
+    if len(results) > 0:
+        print(f"\nRingkasan {len(results)} test:")
+        for _, r in results.iterrows():
+            warn = f"  ({r['warning']})" if r['warning'] else ""
+            print(f"  {r['sku']}: {r['verdict']}{warn}")
+    return output_path
+
+
+def run_everything(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> None:
+    """Run sales all years + reorder standalone + ab-test (if configured)."""
+    print(f"\n{'#'*60}")
+    print(f"# RUN EVERYTHING — SALES (ALL YEARS) + REORDER + AB TEST")
+    print(f"{'#'*60}")
+
+    print(f"\n[1/3] Sales analysis untuk semua tahun")
+    print(f"{'-'*60}")
+    run_all_years(data_dir, output_dir)
+
+    print(f"\n[2/3] Reorder analysis standalone")
+    print(f"{'-'*60}")
+    run_reorder(data_dir, output_dir)
+
+    print(f"\n[3/3] A/B test")
+    print(f"{'-'*60}")
+    _run_ab_test_if_configured(data_dir, output_dir)
+
+    print(f"\n{'#'*60}")
+    print(f"# ✓ Selesai semua. Hasil di folder: {output_dir}")
+    print(f"{'#'*60}\n")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate ITBisa sales analysis Excel report.")
-    parser.add_argument("--year", type=int, default=datetime.now().year,
-                        help="Year to analyze (default: current year). Diabaikan kalau --all/--ab-test/--reorder dipakai.")
-    parser.add_argument("--all", action="store_true",
-                        help="Generate laporan untuk SEMUA tahun yang ditemukan di data")
-    parser.add_argument("--ab-test", action="store_true",
-                        help="Generate laporan A/B test (perubahan harga). Otomatis bikin template kalau belum ada.")
+    parser.add_argument("--sales", nargs="?", const="all", default=None, metavar="YEAR",
+                        help="Sales analysis. Tanpa argumen = semua tahun. "
+                             "Dengan tahun (mis. --sales 2026) = tahun spesifik. "
+                             "Tanpa flag = tahun berjalan.")
     parser.add_argument("--reorder", action="store_true",
                         help="Generate laporan reorder standalone (cepat, tanpa analisa tahunan).")
+    parser.add_argument("--ab-test", action="store_true",
+                        help="Generate laporan A/B test (perubahan harga). Otomatis bikin template kalau belum ada.")
+    parser.add_argument("--all", action="store_true",
+                        help="Run SEMUANYA: sales all years + reorder + ab-test (kalau template ada).")
     parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
     parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     args = parser.parse_args()
 
     try:
-        if args.ab_test:
+        if args.all:
+            run_everything(args.data_dir, args.output_dir)
+        elif args.ab_test:
             run_ab_test(args.data_dir, args.output_dir)
         elif args.reorder:
             run_reorder(args.data_dir, args.output_dir)
-        elif args.all:
-            run_all_years(args.data_dir, args.output_dir)
+        elif args.sales is not None:
+            if args.sales == "all":
+                run_all_years(args.data_dir, args.output_dir)
+            else:
+                try:
+                    year = int(args.sales)
+                except ValueError:
+                    print(f"❌ Tahun tidak valid: {args.sales}", file=sys.stderr)
+                    return 1
+                run_analysis(year, args.data_dir, args.output_dir)
         else:
-            run_analysis(args.year, args.data_dir, args.output_dir)
+            run_analysis(datetime.now().year, args.data_dir, args.output_dir)
         return 0
     except FileNotFoundError as e:
         print(f"❌ {e}", file=sys.stderr)
