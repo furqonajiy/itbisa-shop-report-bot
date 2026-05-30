@@ -7,11 +7,20 @@ import numpy as np
 import pandas as pd
 
 from config import (
-    COL_JUAL_AKUN, COL_JUAL_KODE_UNIK, COL_JUAL_OMZET, COL_JUAL_QTY,
-    COL_JUAL_TAMBAHAN, COL_JUAL_TANGGAL, COL_STOK_LUAR_NEGERI, COL_STOK_QTY,
-    COL_STOK_TANGGAL_BAYAR, COL_STOK_TOKO, COL_STOK_TOTAL_HPP,
-    EXCLUDED_SKUS, JUAL_SHEETS, MIGRASI_PREFIX, REQUIRED_JUAL_SHEET, STOK_SHEET,
+    COL_JUAL_AKUN, COL_JUAL_GUDANG, COL_JUAL_KODE_UNIK, COL_JUAL_OMZET, COL_JUAL_QTY,
+    COL_JUAL_TAMBAHAN, COL_JUAL_TANGGAL, COL_STOK_ALAMAT, COL_STOK_LUAR_NEGERI,
+    COL_STOK_QTY, COL_STOK_TANGGAL_BAYAR, COL_STOK_TANGGAL_SAMPAI, COL_STOK_TOKO,
+    COL_STOK_TOTAL_HPP, COL_HILANG_GUDANG, COL_HILANG_HILANG, COL_HILANG_KETEMU,
+    COL_HILANG_SKU, COL_PINDAH_KURANG, COL_PINDAH_QTY, COL_PINDAH_SKU,
+    COL_PINDAH_TAMBAH, EXCLUDED_SKUS, HILANG_SHEET, JUAL_SHEETS, LEDGER_JUAL_PREFIX,
+    MIGRASI_PREFIX, PINDAH_SHEET, REQUIRED_JUAL_SHEET, STOK_SHEET,
 )
+
+
+def _normalize_sku(s: pd.Series) -> pd.Series:
+    """Case/space-normalize SKU so case-only variants (e.g. PCB-5X7 vs 5x7) merge,
+    matching the case-insensitive SUMIF in the Google Sheets rekap."""
+    return s.astype(str).str.upper().str.strip()
 
 
 def _is_migrasi(s: pd.Series) -> pd.Series:
@@ -62,20 +71,19 @@ def load_stok_files(file_paths: list[Path]) -> pd.DataFrame:
 
     raw_count = len(df)
     df = df[df["SKU"].notna()].copy()
+    df["SKU"] = _normalize_sku(df["SKU"])
     df["qty_beli"] = pd.to_numeric(df["qty_beli"], errors="coerce")
     df["total_hpp"] = pd.to_numeric(df["total_hpp"], errors="coerce")
     df["tanggal_bayar"] = pd.to_datetime(df["tanggal_bayar"], errors="coerce")
     df["luar_negeri"] = pd.to_numeric(df["luar_negeri"], errors="coerce")
     df = df.dropna(subset=["qty_beli", "total_hpp"])
+    print(f"  → Stok bersih: {len(df):,} baris (dari {raw_count:,} mentah)")
 
-    before_dedup = len(df)
-    df = df.drop_duplicates(
-        subset=["SKU", "tanggal_bayar", "qty_beli", "total_hpp"], keep="first"
-    )
-    n_dup = before_dedup - len(df)
-    print(f"  → Stok bersih: {len(df):,} baris (dari {raw_count:,} mentah, "
-          f"hapus {n_dup:,} duplikat)")
-
+    # NOTE: the old drop_duplicates(SKU,tanggal_bayar,qty_beli,total_hpp) was REMOVED.
+    # It deleted genuine repeated identical lots (e.g. 3× JUMPER-MF-20CM at the same
+    # timestamp/qty/price = 6000 pcs → kept only 2000), undercounting beli by 14,258
+    # pcs across 15 SKU and corrupting HPP weights. The Sheets rekap never dedups; we
+    # only drop Migrasi rows that duplicate real purchases (below).
     df = _drop_duplicate_migrasi(df)
     return df
 
@@ -108,6 +116,8 @@ def load_jual_files(file_paths: list[Path]) -> pd.DataFrame:
         COL_JUAL_TANGGAL: "tanggal_pesan",
         COL_JUAL_AKUN: "akun_penjual",
     })
+    df = df[df["SKU"].notna()].copy()
+    df["SKU"] = _normalize_sku(df["SKU"])
     return df
 
 
@@ -160,3 +170,82 @@ def clean_jual(df: pd.DataFrame, year: int | None = None) -> Tuple[pd.DataFrame,
         print(f"    Filter tahun {year}   : buang {stats['filtered_year']:>5,}")
     print(f"    Bersih               : {stats['total_clean']:>7,}")
     return df, stats
+
+
+# ============================================================================
+# Current-workbook loaders for the stock ledger (reconcile to BisaRekapBarang).
+# These read the LATEST stok+jual file by filename and reproduce the rekap formula.
+# ============================================================================
+
+def latest_file(file_paths: list[Path]) -> Path:
+    """Return the latest file by filename (e.g. Stok_2026.xlsx > Stok_2018_2025.xlsx)."""
+    if not file_paths:
+        raise FileNotFoundError("Tidak ada file untuk menentukan workbook berjalan")
+    return sorted(file_paths)[-1]
+
+
+def load_current_stok_arrived(stok_file: Path) -> pd.DataFrame:
+    """Arrived purchases (Tanggal Sampai filled) from the current stok workbook.
+    Keeps Migrasi rows (opening balance). Returns columns: SKU, gudang, qty."""
+    df = pd.read_excel(stok_file, sheet_name=STOK_SHEET, header=1)
+    df = df[df["SKU"].notna()].copy()
+    df["SKU"] = _normalize_sku(df["SKU"])
+    df["qty"] = pd.to_numeric(df[COL_STOK_QTY], errors="coerce").fillna(0)
+    df["sampai"] = pd.to_datetime(df[COL_STOK_TANGGAL_SAMPAI], errors="coerce")
+    df["gudang"] = df[COL_STOK_ALAMAT].astype(str).str.strip()
+    arrived = df[df["sampai"].notna()].copy()   # filled = sudah sampai (in stock)
+    return arrived[["SKU", "gudang", "qty"]]
+
+
+def load_current_jual_nonvoid(jual_file: Path) -> pd.DataFrame:
+    """Non-void sales from the current jual workbook, all BisaJual* sheets (matches
+    rekap scope incl. Blibli/Investasi). Returns columns: SKU, gudang, qty."""
+    xl = pd.ExcelFile(jual_file)
+    sheets = [s for s in xl.sheet_names if s.startswith(LEDGER_JUAL_PREFIX)]
+    parts = []
+    for sh in sheets:
+        d = pd.read_excel(jual_file, sheet_name=sh)
+        if "SKU" not in d.columns:
+            continue
+        parts.append(d)
+    df = pd.concat(parts, ignore_index=True)
+    df = df[df["SKU"].notna()].copy()
+    df["SKU"] = _normalize_sku(df["SKU"])
+    df["qty"] = pd.to_numeric(df[COL_JUAL_QTY], errors="coerce").fillna(0)
+    if "Void" in df.columns:
+        df = df[df["Void"] != True].copy()
+    df["gudang"] = df[COL_JUAL_GUDANG].astype(str).str.strip() \
+        if COL_JUAL_GUDANG in df.columns else ""
+    return df[["SKU", "gudang", "qty"]]
+
+
+def load_hilang(stok_file: Path) -> pd.DataFrame:
+    """BisaHilang from the current stok workbook. Returns: SKU, gudang, ketemu, hilang."""
+    try:
+        df = pd.read_excel(stok_file, sheet_name=HILANG_SHEET, header=0)
+    except ValueError:
+        return pd.DataFrame(columns=["SKU", "gudang", "ketemu", "hilang"])
+    df = df[df[COL_HILANG_SKU].notna()].copy()
+    df["SKU"] = _normalize_sku(df[COL_HILANG_SKU])
+    df["ketemu"] = pd.to_numeric(df[COL_HILANG_KETEMU], errors="coerce").fillna(0)
+    df["hilang"] = pd.to_numeric(df[COL_HILANG_HILANG], errors="coerce").fillna(0)
+    df["gudang"] = df[COL_HILANG_GUDANG].astype(str).str.strip()
+    return df[["SKU", "gudang", "ketemu", "hilang"]]
+
+
+def load_pindah(stok_file: Path) -> pd.DataFrame:
+    """BisaPindahBarang from the current stok workbook (inter-warehouse transfers).
+    Returns: SKU, gudang_in (receives +qty), gudang_out (loses −qty), qty."""
+    try:
+        df = pd.read_excel(stok_file, sheet_name=PINDAH_SHEET, header=0)
+    except ValueError:
+        return pd.DataFrame(columns=["SKU", "gudang_in", "gudang_out", "qty"])
+    if COL_PINDAH_SKU not in df.columns:
+        return pd.DataFrame(columns=["SKU", "gudang_in", "gudang_out", "qty"])
+    df = df[df[COL_PINDAH_SKU].notna()].copy()
+    df["SKU"] = _normalize_sku(df[COL_PINDAH_SKU])
+    df["qty"] = pd.to_numeric(df[COL_PINDAH_QTY], errors="coerce").fillna(0)
+    df["gudang_in"] = df[COL_PINDAH_TAMBAH].astype(str).str.strip()
+    df["gudang_out"] = df[COL_PINDAH_KURANG].astype(str).str.strip()
+    df = df[df["qty"] > 0]
+    return df[["SKU", "gudang_in", "gudang_out", "qty"]]

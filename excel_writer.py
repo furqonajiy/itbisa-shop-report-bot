@@ -12,7 +12,8 @@ from openpyxl.worksheet.worksheet import Worksheet
 from config import (
     ALERT_TEXT_COLOR, BLUE_FILL_COLOR, FMT_DEC, FMT_NUM, FMT_PCT, FMT_RP,
     FONT_NAME, GREEN_FILL_COLOR, HEADER_BG_COLOR, HEADER_TEXT_COLOR,
-    LEAD_TIME_CHINA_MONTHS, LEAD_TIME_MARKET_MONTHS, LIGHT_GRAY_COLOR,
+    LEAD_TIME_CHINA_MONTHS, LEAD_TIME_MARKET_MONTHS, LEDGER_SHEET_NAME,
+    LIGHT_GRAY_COLOR,
     MARKUP_THRESHOLD_KANDIDAT, ORANGE_FILL_COLOR, OVERSTOCK_MONTHS,
     PRICE_SCENARIOS, RED_FILL_COLOR, ROP_SOON_RATIO, ROP_URGENT_RATIO,
     SAFETY_MULT_MODERATE, SAFETY_MULT_STABLE, SAFETY_MULT_VOLATILE,
@@ -685,9 +686,37 @@ def _write_reorder_full(ws, reorder_full):
     ws.freeze_panes = "B4"
 
 
+def _write_stock_ledger(ws, ledger_df, today=None) -> None:
+    """Per-(SKU, gudang) on-hand stock — the bot's reproduction of BisaRekapBarang,
+    computed from the current workbook (arrived beli − non-void jual + ketemu
+    − hilang ± pindah). This is the source of sisa_stok used elsewhere."""
+    ws["A1"] = "REKAP STOK PER GUDANG (rekonsiliasi BisaRekapBarang)"
+    ws["A1"].font = TITLE_FONT
+    n_cols = len(ledger_df.columns)
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max(3, n_cols))
+    asof = today.strftime("%d %B %Y") if today is not None else ""
+    ws["A2"] = ("Saldo = Σ beli(sudah sampai) − Σ jual(non-void) + ketemu − hilang "
+                "± pindah, dari workbook periode berjalan. "
+                + (f"Per {asof}." if asof else ""))
+    ws["A2"].font = SUB_FONT
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=max(3, n_cols))
+
+    gudang_cols = [c for c in ledger_df.columns if c not in ("SKU", "Total")]
+    ordered = ["SKU"] + gudang_cols + ["Total"]
+    df = ledger_df[ordered].sort_values("SKU").copy()
+
+    headers = ["SKU"] + [str(g) for g in gudang_cols] + ["Total Stok"]
+    widths = [40] + [18] * len(gudang_cols) + [14]
+    write_headers(ws, 4, headers, widths=widths)
+    formats = [None] + [FMT_NUM] * len(gudang_cols) + [FMT_NUM]
+    write_data_rows(ws, 5, df, formats=formats,
+                    negative_highlight_col=len(ordered))
+    ws.freeze_panes = "B5"
+
+
 def write_report(output_path: Path, year: int, jual: pd.DataFrame,
                  sku_agg: pd.DataFrame, tables: dict, sku_no_hpp: list[str],
-                 today=None) -> None:
+                 today=None, ledger_df=None) -> None:
     """Write all sheets to a single Excel file."""
     wb = Workbook()
     ws = wb.active
@@ -709,13 +738,16 @@ def write_report(output_path: Path, year: int, jual: pd.DataFrame,
         _write_reorder_full(wb.create_sheet("10_Reorder_Data_Lengkap"),
                             tables["reorder"]["full"])
 
+    if ledger_df is not None and len(ledger_df) > 0:
+        _write_stock_ledger(wb.create_sheet(LEDGER_SHEET_NAME), ledger_df, today=today)
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(output_path)
     print(f"✓ Menulis laporan ke {output_path}")
 
 
 def write_reorder_standalone(output_path: Path, reorder_tables: dict,
-                             today=None) -> None:
+                             today=None, ledger_df=None) -> None:
     """Standalone reorder report (for --reorder CLI flag)."""
     if today is None:
         today = datetime.now()
@@ -759,6 +791,10 @@ def write_reorder_standalone(output_path: Path, reorder_tables: dict,
         val.number_format = FMT_NUM
     ws.column_dimensions["A"].width = 28
     ws.column_dimensions["B"].width = 14
+
+    if ledger_df is not None and len(ledger_df) > 0:
+        _write_stock_ledger(wb.create_sheet("03_Rekap_Stok_per_Gudang"),
+                            ledger_df, today=today)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(output_path)

@@ -15,6 +15,95 @@ from config import (
 )
 
 
+def build_stock_ledger(stok_arrived: pd.DataFrame, jual_nonvoid: pd.DataFrame,
+                       hilang: pd.DataFrame, pindah: pd.DataFrame
+                       ) -> tuple[pd.DataFrame, pd.Series]:
+    """Reproduce BisaRekapBarang from the current workbook, per (SKU, gudang):
+
+        stok = Σ beli(arrived) − Σ jual(non-void) + Σ ketemu − Σ hilang
+               + Σ pindah_masuk − Σ pindah_keluar
+
+    Returns (ledger_df, sisa_by_sku):
+      - ledger_df: one row per SKU, one column per gudang, plus 'Total'
+      - sisa_by_sku: Series SKU -> total on-hand (authoritative sisa_stok)
+    Migrasi rows are included in `stok_arrived` (they are the opening balance).
+    Pindah nets to zero at the SKU total; it only moves stock between gudang.
+    """
+    def by_gudang(df, gcol, vcol):
+        if df is None or len(df) == 0:
+            return pd.Series(dtype=float)
+        s = df.groupby(["SKU", gcol])[vcol].sum()
+        s.index = s.index.set_names(["SKU", "gudang"])
+        return s
+
+    beli = by_gudang(stok_arrived, "gudang", "qty")
+    jual = by_gudang(jual_nonvoid, "gudang", "qty")
+    ketemu = by_gudang(hilang, "gudang", "ketemu")
+    hil = by_gudang(hilang, "gudang", "hilang")
+    pin = by_gudang(pindah, "gudang_in", "qty")
+    pout = by_gudang(pindah, "gudang_out", "qty")
+
+    net = (beli.subtract(jual, fill_value=0)
+               .add(ketemu, fill_value=0)
+               .subtract(hil, fill_value=0)
+               .add(pin, fill_value=0)
+               .subtract(pout, fill_value=0))
+    net.name = "qty"
+
+    flat = net.reset_index()
+    flat = flat[flat["gudang"].astype(str).str.strip().ne("")]
+    # The rekap only tracks SKUs that exist in the stock master (have ≥1 purchase row,
+    # incl. Migrasi opening). A SKU with only stray sales and no purchase (e.g. a
+    # mis-keyed SKU) is not on-hand stock and is excluded — matching BisaRekapBarang.
+    valid_skus = set(stok_arrived["SKU"].unique()) if len(stok_arrived) else set()
+    flat = flat[flat["SKU"].isin(valid_skus)]
+    ledger = flat.pivot_table(index="SKU", columns="gudang", values="qty",
+                              aggfunc="sum", fill_value=0)
+    gudang_cols = sorted(ledger.columns)
+    ledger = ledger[gudang_cols]
+    ledger["Total"] = ledger.sum(axis=1)
+
+    # A negative per-gudang balance is physically impossible — it means a sale or
+    # transfer was tagged to a gudang that didn't hold the stock. The Sheets rekap
+    # collapses this: floor the negative to 0 and keep the SKU total intact (the
+    # stock physically sits in the other gudang). This reproduces BisaRekapBarang's
+    # per-gudang columns exactly while leaving the (authoritative) Total unchanged.
+    flagged = []
+    oversold = []
+    raw_g = ledger[gudang_cols]
+    neg_mask = (raw_g < 0).any(axis=1)
+    if neg_mask.any():
+        clamped = raw_g.clip(lower=0)
+        for sku in ledger.index[neg_mask]:
+            total_sku = ledger.loc[sku, "Total"]
+            if total_sku >= 0:
+                surplus = clamped.loc[sku].sum() - total_sku
+                if surplus > 1e-9:
+                    gmax = clamped.loc[sku].idxmax()
+                    clamped.loc[sku, gmax] -= surplus
+                flagged.append(sku)
+            else:
+                # Oversold (negative SKU total) — a genuine inventory discrepancy in
+                # the source, not a tagging quirk. Keep the raw split so it stays
+                # visible for the user to investigate.
+                clamped.loc[sku] = raw_g.loc[sku]
+                oversold.append(sku)
+        ledger[gudang_cols] = clamped
+
+    ledger = ledger.sort_index().reset_index()
+
+    sisa_by_sku = ledger.set_index("SKU")["Total"]
+    print(f"✓ Ledger stok (workbook berjalan): {len(ledger):,} SKU, "
+          f"gudang {gudang_cols} — total on-hand {sisa_by_sku.sum():,.0f} pcs")
+    if flagged:
+        print(f"  ⚠ {len(flagged)} SKU saldo gudang negatif (jual/pindah salah tag) "
+              f"— dikoreksi agar cocok rekap: " + ", ".join(flagged))
+    if oversold:
+        print(f"  ⚠ {len(oversold)} SKU OVERSOLD (total stok negatif — cek data sumber): "
+              + ", ".join(oversold))
+    return ledger, sisa_by_sku
+
+
 def classify_supplier(toko, luar_negeri) -> str:
     """Return 'China', 'Market', or 'Other'."""
     if pd.notna(luar_negeri) and luar_negeri == 1:
@@ -93,10 +182,13 @@ def enrich_with_profit(jual: pd.DataFrame, hpp_agg: pd.DataFrame) -> pd.DataFram
 
 
 def aggregate_by_sku(jual: pd.DataFrame, hpp_agg: pd.DataFrame, year: int,
-                     qty_jual_all_time: pd.Series | None = None) -> pd.DataFrame:
+                     qty_jual_all_time: pd.Series | None = None,
+                     sisa_by_sku: pd.Series | None = None) -> pd.DataFrame:
     """Per-SKU aggregation joined with stock info.
-    qty_jual_all_time: per-SKU total qty sold across all years (for accurate sisa_stok).
-    If None, falls back to year-only qty (less accurate for sisa_stok)."""
+    qty_jual_all_time: per-SKU total qty sold across all years (for fallback sisa).
+    sisa_by_sku: authoritative on-hand from the current-workbook ledger
+    (BisaRekapBarang). When provided, sisa_stok comes from it (SKUs not in the
+    current workbook → 0). When None, falls back to all-time beli − jual."""
     sku_agg = jual.groupby("SKU").agg(
         qty_terjual=("qty_jual", "sum"),
         jumlah_transaksi=("Invoice", "nunique"),
@@ -133,7 +225,12 @@ def aggregate_by_sku(jual: pd.DataFrame, hpp_agg: pd.DataFrame, year: int,
     else:
         sku_agg["qty_terjual_all_time"] = sku_agg["qty_terjual"]
 
-    sku_agg["sisa_stok"] = sku_agg["total_qty_beli"] - sku_agg["qty_terjual_all_time"]
+    if sisa_by_sku is not None:
+        # On-hand stock per BisaRekapBarang (current workbook). SKUs absent from the
+        # current workbook are not in stock → 0.
+        sku_agg["sisa_stok"] = sku_agg["SKU"].map(sisa_by_sku).fillna(0)
+    else:
+        sku_agg["sisa_stok"] = sku_agg["total_qty_beli"] - sku_agg["qty_terjual_all_time"]
     sku_agg["restock_di_tahun"] = sku_agg["tanggal_pembelian_terakhir"] >= datetime(year, 1, 1)
     return sku_agg
 
@@ -207,10 +304,14 @@ def _compute_china_share(stok: pd.DataFrame) -> pd.Series:
 
 
 def compute_reorder_metrics(stok: pd.DataFrame, jual: pd.DataFrame,
-                            today: pd.Timestamp | None = None) -> pd.DataFrame:
+                            today: pd.Timestamp | None = None,
+                            sisa_by_sku: pd.Series | None = None) -> pd.DataFrame:
     """Build per-SKU reorder analysis DataFrame.
     `today` defaults to datetime.now() — controls velocity windows and 'as of' date.
-    `jual` must be the FULL cleaned jual (all years), not year-filtered."""
+    `jual` must be the FULL cleaned jual (all years), not year-filtered.
+    `sisa_by_sku`: authoritative on-hand from the current-workbook ledger. When
+    provided, sisa_stok comes from it (SKUs not in current workbook → 0); velocity
+    still uses all-time jual. When None, falls back to all-time beli − jual."""
     if today is None:
         today = pd.Timestamp(datetime.now().date())
 
@@ -245,7 +346,10 @@ def compute_reorder_metrics(stok: pd.DataFrame, jual: pd.DataFrame,
 
         qty_b = float(qty_beli_total.get(sku, 0))
         qty_s = float(qty_jual_total.get(sku, 0))
-        sisa = qty_b - qty_s
+        if sisa_by_sku is not None:
+            sisa = float(sisa_by_sku.get(sku, 0.0))   # on-hand per BisaRekapBarang
+        else:
+            sisa = qty_b - qty_s
 
         vol_cat, safety_mult = _classify_volatility(cv)
         is_china_bulk = bool(is_bulk_china.get(sku, False))
