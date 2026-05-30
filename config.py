@@ -5,8 +5,8 @@ PROJECT_ROOT = Path(__file__).parent
 DATA_DIR = PROJECT_ROOT / "data"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 
-STOK_GLOB = "Stok_*.xlsx"
-JUAL_GLOB = "Jual_*.xlsx"
+STOK_GLOB = "*BisaStok*.xlsx"
+JUAL_GLOB = "*BisaJual*.xlsx"
 OUTPUT_FILENAME = "Analisa_Penjualan_ITBisa_{year}.xlsx"
 
 STOK_SHEET = "BisaStok"
