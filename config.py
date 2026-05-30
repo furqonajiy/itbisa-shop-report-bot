@@ -5,8 +5,8 @@ PROJECT_ROOT = Path(__file__).parent
 DATA_DIR = PROJECT_ROOT / "data"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 
-STOK_GLOB = "Stok_*.xlsx"
-JUAL_GLOB = "Jual_*.xlsx"
+STOK_GLOB = "*BisaStok*.xlsx"
+JUAL_GLOB = "*BisaJual*.xlsx"
 OUTPUT_FILENAME = "Analisa_Penjualan_ITBisa_{year}.xlsx"
 
 STOK_SHEET = "BisaStok"
@@ -101,6 +101,32 @@ COL_STOK_TOTAL_HPP = "Total\nHPP\n(Rp)"
 COL_STOK_TANGGAL_BAYAR = "Tanggal\nBayar"
 COL_STOK_TOKO = "Toko[spasi]Akun Pemesan"
 COL_STOK_LUAR_NEGERI = "Luar\nNegeri?"
+
+# --- Current-workbook stock ledger (reconcile to BisaRekapBarang) ---
+# sisa_stok is computed from the latest stok+jual workbook (by filename), using the
+# same formula as the Google Sheets rekap: arrived beli − nonvoid jual + ketemu
+# − hilang ± pindah, per (SKU, gudang). Migrasi rows are KEPT (they are the opening
+# balance). No dedup (the rekap sums every row).
+COL_STOK_TANGGAL_SAMPAI = "Tanggal\nSampai"   # filled = "sudah sampai" (arrived)
+COL_STOK_ALAMAT = "Alamat Pengiriman"          # destination gudang for a purchase
+COL_JUAL_GUDANG = "Lokasi Gudang"              # gudang a sale is deducted from
+
+HILANG_SHEET = "BisaHilang"
+COL_HILANG_SKU = "SKU"
+COL_HILANG_KETEMU = "Banyak\nKetemu"           # found (+)
+COL_HILANG_HILANG = "Banyak\nHilang"           # lost (−)
+COL_HILANG_GUDANG = "Lokasi Gudang"
+
+PINDAH_SHEET = "BisaPindahBarang"
+COL_PINDAH_SKU = "Unnamed: 1"                  # SKU is col B; header is blank
+COL_PINDAH_TAMBAH = "Lokasi\nPenambahan\nBarang"   # gudang receiving (+)
+COL_PINDAH_KURANG = "Lokasi\nPengurangan\nBarang"  # gudang losing (−)
+COL_PINDAH_QTY = "Banyak Barang"
+
+# Ledger jual scope: all sheets starting with this prefix in the current jual file
+# (matches BisaRekapBarang, which includes Blibli/Investasi beyond JUAL_SHEETS).
+LEDGER_JUAL_PREFIX = "BisaJual"
+LEDGER_SHEET_NAME = "11_Rekap_Stok_per_Gudang"
 
 COL_JUAL_INVOICE = "Invoice"
 COL_JUAL_VOID = "Void"

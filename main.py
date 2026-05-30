@@ -7,14 +7,17 @@ from pathlib import Path
 
 import pandas as pd
 
-from analysis import (aggregate_by_sku, calculate_hpp_wa, calculate_qty_setelah_restock,
-                      compute_reorder_metrics, enrich_with_profit, find_sku_without_hpp)
+from analysis import (aggregate_by_sku, build_stock_ledger, calculate_hpp_wa,
+                      calculate_qty_setelah_restock, compute_reorder_metrics,
+                      enrich_with_profit, find_sku_without_hpp)
 from ab_testing import (analyze_ab_tests, create_template, load_ab_tests,
                         write_ab_test_report)
 from config import (AB_TESTS_FILENAME, AB_TESTS_OUTPUT_FILENAME, DATA_DIR,
                     JUAL_GLOB, OUTPUT_DIR, OUTPUT_FILENAME,
                     REORDER_OUTPUT_FILENAME, STOK_GLOB)
-from data_loader import clean_jual, load_jual_files, load_stok_files
+from data_loader import (clean_jual, latest_file, load_current_jual_nonvoid,
+                         load_current_stok_arrived, load_hilang, load_jual_files,
+                         load_pindah, load_stok_files)
 from excel_writer import write_report, write_reorder_standalone
 from tables import (build_reorder_tables, build_supplier_analysis,
                     build_table_borderline, build_table_diminati,
@@ -24,7 +27,9 @@ from tables import (build_reorder_tables, build_supplier_analysis,
 
 def _load_all(data_dir: Path):
     """Load stok + jual once; compute shared aggregates.
-    Returns (stok, jual_full_clean, hpp_agg, qty_jual_all_time)."""
+    Returns (stok, jual_full_clean, hpp_agg, qty_jual_all_time, sisa_by_sku, ledger_df).
+    sisa_by_sku/ledger_df reconcile to BisaRekapBarang from the CURRENT workbook
+    (latest stok + latest jual file by filename)."""
     stok_files = sorted(data_dir.glob(STOK_GLOB))
     jual_files = sorted(data_dir.glob(JUAL_GLOB))
     stok = load_stok_files(stok_files)
@@ -32,13 +37,25 @@ def _load_all(data_dir: Path):
     jual_full_clean, _ = clean_jual(jual_raw, year=None)
     hpp_agg = calculate_hpp_wa(stok)
     qty_jual_all_time = jual_full_clean.groupby("SKU")["qty_jual"].sum()
-    return stok, jual_full_clean, hpp_agg, qty_jual_all_time
+
+    # --- Current-workbook stock ledger (authoritative sisa_stok) ---
+    cur_stok_file = latest_file(stok_files)
+    cur_jual_file = latest_file(jual_files)
+    print(f"✓ Workbook berjalan: {cur_stok_file.name} + {cur_jual_file.name}")
+    stok_arrived = load_current_stok_arrived(cur_stok_file)
+    jual_cur = load_current_jual_nonvoid(cur_jual_file)
+    hilang = load_hilang(cur_stok_file)
+    pindah = load_pindah(cur_stok_file)
+    ledger_df, sisa_by_sku = build_stock_ledger(stok_arrived, jual_cur, hilang, pindah)
+
+    return stok, jual_full_clean, hpp_agg, qty_jual_all_time, sisa_by_sku, ledger_df
 
 
 def _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
-                  year: int, output_dir: Path, reorder_df=None, today=None):
+                  year: int, output_dir: Path, reorder_df=None, today=None,
+                  sisa_by_sku=None, ledger_df=None):
     """Run analysis for a single year using pre-loaded data.
-    `reorder_df` and `today` are optional and shared across years in --all mode.
+    `reorder_df`, `today`, `sisa_by_sku`, `ledger_df` are shared across years in --all.
     Returns (path, profit, margin) or None if no data for that year."""
     jual_year = jual_full_clean[jual_full_clean["tanggal_pesan"].dt.year == year].copy()
     print(f"\n--- Tahun {year}: {len(jual_year):,} transaksi ---")
@@ -50,7 +67,8 @@ def _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
     sku_no_hpp = find_sku_without_hpp(jual_year, hpp_agg)
     jual_with_profit = enrich_with_profit(jual_year, hpp_agg)
 
-    sku_agg = aggregate_by_sku(jual_with_profit, hpp_agg, year, qty_jual_all_time)
+    sku_agg = aggregate_by_sku(jual_with_profit, hpp_agg, year, qty_jual_all_time,
+                               sisa_by_sku=sisa_by_sku)
     sku_agg = calculate_qty_setelah_restock(sku_agg, jual_with_profit)
 
     tables = {
@@ -67,7 +85,7 @@ def _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
 
     output_path = output_dir / OUTPUT_FILENAME.format(year=year)
     write_report(output_path, year, jual_with_profit, sku_agg, tables, sku_no_hpp,
-                 today=today)
+                 today=today, ledger_df=ledger_df)
 
     total_profit = jual_with_profit["profit"].sum()
     omzet = jual_with_profit["omzet"].sum()
@@ -82,12 +100,13 @@ def run_analysis(year: int, data_dir: Path = DATA_DIR,
     print(f"ANALISA PENJUALAN ITBISA — TAHUN {year}")
     print(f"{'='*60}\n")
 
-    stok, jual_full_clean, hpp_agg, qty_jual_all_time = _load_all(data_dir)
+    stok, jual_full_clean, hpp_agg, qty_jual_all_time, sisa_by_sku, ledger_df = _load_all(data_dir)
     today = pd.Timestamp(datetime.now().date())
-    reorder_df = compute_reorder_metrics(stok, jual_full_clean, today)
+    reorder_df = compute_reorder_metrics(stok, jual_full_clean, today, sisa_by_sku=sisa_by_sku)
 
     result = _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
-                           year, output_dir, reorder_df=reorder_df, today=today)
+                           year, output_dir, reorder_df=reorder_df, today=today,
+                           sisa_by_sku=sisa_by_sku, ledger_df=ledger_df)
 
     if result is None:
         raise ValueError(f"Tidak ada data jual untuk tahun {year}")
@@ -106,9 +125,9 @@ def run_all_years(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> l
     print(f"ANALISA PENJUALAN ITBISA — ALL YEARS")
     print(f"{'='*60}\n")
 
-    stok, jual_full_clean, hpp_agg, qty_jual_all_time = _load_all(data_dir)
+    stok, jual_full_clean, hpp_agg, qty_jual_all_time, sisa_by_sku, ledger_df = _load_all(data_dir)
     today = pd.Timestamp(datetime.now().date())
-    reorder_df = compute_reorder_metrics(stok, jual_full_clean, today)
+    reorder_df = compute_reorder_metrics(stok, jual_full_clean, today, sisa_by_sku=sisa_by_sku)
 
     years = sorted(int(y) for y in jual_full_clean["tanggal_pesan"].dt.year.dropna().unique())
     print(f"\n✓ Tahun ditemukan ({len(years)}): {', '.join(str(y) for y in years)}")
@@ -117,7 +136,8 @@ def run_all_years(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> l
     for year in years:
         try:
             res = _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
-                                year, output_dir, reorder_df=reorder_df, today=today)
+                                year, output_dir, reorder_df=reorder_df, today=today,
+                                sisa_by_sku=sisa_by_sku, ledger_df=ledger_df)
             if res is not None:
                 results.append((year,) + res)
         except Exception as e:
@@ -140,13 +160,13 @@ def run_reorder(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Pat
     print(f"ANALISA REORDER — KAPAN & BERAPA BANYAK")
     print(f"{'='*60}\n")
 
-    stok, jual_full_clean, _hpp, _qty = _load_all(data_dir)
+    stok, jual_full_clean, _hpp, _qty, sisa_by_sku, ledger_df = _load_all(data_dir)
     today = pd.Timestamp(datetime.now().date())
-    reorder_df = compute_reorder_metrics(stok, jual_full_clean, today)
+    reorder_df = compute_reorder_metrics(stok, jual_full_clean, today, sisa_by_sku=sisa_by_sku)
     tables = build_reorder_tables(reorder_df)
 
     output_path = output_dir / REORDER_OUTPUT_FILENAME
-    write_reorder_standalone(output_path, tables, today=today)
+    write_reorder_standalone(output_path, tables, today=today, ledger_df=ledger_df)
 
     print(f"\n{'='*60}")
     print(f"Ringkasan:")
@@ -171,7 +191,7 @@ def run_ab_test(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Pat
         print(f"\nEdit file tersebut, tambahkan SKU & tanggal perubahan, lalu run ulang.")
         return ab_config_path
 
-    _stok, jual_full_clean, hpp_agg, _qty = _load_all(data_dir)
+    _stok, jual_full_clean, hpp_agg, _qty, _sisa, _ledger = _load_all(data_dir)
     ab_tests = load_ab_tests(ab_config_path)
 
     if len(ab_tests) == 0:
@@ -208,7 +228,7 @@ def _run_ab_test_if_configured(data_dir: Path, output_dir: Path) -> Path | None:
         print(f"⊘ A/B test dilewati: {AB_TESTS_FILENAME} kosong.")
         return None
 
-    _stok, jual_full_clean, hpp_agg, _qty = _load_all(data_dir)
+    _stok, jual_full_clean, hpp_agg, _qty, _sisa, _ledger = _load_all(data_dir)
     print(f"\n--- Menganalisa {len(ab_tests)} test ---")
     today = datetime.now()
     results = analyze_ab_tests(ab_tests, jual_full_clean, hpp_agg, today)
