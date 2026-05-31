@@ -8,8 +8,9 @@ from pathlib import Path
 import pandas as pd
 
 from analysis import (aggregate_by_sku, build_stock_ledger, calculate_hpp_wa,
-                      calculate_qty_setelah_restock, compute_reorder_metrics,
-                      enrich_with_profit, find_sku_without_hpp)
+                      calculate_qty_setelah_restock, compute_harga_sekarang,
+                      compute_reorder_metrics, enrich_with_profit,
+                      find_sku_without_hpp)
 from ab_testing import (analyze_ab_tests, create_template, load_ab_tests,
                         write_ab_test_report)
 from config import (AB_TESTS_FILENAME, AB_TESTS_OUTPUT_FILENAME, DATA_DIR,
@@ -67,8 +68,11 @@ def _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
     sku_no_hpp = find_sku_without_hpp(jual_year, hpp_agg)
     jual_with_profit = enrich_with_profit(jual_year, hpp_agg)
 
+    # 'Harga sekarang' uses the SKU's most recent selling day across ALL years
+    # (like sisa/reorder), so the year filter doesn't truncate the latest price.
+    harga_sekarang = compute_harga_sekarang(jual_full_clean)
     sku_agg = aggregate_by_sku(jual_with_profit, hpp_agg, year, qty_jual_all_time,
-                               sisa_by_sku=sisa_by_sku)
+                               sisa_by_sku=sisa_by_sku, harga_sekarang=harga_sekarang)
     sku_agg = calculate_qty_setelah_restock(sku_agg, jual_with_profit)
 
     tables = {
