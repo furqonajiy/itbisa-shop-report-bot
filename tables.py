@@ -63,11 +63,11 @@ def build_table_kandidat(sku_agg: pd.DataFrame) -> pd.DataFrame:
     ).round(1)
 
     for pct in PRICE_SCENARIOS:
-        kandidat[f"harga_+{int(pct*100)}pct"] = (kandidat["harga_jual_avg"] * (1 + pct)).round(0)
+        kandidat[f"harga_+{int(pct*100)}pct"] = (kandidat["harga_sekarang"] * (1 + pct)).round(0)
 
     base = PRICE_SCENARIOS[0]
     kandidat[f"proyeksi_profit_+{int(base*100)}pct"] = (
-            kandidat["profit"] + kandidat["qty_terjual"] * kandidat["harga_jual_avg"] * base
+            kandidat["profit"] + kandidat["qty_terjual"] * kandidat["harga_sekarang"] * base
     ).round(0)
 
     kandidat["saran"] = kandidat.apply(_saran_kandidat, axis=1)

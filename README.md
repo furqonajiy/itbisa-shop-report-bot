@@ -55,6 +55,22 @@ biaya yang benar-benar terealisasi.
 - Sumber HPP harga per SKU bisa dilihat di Sheet 07 kolom **"Sumber HPP Harga"**
   (`LN-terakhir` atau `WA`), bersanding dengan **"HPP Dasar Harga"** dan **"HPP/Buah (P&L)"**.
 
+### Harga Sekarang (baseline analisa naik harga)
+
+Kolom **"Harga Sekarang"** (Sheet 04 & 05, juga Sheet 07) = **harga satuan terendah
+(Omzet/Qty) pada hari penjualan non-CoD terakhir** suatu SKU.
+
+- Bukan rata-rata seumur hidup (`harga_jual_avg`) yang tercampur harga lama; ambil dari
+  **hari jual terakhir** supaya mewakili harga yang berlaku sekarang.
+- **Minimum di hari itu** dipakai agar menangkap tier grosir terendah yang masih aktif,
+  sekaligus mengabaikan (a) harga promo basi dari awal bulan dan (b) "undian" eceran vs
+  grosir dari transaksi tunggal yang kebetulan paling akhir.
+- **CoD dikecualikan** (harganya beda channel).
+- **Markup %** (yang menentukan SKU masuk Kandidat ≥30% / Borderline <30%) dihitung dari
+  `(Harga Sekarang − HPP dasar harga) / HPP dasar harga`, begitu juga skenario
+  Harga +10/15/20% di sheet Kandidat.
+- SKU tanpa penjualan non-CoD sama sekali → fallback ke `harga_jual_avg`.
+
 ### Markup, bukan margin
 
 Aturan harga minimum = **HPP dasar harga × 1.30** (markup 30% di atas HPP), **bukan**
