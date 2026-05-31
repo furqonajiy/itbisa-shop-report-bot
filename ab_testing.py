@@ -9,7 +9,8 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from config import (
-    AB_MIN_DAYS_POST, AB_TESTS_SHEET, ALERT_TEXT_COLOR, COL_AB_CATATAN,
+    AB_BULK_CONCENTRATION, AB_MIN_DAYS_POST, AB_MIN_TRANS_PRE,
+    AB_PRE_WINDOW_DAYS, AB_TESTS_SHEET, ALERT_TEXT_COLOR, COL_AB_CATATAN,
     COL_AB_NAMA, COL_AB_SKU, COL_AB_TANGGAL, FMT_DEC, FMT_NUM, FMT_PCT, FMT_RP,
     FONT_NAME, GREEN_FILL_COLOR, HEADER_BG_COLOR, HEADER_TEXT_COLOR,
     LIGHT_GRAY_COLOR, RED_FILL_COLOR, TITLE_COLOR, YELLOW_FILL_COLOR,
@@ -55,7 +56,8 @@ def _compute_period_metrics(jual_sub: pd.DataFrame, hpp_wa: float) -> dict:
             "avg_price": float("nan"), "markup_pct": float("nan"),
             "margin_pct": float("nan"), "days": 0,
             "qty_per_day": 0.0, "omzet_per_day": 0.0, "profit_per_day": 0.0,
-            "first_date": None, "last_date": None,
+            "admin_per_day": 0.0, "margin_per_unit": float("nan"),
+            "max_single_order": 0.0, "first_date": None, "last_date": None,
         }
 
     qty = jual_sub["qty_jual"].sum()
@@ -71,6 +73,8 @@ def _compute_period_metrics(jual_sub: pd.DataFrame, hpp_wa: float) -> dict:
     avg_price = omzet / qty if qty > 0 else float("nan")
     markup_pct = ((avg_price - hpp_wa) / hpp_wa * 100) if pd.notna(hpp_wa) and hpp_wa > 0 else float("nan")
     margin_pct = (profit / omzet * 100) if omzet > 0 else float("nan")
+    # Gross margin per unit (sebelum admin) — basis bridge & break-even.
+    margin_per_unit = (avg_price - hpp_wa) if pd.notna(hpp_wa) and qty > 0 else float("nan")
 
     return {
         "n_trans": jual_sub["Invoice"].nunique(),
@@ -84,6 +88,9 @@ def _compute_period_metrics(jual_sub: pd.DataFrame, hpp_wa: float) -> dict:
         "qty_per_day": qty / days,
         "omzet_per_day": omzet / days,
         "profit_per_day": profit / days,
+        "admin_per_day": biaya_admin / days,
+        "margin_per_unit": margin_per_unit,
+        "max_single_order": float(jual_sub["qty_jual"].max()),
         "first_date": first_date,
         "last_date": last_date,
     }
@@ -95,23 +102,88 @@ def _pct_change(old: float, new: float) -> float:
     return (new - old) / abs(old) * 100
 
 
-def _verdict(delta_qty: float, delta_profit: float, delta_price: float) -> str:
-    if pd.isna(delta_profit) or pd.isna(delta_qty):
-        return "⚪ Inconclusive (data sedikit)"
-    if delta_profit > 5 and delta_qty > -10:
-        return "✅ Effective — profit naik, qty stabil"
-    if delta_profit > 5 and delta_qty <= -10:
-        return "🟡 Mixed — profit naik tapi qty turun"
+def _profit_bridge(pre_m: dict, post_m: dict) -> dict:
+    """Decompose Δ(profit/hari) into price, volume, interaction and admin effects.
+
+    Gross margin/day = margin_per_unit × qty/day, so its change splits exactly into:
+      efek_harga  = Δmargin_per_unit × qty/day_pre   (margin naik, volume tetap)
+      efek_volume = Δqty/day × margin_per_unit_pre   (volume berubah, margin tetap)
+      interaksi   = Δmargin_per_unit × Δqty/day
+    Δprofit/day = (efek_harga + efek_volume + interaksi) + efek_admin.
+    Answers directly: did the price move (efek_harga, +) get cancelled by lost
+    volume (efek_volume, −)? Break-even = how much volume could drop first."""
+    mu_pre, mu_post = pre_m["margin_per_unit"], post_m["margin_per_unit"]
+    q_pre, q_post = pre_m["qty_per_day"], post_m["qty_per_day"]
+    if pd.isna(mu_pre) or pd.isna(mu_post):
+        return {k: float("nan") for k in
+                ("efek_harga", "efek_volume", "interaksi", "efek_admin",
+                 "break_even_drop_pct", "headroom_pct", "elasticity")}
+
+    d_mu, d_q = mu_post - mu_pre, q_post - q_pre
+    efek_harga = d_mu * q_pre
+    efek_volume = d_q * mu_pre
+    interaksi = d_mu * d_q
+    efek_admin = post_m["admin_per_day"] - pre_m["admin_per_day"]
+
+    # Volume boleh turun s/d ini sebelum gross margin/day balik ke level pre.
+    break_even = (1 - mu_pre / mu_post) * 100 if mu_post > 0 else float("nan")
+    d_qty_pct = _pct_change(q_pre, q_post)
+    headroom = (d_qty_pct + break_even) if pd.notna(d_qty_pct) and pd.notna(break_even) else float("nan")
+    d_price_pct = _pct_change(pre_m["avg_price"], post_m["avg_price"])
+    elasticity = (d_qty_pct / d_price_pct) if pd.notna(d_qty_pct) and pd.notna(d_price_pct) and d_price_pct != 0 else float("nan")
+
+    return {
+        "efek_harga": efek_harga, "efek_volume": efek_volume,
+        "interaksi": interaksi, "efek_admin": efek_admin,
+        "break_even_drop_pct": break_even, "headroom_pct": headroom,
+        "elasticity": elasticity,
+    }
+
+
+def _confound_flags(pre_m: dict, post_m: dict, bridge: dict) -> list[str]:
+    """Reasons the causal claim (price → profit) may be unreliable."""
+    flags = []
+    if post_m["days"] < AB_MIN_DAYS_POST:
+        flags.append(f"post baru {post_m['days']} hari")
+    if post_m["n_trans"] < AB_MIN_DAYS_POST:
+        flags.append(f"post cuma {post_m['n_trans']} transaksi")
+    if pre_m["n_trans"] < AB_MIN_TRANS_PRE:
+        flags.append(f"baseline pre tipis ({pre_m['n_trans']} trx)")
+    if post_m["qty"] > 0 and post_m["max_single_order"] / post_m["qty"] > AB_BULK_CONCENTRATION:
+        share = post_m["max_single_order"] / post_m["qty"] * 100
+        flags.append(f"qty post didominasi 1 order grosir ({share:.0f}%)")
+    el = bridge["elasticity"]
+    if pd.notna(el) and el > 0:
+        flags.append("qty & harga sama-sama naik (elastisitas +) → ada faktor lain, efek harga tak terisolasi")
+    return flags
+
+
+def _verdict(bridge: dict, delta_profit: float, delta_qty: float,
+             confounds: list[str]) -> str:
+    """Descriptive verdict on profit, with break-even framing."""
+    if pd.isna(delta_profit):
+        return "⚪ Inconclusive — data kurang"
+    be = bridge["break_even_drop_pct"]
+    strong_confound = any("didominasi" in c or "elastisitas" in c or "post baru" in c
+                          for c in confounds)
     if delta_profit < -5:
-        return "🔴 Bad — profit turun"
-    if abs(delta_profit) <= 5:
-        return "⚪ No significant change"
-    return "⚪ Unclear"
+        if pd.notna(delta_qty) and pd.notna(be) and delta_qty < -be:
+            return "🔴 Bad — volume turun melebihi break-even, harga naik menurunkan profit"
+        return "🔴 Bad — profit/hari turun"
+    if delta_profit > 5:
+        base = "✅ Effective — profit/hari naik"
+        if pd.notna(delta_qty) and delta_qty < 0:
+            base = "✅ Effective — margin menutup penurunan volume"
+        if strong_confound:
+            return base.replace("✅", "🟡") + " (atribusi lemah, cek catatan)"
+        return base
+    return "⚪ No significant change"
 
 
 def analyze_ab_tests(ab_tests: pd.DataFrame, jual_full_clean: pd.DataFrame,
                      hpp_agg: pd.DataFrame, today: datetime) -> pd.DataFrame:
-    """For each test config, compute pre vs post metrics."""
+    """For each test config, compare a comparable pre-window vs post change date,
+    decompose Δprofit (price vs volume), compute break-even volume drop & confounds."""
     if len(ab_tests) == 0:
         return pd.DataFrame()
 
@@ -124,20 +196,19 @@ def analyze_ab_tests(ab_tests: pd.DataFrame, jual_full_clean: pd.DataFrame,
         hpp = hpp_lookup.get(sku, float("nan"))
 
         sku_jual = jual_full_clean[jual_full_clean["SKU"] == sku].copy()
-
         if len(sku_jual) == 0:
             print(f"  ⚠ {sku}: tidak ada transaksi, skip")
             continue
 
-        pre = sku_jual[sku_jual["tanggal_pesan"] < change_date]
+        pre_start = change_date - pd.Timedelta(days=AB_PRE_WINDOW_DAYS)
+        pre = sku_jual[(sku_jual["tanggal_pesan"] >= pre_start)
+                       & (sku_jual["tanggal_pesan"] < change_date)]
         post = sku_jual[sku_jual["tanggal_pesan"] >= change_date]
 
         pre_m = _compute_period_metrics(pre, hpp)
         post_m = _compute_period_metrics(post, hpp)
-
-        warning = ""
-        if post_m["days"] < AB_MIN_DAYS_POST:
-            warning = f"⚠ Post period baru {post_m['days']} hari — data belum cukup"
+        bridge = _profit_bridge(pre_m, post_m)
+        confounds = _confound_flags(pre_m, post_m, bridge)
 
         delta_qty = _pct_change(pre_m["qty_per_day"], post_m["qty_per_day"])
         delta_omzet = _pct_change(pre_m["omzet_per_day"], post_m["omzet_per_day"])
@@ -149,6 +220,7 @@ def analyze_ab_tests(ab_tests: pd.DataFrame, jual_full_clean: pd.DataFrame,
             "nama_test": t.get("nama_test", "") or "",
             "tanggal_perubahan": change_date,
             "hpp_wa": hpp,
+            "pre_window_days": AB_PRE_WINDOW_DAYS,
             "pre_first": pre_m["first_date"],
             "pre_last": pre_m["last_date"],
             "pre_days": pre_m["days"] if pre_m["n_trans"] > 0 else 0,
@@ -175,8 +247,15 @@ def analyze_ab_tests(ab_tests: pd.DataFrame, jual_full_clean: pd.DataFrame,
             "delta_omzet_pct": delta_omzet,
             "delta_profit_pct": delta_profit,
             "delta_price_pct": delta_price,
-            "verdict": _verdict(delta_qty, delta_profit, delta_price),
-            "warning": warning,
+            "efek_harga_per_hari": bridge["efek_harga"],
+            "efek_volume_per_hari": bridge["efek_volume"],
+            "interaksi_per_hari": bridge["interaksi"],
+            "efek_admin_per_hari": bridge["efek_admin"],
+            "break_even_drop_pct": bridge["break_even_drop_pct"],
+            "headroom_pct": bridge["headroom_pct"],
+            "elasticity": bridge["elasticity"],
+            "verdict": _verdict(bridge, delta_profit, delta_qty, confounds),
+            "warning": "; ".join(confounds),
             "catatan": t.get("catatan", "") or "",
         })
 
@@ -194,7 +273,8 @@ def write_ab_test_report(output_path: Path, results: pd.DataFrame,
     ws["A1"].font = BIG_TITLE_FONT
     ws.merge_cells("A1:F1")
     ws["A2"] = (f"Generated: {today.strftime('%d %B %Y %H:%M')}  |  "
-                f"Window: Full data pre vs post change date")
+                f"Pre = {AB_PRE_WINDOW_DAYS} hari sebelum perubahan vs Post (daily-rate). "
+                f"Profit bridge memisah efek harga vs volume.")
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:F2")
 
@@ -246,28 +326,32 @@ def write_ab_test_report(output_path: Path, results: pd.DataFrame,
 
 
 def _write_details_sheet(ws, results: pd.DataFrame) -> None:
-    ws["A1"] = "DETAIL A/B TEST — PRE vs POST"
+    ws["A1"] = "DETAIL A/B TEST — PRE vs POST + PROFIT BRIDGE"
     ws["A1"].font = TITLE_FONT
-    ws.merge_cells("A1:T1")
-    ws["A2"] = ("Bandingan periode SEBELUM dan SESUDAH perubahan harga. "
-                "Daily rates dipakai supaya fair karena window beda panjang.")
+    ws.merge_cells("A1:V1")
+    ws["A2"] = ("Pre = window setara sebelum perubahan (bukan all-time). Bridge: Δprofit/hari "
+                "= Efek Harga + Efek Volume + Interaksi + Efek Admin. Break-even = batas turun "
+                "volume sebelum profit balik ke level pre; Headroom = jarak qty aktual ke batas itu "
+                "(+ = aman). Elastisitas + = qty & harga sama-sama naik (atribusi lemah, lihat Catatan).")
     ws["A2"].font = SUB_FONT
-    ws.merge_cells("A2:T2")
+    ws.merge_cells("A2:V2")
 
     headers = [
         "SKU", "Nama Test", "Tgl Perubahan", "HPP/Buah",
-        "Pre Days", "Pre Qty/Day", "Pre Omzet/Day", "Pre Profit/Day",
-        "Pre Avg Price", "Pre Markup %",
-        "Post Days", "Post Qty/Day", "Post Omzet/Day", "Post Profit/Day",
-        "Post Avg Price", "Post Markup %",
-        "Δ Qty/Day", "Δ Omzet/Day", "Δ Profit/Day", "Δ Price",
-        "Verdict", "Warning",
+        "Pre Qty/Day", "Pre Profit/Day", "Pre Avg Price",
+        "Post Qty/Day", "Post Profit/Day", "Post Avg Price",
+        "Δ Qty/Day", "Δ Profit/Day", "Δ Price",
+        "Efek Harga/hr", "Efek Volume/hr", "Interaksi/hr", "Efek Admin/hr",
+        "Break-even Turun Qty", "Headroom Qty", "Elastisitas",
+        "Verdict", "Catatan (confound)",
     ]
-    widths = [38, 25, 13, 11,
-              9, 12, 14, 14, 13, 11,
-              9, 12, 14, 14, 13, 11,
-              11, 11, 11, 11,
-              38, 30]
+    widths = [38, 22, 13, 11,
+              12, 14, 13,
+              12, 14, 13,
+              11, 11, 11,
+              14, 14, 13, 13,
+              16, 13, 11,
+              42, 46]
 
     for i, h in enumerate(headers, start=1):
         c = ws.cell(row=4, column=i, value=h)
@@ -277,51 +361,55 @@ def _write_details_sheet(ws, results: pd.DataFrame) -> None:
         ws.column_dimensions[get_column_letter(i)].width = widths[i - 1]
     ws.row_dimensions[4].height = 30
 
-    pct_cols = {10, 16, 17, 18, 19, 20}
-    rp_cols = {4, 7, 8, 9, 13, 14, 15}
-    num_cols = {5, 6, 11, 12}
+    field_map = {
+        "SKU": "sku", "Nama Test": "nama_test", "Tgl Perubahan": "tanggal_perubahan",
+        "HPP/Buah": "hpp_wa",
+        "Pre Qty/Day": "pre_qty_per_day", "Pre Profit/Day": "pre_profit_per_day",
+        "Pre Avg Price": "pre_avg_price",
+        "Post Qty/Day": "post_qty_per_day", "Post Profit/Day": "post_profit_per_day",
+        "Post Avg Price": "post_avg_price",
+        "Δ Qty/Day": "delta_qty_pct", "Δ Profit/Day": "delta_profit_pct", "Δ Price": "delta_price_pct",
+        "Efek Harga/hr": "efek_harga_per_hari", "Efek Volume/hr": "efek_volume_per_hari",
+        "Interaksi/hr": "interaksi_per_hari", "Efek Admin/hr": "efek_admin_per_hari",
+        "Break-even Turun Qty": "break_even_drop_pct", "Headroom Qty": "headroom_pct",
+        "Elastisitas": "elasticity",
+        "Verdict": "verdict", "Catatan (confound)": "warning",
+    }
+    pct_headers = {"Δ Qty/Day", "Δ Profit/Day", "Δ Price", "Break-even Turun Qty", "Headroom Qty"}
+    rp_headers = {"HPP/Buah", "Pre Profit/Day", "Pre Avg Price", "Post Profit/Day",
+                  "Post Avg Price", "Efek Harga/hr", "Efek Volume/hr", "Interaksi/hr", "Efek Admin/hr"}
+    num_headers = {"Pre Qty/Day", "Post Qty/Day"}
+    dec_headers = {"Elastisitas"}
+    verdict_col = headers.index("Verdict") + 1
 
     for r_idx, (_, row) in enumerate(results.iterrows()):
-        delta_profit = row["delta_profit_pct"]
         verdict = row["verdict"]
         for c_idx, h in enumerate(headers, start=1):
-            field_map = {
-                "SKU": "sku", "Nama Test": "nama_test", "Tgl Perubahan": "tanggal_perubahan",
-                "HPP/Buah": "hpp_wa",
-                "Pre Days": "pre_days", "Pre Qty/Day": "pre_qty_per_day",
-                "Pre Omzet/Day": "pre_omzet_per_day", "Pre Profit/Day": "pre_profit_per_day",
-                "Pre Avg Price": "pre_avg_price", "Pre Markup %": "pre_markup_pct",
-                "Post Days": "post_days", "Post Qty/Day": "post_qty_per_day",
-                "Post Omzet/Day": "post_omzet_per_day", "Post Profit/Day": "post_profit_per_day",
-                "Post Avg Price": "post_avg_price", "Post Markup %": "post_markup_pct",
-                "Δ Qty/Day": "delta_qty_pct", "Δ Omzet/Day": "delta_omzet_pct",
-                "Δ Profit/Day": "delta_profit_pct", "Δ Price": "delta_price_pct",
-                "Verdict": "verdict", "Warning": "warning",
-            }
             val = row[field_map[h]]
             if pd.isna(val):
                 val = None
-            elif h in ("Pre Markup %", "Post Markup %", "Δ Qty/Day",
-                       "Δ Omzet/Day", "Δ Profit/Day", "Δ Price"):
-                val = val / 100 if val is not None else None
+            elif h in pct_headers and val is not None:
+                val = val / 100
             cell = ws.cell(row=5 + r_idx, column=c_idx, value=val)
             cell.font = NORMAL_FONT
-            if c_idx in pct_cols:
+            if h in pct_headers:
                 cell.number_format = FMT_PCT
-            elif c_idx in rp_cols:
+            elif h in rp_headers:
                 cell.number_format = FMT_RP
-            elif c_idx in num_cols:
+            elif h in num_headers:
+                cell.number_format = FMT_DEC
+            elif h in dec_headers:
                 cell.number_format = FMT_DEC
             if r_idx % 2 == 1:
                 cell.fill = LIGHT_FILL
 
-        verdict_cell = ws.cell(row=5 + r_idx, column=21)
+        vcell = ws.cell(row=5 + r_idx, column=verdict_col)
         if verdict.startswith("✅"):
-            verdict_cell.fill = GREEN_FILL
+            vcell.fill = GREEN_FILL
         elif verdict.startswith("🔴"):
-            verdict_cell.fill = RED_FILL
+            vcell.fill = RED_FILL
         elif verdict.startswith("🟡"):
-            verdict_cell.fill = YELLOW_FILL
+            vcell.fill = YELLOW_FILL
 
     ws.freeze_panes = "B5"
 

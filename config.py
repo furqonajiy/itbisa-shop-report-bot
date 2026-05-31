@@ -75,6 +75,13 @@ COL_AB_TANGGAL = "Tanggal Perubahan"
 COL_AB_NAMA = "Nama Test"
 COL_AB_CATATAN = "Catatan"
 AB_MIN_DAYS_POST = 3
+# Window pre yang setara (hari sebelum tanggal perubahan). Baseline all-time
+# membandingkan post pendek vs rata-rata bertahun-tahun → delta menggelembung.
+AB_PRE_WINDOW_DAYS = 60
+# Satu order > sekian fraksi qty post = qty didominasi 1 borongan → flag confound.
+AB_BULK_CONCENTRATION = 0.40
+# Min transaksi di window pre sebelum baseline dianggap cukup.
+AB_MIN_TRANS_PRE = 3
 
 # Reorder analysis config
 REORDER_OUTPUT_FILENAME = "Analisa_Reorder.xlsx"

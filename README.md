@@ -99,6 +99,33 @@ pembelian non-Migrasi untuk SKU yang sama (mencegah double-count HPP & sisa stok
 | 10_Reorder_Data_Lengkap | Detail perhitungan reorder |
 | 11_Rekap_Stok_per_Gudang | Saldo stok per gudang |
 
+## A/B Test perubahan harga (`--ab-test`)
+
+Mengukur **apakah kenaikan harga benar berpengaruh ke profit** — bukan sekadar pre vs post,
+karena profit bergerak oleh banyak hal (tren, musiman, stok habis). Yang dibandingkan:
+
+- **Window pre setara**: `AB_PRE_WINDOW_DAYS` hari (default 60) sebelum tanggal perubahan,
+  bukan rata-rata seumur hidup (baseline all-time bikin delta menggelembung). Semua metrik
+  pakai daily-rate (per hari) supaya adil meski panjang window beda.
+- **Profit bridge**: `Δprofit/hari = Efek Harga + Efek Volume + Interaksi + Efek Admin`.
+  Memisahkan tambahan margin dari kenaikan harga (efek harga, +) terhadap dampak perubahan
+  volume (efek volume). Kalau efek volume negatif besar dan mengalahkan efek harga → kenaikan
+  harga merugikan.
+- **Break-even turun qty** = `1 − (margin_pre / margin_post)`: berapa % volume boleh hilang
+  sebelum profit balik ke level sebelumnya. **Headroom** = jarak qty aktual ke batas itu
+  (+ = aman).
+- **Elastisitas** = %Δqty ÷ %Δprice (diagnostik). Bila **positif** (qty & harga sama-sama
+  naik) → ada faktor lain; efek harga tak bisa diisolasi → ditandai di kolom Catatan.
+- **Flag confound**: post terlalu pendek/sedikit transaksi, baseline pre tipis, qty post
+  didominasi 1 order grosir, elastisitas positif.
+- **Verdict** deskriptif (✅/🟡/🔴/⚪) berbasis arah profit + break-even, diturunkan ke 🟡 bila
+  atribusi lemah.
+
+Belum termasuk Difference-in-Differences (kontrol SKU lain) & bootstrap CI — langkah lanjutan.
+
+Config `data/ab_tests.xlsx` (sheet `BisaABTest`): `SKU`, `Tanggal Perubahan`, `Nama Test`,
+`Catatan`. Output `output/Analisa_AB_Test.xlsx` (sheet `00_Summary`, `01_Test_Results`).
+
 ## Struktur kode
 
 - `config.py` — konstanta (glob, sheet, threshold, prefix Migrasi)
