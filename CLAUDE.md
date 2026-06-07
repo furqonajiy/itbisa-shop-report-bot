@@ -50,6 +50,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - Commits and PRs are authored as **`C - Furqon Aji Yudhistira <furqonajiy@gmail.com>`** (never "Claude").
 - Keep changes minimal and targeted; update `CLAUDE.md` / `README.md` in the same PR whenever behavior or process changes.
 - `PROJECT_INSTRUCTIONS.md` is the synced source for the Claude & ChatGPT project instructions (≤ 8000 chars, ChatGPT limit). Update it **only when explicitly asked**, not on every change.
+- Sync marker: a file named `YYYY-MM-DD_HHMM.txt` (WIB) sits at the repo root. **On every update to this repo, rename it to the current WIB timestamp** — it signals whether the repo / Claude / ChatGPT instructions are in sync.
 
 ## Flag before changing
 The current-workbook stock-ledger reconciliation (and its parity with `BisaRekapBarang`), the Ocistok-priority HPP rule, SKU `UPPER().strip()` normalization, the removed dedup / drop-Migrasi behavior, the reorder methodology and its `config.py` tunables, the 12-sheet output layout, and the input glob patterns.
