@@ -118,6 +118,23 @@ def classify_supplier(toko, luar_negeri) -> str:
     return "Other"
 
 
+def _latest_ln_price(stok: pd.DataFrame) -> pd.Series:
+    """Per-unit HPP of each SKU's most recent overseas lot (Luar Negeri? == 1),
+    by Tanggal Bayar. Basis for the pricing-decision markup (harga supplier LN
+    terbaru), per request — no weighted average since LN price is consistent.
+    Strict definition: only rows flagged Luar Negeri? == 1 (not keyword-China).
+    Returns Series SKU -> unit price; SKUs without an LN lot are absent."""
+    ln = stok[stok.get("luar_negeri") == 1].copy()
+    ln = ln[(ln["qty_beli"] > 0) & ln["total_hpp"].notna()]
+    if len(ln) == 0:
+        return pd.Series(dtype=float)
+    ln["unit_hpp"] = ln["total_hpp"] / ln["qty_beli"]
+    # na_position='first' keeps dated lots last, so tail(1) picks the latest real
+    # date; if every LN lot is undated, it falls back to the last row available.
+    ln = ln.sort_values("tanggal_bayar", na_position="first")
+    return ln.groupby("SKU").tail(1).set_index("SKU")["unit_hpp"]
+
+
 def calculate_hpp_wa(stok: pd.DataFrame) -> pd.DataFrame:
     """HPP weighted average per SKU with Ocistok-priority.
     Rules:
@@ -154,9 +171,22 @@ def calculate_hpp_wa(stok: pd.DataFrame) -> pd.DataFrame:
         lambda s: "Ocistok" if s in skus_with_ocistok else "Other"
     )
 
+    # Pricing-decision HPP ("apakah harus naik harga?"): latest overseas lot price
+    # for SKUs with LN purchases, else fall back to hpp_wa. Used ONLY for markup %
+    # and price recommendations — profit/margin keep hpp_wa.
+    ln_latest = _latest_ln_price(stok)
+    result["hpp_pricing"] = result["SKU"].map(ln_latest)
+    result["hpp_pricing_source"] = np.where(
+        result["hpp_pricing"].notna(), "LN-terakhir", "WA"
+    )
+    result["hpp_pricing"] = result["hpp_pricing"].fillna(result["hpp_wa"])
+
     n_oci = len(skus_with_ocistok)
+    n_ln = int(ln_latest.index.isin(result["SKU"]).sum())
     print(f"✓ HPP weighted average: {len(result):,} SKU "
           f"({n_oci:,} Ocistok-priority, {len(result)-n_oci:,} other-mix)")
+    print(f"  → HPP dasar harga: {n_ln:,} SKU pakai harga LN terakhir, "
+          f"{len(result)-n_ln:,} fallback ke WA")
     return result
 
 
@@ -181,9 +211,32 @@ def enrich_with_profit(jual: pd.DataFrame, hpp_agg: pd.DataFrame) -> pd.DataFram
     return jual
 
 
+def compute_harga_sekarang(jual_full_clean: pd.DataFrame) -> pd.Series:
+    """Per-SKU 'harga sekarang' for the pricing decision: the LOWEST unit price
+    (Omzet/Qty) among non-CoD sales on the SKU's most recent selling day.
+
+    Rationale: the lifetime weighted average mixes old and new prices; the latest
+    selling day reflects the current price level. Taking the minimum across that
+    day captures the lowest active tier (grosir) while ignoring (a) stale promo
+    prices from earlier in the month and (b) the retail-vs-grosir lottery of which
+    single order happened to be last. CoD is excluded (its prices differ).
+    SKUs with no non-CoD sale are absent (caller falls back to harga_jual_avg)."""
+    d = jual_full_clean
+    if "_sheet_source" in d.columns:
+        d = d[d["_sheet_source"] != "BisaJualCoD"]
+    d = d[(d["qty_jual"] > 0) & (d["omzet"] > 0) & d["tanggal_pesan"].notna()].copy()
+    if len(d) == 0:
+        return pd.Series(dtype=float)
+    d["_unit"] = d["omzet"] / d["qty_jual"]
+    d["_hari"] = d["tanggal_pesan"].dt.normalize()
+    last_day = d.groupby("SKU")["_hari"].transform("max")
+    return d[d["_hari"] == last_day].groupby("SKU")["_unit"].min()
+
+
 def aggregate_by_sku(jual: pd.DataFrame, hpp_agg: pd.DataFrame, year: int,
                      qty_jual_all_time: pd.Series | None = None,
-                     sisa_by_sku: pd.Series | None = None) -> pd.DataFrame:
+                     sisa_by_sku: pd.Series | None = None,
+                     harga_sekarang: pd.Series | None = None) -> pd.DataFrame:
     """Per-SKU aggregation joined with stock info.
     qty_jual_all_time: per-SKU total qty sold across all years (for fallback sisa).
     sisa_by_sku: authoritative on-hand from the current-workbook ledger
@@ -209,14 +262,26 @@ def aggregate_by_sku(jual: pd.DataFrame, hpp_agg: pd.DataFrame, year: int,
     sku_agg["biaya_admin_per_buah"] = sku_agg["biaya_admin"] / sku_agg["qty_terjual"]
 
     sku_agg = sku_agg.merge(
-        hpp_agg[["SKU", "hpp_wa", "hpp_source", "total_qty_beli",
-                 "tanggal_pembelian_terakhir", "jumlah_pembelian"]],
+        hpp_agg[["SKU", "hpp_wa", "hpp_source", "hpp_pricing", "hpp_pricing_source",
+                 "total_qty_beli", "tanggal_pembelian_terakhir", "jumlah_pembelian"]],
         on="SKU", how="left",
     )
 
+    # 'Harga sekarang' = lowest non-CoD unit price on the SKU's most recent selling
+    # day (see compute_harga_sekarang). Fallback to the lifetime weighted-average
+    # sell price for SKUs with no non-CoD sale. Used for the pricing decision only.
+    if harga_sekarang is not None:
+        sku_agg["harga_sekarang"] = sku_agg["SKU"].map(harga_sekarang)
+    else:
+        sku_agg["harga_sekarang"] = np.nan
+    sku_agg["harga_sekarang"] = sku_agg["harga_sekarang"].fillna(sku_agg["harga_jual_avg"])
+
+    # Markup is a pricing signal ("naik harga?"), so it compares harga_sekarang
+    # against hpp_pricing (latest LN lot price where available, else hpp_wa).
+    # Profit/margin still use harga_jual_avg and hpp_wa (realized).
     sku_agg["markup_pct"] = np.where(
-        sku_agg["hpp_wa"] > 0,
-        (sku_agg["harga_jual_avg"] - sku_agg["hpp_wa"]) / sku_agg["hpp_wa"] * 100,
+        sku_agg["hpp_pricing"] > 0,
+        (sku_agg["harga_sekarang"] - sku_agg["hpp_pricing"]) / sku_agg["hpp_pricing"] * 100,
         np.nan,
         )
 
