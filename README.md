@@ -15,20 +15,20 @@ Persyaratan: Python 3.10+
 
 ### 1. Siapkan data
 
-Letakkan semua file Excel di folder `data/`. Script akan otomatis baca semua file matching pola:
-- `Stok_*.xlsx` — file pembelian
-- `Jual_*.xlsx` — file penjualan
+Letakkan semua file Excel di folder `data/`. Script akan otomatis baca semua file matching pola (nama file **wajib** mengandung `BisaStok`/`BisaJual`):
+- `*BisaStok*.xlsx` — file pembelian
+- `*BisaJual*.xlsx` — file penjualan
 
 Contoh struktur:
 ```
 data/
-├── Stok_2018_2025.xlsx     # historical stok
-├── Stok_2026.xlsx          # current year stok
-├── Jual_2018_2025.xlsx     # historical jual
-└── Jual_2026.xlsx          # current year jual
+├── BisaStok_2018_2025.xlsx     # historical stok
+├── BisaStok_2026.xlsx          # current year stok
+├── BisaJual_2018_2025.xlsx     # historical jual
+└── BisaJual_2026.xlsx          # current year jual
 ```
 
-**Stok file**: harus punya sheet `BisaStok` dengan headers di baris ke-2. File terbaru (mis. `Stok_2026.xlsx`) juga harus punya `BisaHilang` dan `BisaPindahBarang` untuk rekonsiliasi sisa stok (lihat "Sisa Stok" di bawah).
+**Stok file**: harus punya sheet `BisaStok` dengan headers di baris ke-2. File terbaru (mis. `BisaStok_2026.xlsx`) juga harus punya `BisaHilang` dan `BisaPindahBarang` untuk rekonsiliasi sisa stok (lihat "Sisa Stok" di bawah).
 
 **Jual file**: harus punya minimal sheet `BisaJualShopee`. Optional sheets yang akan di-load otomatis kalau ada:
 - `BisaJualTiktok` (berisi Tiktok + Tokopedia setelah merger April 2025)
@@ -87,7 +87,7 @@ Reorder data juga tersedia sebagai laporan mandiri via `python main.py --reorder
 
 Sisa stok bot **dihitung ulang dari workbook periode berjalan** dengan rumus yang sama persis dengan rekap Google Sheets (`BisaRekapBarang`), bukan dari akumulasi lintas tahun. Tujuannya: `sisa_stok` bot = `Total Stok` di BisaRekapBarang.
 
-**Workbook periode berjalan** = file **`Stok_*.xlsx` dan `Jual_*.xlsx` paling baru menurut nama** (mis. `Stok_2026.xlsx`, `Jual_2026.xlsx` — sortir nama, ambil terakhir). Migrasi di file ini = saldo awal periode.
+**Workbook periode berjalan** = file **`*BisaStok*.xlsx` dan `*BisaJual*.xlsx` paling baru menurut nama** (mis. `BisaStok_2026.xlsx`, `BisaJual_2026.xlsx` — sortir nama, ambil terakhir). Migrasi di file ini = saldo awal periode.
 
 **Rumus per (SKU, gudang):**
 ```
@@ -129,7 +129,7 @@ Output: sheet `09_Reorder_Analysis` (dalam yearly report) atau file mandiri `Ana
 
 **ROP** = MAX dari (a) `lead_demand × safety_multiplier`, (b) `lead_demand + max_single_order_12mo` (proteksi bulk buyer). `lead_demand = velocity × lead_time`.
 
-**Suggested order** = `velocity × 6 − sisa + lead_demand`.
+**Suggested order** = `max(0, velocity × TARGET_MONTHS_POST_REORDER − sisa + lead_demand)`, hanya saat `velocity > 0` dan `sisa < ROP` (default `TARGET_MONTHS_POST_REORDER = 6`).
 
 ### Konfigurasi Reorder
 
