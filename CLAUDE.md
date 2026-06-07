@@ -44,5 +44,11 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - User-facing console strings are Bahasa Indonesia.
 - Minimal, targeted changes only; preserve existing behavior unless explicitly in scope.
 
+## Development workflow (process standard)
+- Branch from `main` using `feature/<short-description>` (e.g. `feature/document-dev-workflow`).
+- Always open a PR into `main` and **merge with a merge commit (`--no-ff`)** — never squash, never fast-forward — so the feature branch stays an ancestor of `main`.
+- Commits and PRs are authored as **`C - Furqon Aji Yudhistira <furqonajiy@gmail.com>`** (never "Claude").
+- Keep changes minimal and targeted; update `CLAUDE.md` / `README.md` in the same PR whenever behavior or process changes.
+
 ## Flag before changing
 The current-workbook stock-ledger reconciliation (and its parity with `BisaRekapBarang`), the Ocistok-priority HPP rule, SKU `UPPER().strip()` normalization, the removed dedup / drop-Migrasi behavior, the reorder methodology and its `config.py` tunables, the 12-sheet output layout, and the input glob patterns.
