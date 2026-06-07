@@ -46,10 +46,10 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - Minimal, targeted changes only; preserve existing behavior unless explicitly in scope.
 
 ## Development workflow (process standard)
-- Branch from `main` using `feature/<short-description>`.
-- Always open a PR into `main` and **merge with a merge commit (`--no-ff`)** — never squash, never fast-forward.
-- Commits and PRs are authored as **`C - Furqon Aji Yudhistira <furqonajiy@gmail.com>`** (never "Claude").
-- Keep changes minimal; update `CLAUDE.md` / `README.md` in the same PR when behavior or process changes.
+- Branch `feature/<short-description>` off `main`. Doc/marker updates (CLAUDE.md, this file, sync marker) ride in the **same feature branch/PR as the code** — never a separate branch.
+- PR into `main`, **merge commit (`--no-ff`)** — never squash/fast-forward. Merge title representative + ends with PR number, e.g. `Update Project Instructions to the Latest State (#47)`.
+- Commits/PRs authored **`C - Furqon Aji Yudhistira <furqonajiy@gmail.com>`** (never "Claude").
+- Sync marker `YYYY-MM-DD_HHMM.txt` (WIB) at repo root: rename to current WIB timestamp on every update. `PROJECT_INSTRUCTIONS.md` updated only when explicitly asked.
 
 ## Flag before changing
 The current-workbook stock-ledger reconciliation (and its parity with `BisaRekapBarang`), the Ocistok-priority HPP rule, SKU `UPPER().strip()` normalization, the removed dedup / drop-Migrasi behavior, the reorder methodology and its `config.py` tunables, the 12-sheet output layout, and the input glob patterns.
