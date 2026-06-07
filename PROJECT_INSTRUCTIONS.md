@@ -1,8 +1,9 @@
-# CLAUDE.md — itbisa-shop-report-bot
+# Project Instructions — itbisa-shop-report-bot
 
-Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports into an analysis workbook (sales performance, pricing, supplier, and reorder analysis + A/B price-test reports). No API calls, no network, no tokens, no GitHub Actions — runs locally and is idempotent.
+> Synced source for **Claude** and **ChatGPT** project instructions — paste this same text into both. Keep ≤ 8000 characters (ChatGPT limit, incl. spaces). Update only when explicitly requested.
 
-> Unlike the sibling ITBisa repos, this one is **not** a GitHub-Actions bot. It does not call Shopee/TikTok Shop APIs, has no `bot-state` branch, no workflows, no Telegram, and no secrets.
+## What this is
+Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports into an analysis workbook (sales performance, pricing, supplier, and reorder analysis + A/B price-test reports). No API calls, no network, no tokens, no GitHub Actions — runs locally and is idempotent. Unlike the sibling ITBisa repos, this is **not** a GitHub-Actions bot: no `bot-state` branch, no workflows, no Telegram, no secrets.
 
 ## Stack & files (flat layout, no `src/`)
 - Python 3.10+. Deps: `pandas`, `openpyxl` (`requirements.txt`).
@@ -31,7 +32,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 ## Output: `output/Analisa_Penjualan_ITBisa_<year>.xlsx`
 12 sheets: `00_Summary`, `01_Paling_Diminati`, `02_Profit_Tertinggi`, `03_Barang_Rugi`, `04_Margin_Borderline`, `05_Kandidat_Naik_Harga`, `06_Per_Platform`, `07_Data_Lengkap_per_SKU`, `08_Supplier_Analysis`, `09_Reorder_Analysis`, `10_Reorder_Data_Lengkap`, `11_Rekap_Stok_per_Gudang`. The reorder report (`--reorder`) emits its own workbook with a `03_Rekap_Stok_per_Gudang` sheet.
 
-## Core logic (do not regress — README has the full spec)
+## Core logic (do not regress)
 - **Sisa stok = current-workbook ledger**, recomputed to match the Google Sheets `BisaRekapBarang`: per (SKU, gudang) `arrived beli − nonvoid jual + ketemu − hilang ± pindah`. "Current workbook" = the latest `*BisaStok*`/`*BisaJual*` file by filename sort. Migrasi rows are the opening balance (kept here). Negative gudang balances floor to 0 and shift the deficit; truly OVERSOLD SKUs stay negative and are flagged to console.
 - **HPP = weighted average with Ocistok-priority**: if a SKU has Ocistok/Martkita (China-direct) purchases, average those only; else average all. Combined across all stok files. For HPP/total-beli, Migrasi rows are dropped when real purchases exist (avoid double-count).
 - **SKU normalization**: `UPPER().strip()` on load everywhere (matches case-insensitive `SUMIF`).
@@ -45,11 +46,10 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - Minimal, targeted changes only; preserve existing behavior unless explicitly in scope.
 
 ## Development workflow (process standard)
-- Branch from `main` using `feature/<short-description>` (e.g. `feature/document-dev-workflow`).
-- Always open a PR into `main` and **merge with a merge commit (`--no-ff`)** — never squash, never fast-forward — so the feature branch stays an ancestor of `main`.
+- Branch from `main` using `feature/<short-description>`.
+- Always open a PR into `main` and **merge with a merge commit (`--no-ff`)** — never squash, never fast-forward.
 - Commits and PRs are authored as **`C - Furqon Aji Yudhistira <furqonajiy@gmail.com>`** (never "Claude").
-- Keep changes minimal and targeted; update `CLAUDE.md` / `README.md` in the same PR whenever behavior or process changes.
-- `PROJECT_INSTRUCTIONS.md` is the synced source for the Claude & ChatGPT project instructions (≤ 8000 chars, ChatGPT limit). Update it **only when explicitly asked**, not on every change.
+- Keep changes minimal; update `CLAUDE.md` / `README.md` in the same PR when behavior or process changes.
 
 ## Flag before changing
 The current-workbook stock-ledger reconciliation (and its parity with `BisaRekapBarang`), the Ocistok-priority HPP rule, SKU `UPPER().strip()` normalization, the removed dedup / drop-Migrasi behavior, the reorder methodology and its `config.py` tunables, the 12-sheet output layout, and the input glob patterns.
