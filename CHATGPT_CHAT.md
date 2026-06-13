@@ -1,4 +1,4 @@
-# Project Instructions — itbisa-shop-report-bot
+# ChatGPT Chat — Project Instructions (itbisa-shop-report-bot)
 
 > **ChatGPT Chat** project instructions — a ≤8000-char condensed brief (ChatGPT's limit). For **Claude** (Code *and* Chat) use the full **`CLAUDE.md`** directly; **`AGENTS.md`** (ChatGPT Codex) points to `CLAUDE.md`. This file exists only because of ChatGPT's 8K cap. Update only when explicitly requested.
 
