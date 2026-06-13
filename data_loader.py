@@ -10,7 +10,7 @@ from config import (
     COL_JUAL_AKUN, COL_JUAL_GUDANG, COL_JUAL_KODE_UNIK, COL_JUAL_OMZET, COL_JUAL_QTY,
     COL_JUAL_TAMBAHAN, COL_JUAL_TANGGAL, COL_STOK_ALAMAT, COL_STOK_LUAR_NEGERI,
     COL_STOK_QTY, COL_STOK_TANGGAL_BAYAR, COL_STOK_TANGGAL_SAMPAI, COL_STOK_TOKO,
-    COL_STOK_TOTAL_HPP, COL_HILANG_GUDANG, COL_HILANG_HILANG, COL_HILANG_KETEMU,
+    COL_STOK_TOKO_LEGACY, COL_STOK_TOTAL_HPP, COL_HILANG_GUDANG, COL_HILANG_HILANG, COL_HILANG_KETEMU,
     COL_HILANG_SKU, COL_PINDAH_KURANG, COL_PINDAH_QTY, COL_PINDAH_SKU,
     COL_PINDAH_TAMBAH, EXCLUDED_SKUS, HILANG_SHEET, JUAL_SHEETS, LEDGER_JUAL_PREFIX,
     MIGRASI_PREFIX, PINDAH_SHEET, REQUIRED_JUAL_SHEET, STOK_SHEET,
@@ -51,6 +51,10 @@ def load_stok_files(file_paths: list[Path]) -> pd.DataFrame:
     for fp in file_paths:
         print(f"✓ Membaca stok: {fp.name}")
         df = pd.read_excel(fp, sheet_name=STOK_SHEET, header=1)
+        # Backward-compat: pre-standardization exports name the supplier column
+        # "Toko[spasi]Akun Pemesan"; the standardized export uses "Toko".
+        if COL_STOK_TOKO_LEGACY in df.columns and COL_STOK_TOKO not in df.columns:
+            df = df.rename(columns={COL_STOK_TOKO_LEGACY: COL_STOK_TOKO})
         required = [COL_STOK_QTY, COL_STOK_TOTAL_HPP]
         missing = set(required) - set(df.columns)
         if missing:
