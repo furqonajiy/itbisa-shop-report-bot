@@ -60,6 +60,20 @@ TOP_N_PER_PLATFORM = 10
 
 # Supplier classification keywords (case-insensitive substring match on supplier name)
 CHINA_KEYWORDS = ["ocistok", "martkita", "aliexpress", "jasa impor", "1688", "alibaba"]
+# Consistent China-direct forwarder. Ocistok rebranded to Martkita (SAME company),
+# and 1688 orders are fulfilled through them — so all three are ONE shop/channel.
+OCISTOK_KEYWORDS = ["ocistok", "martkita", "1688"]
+# Lead time is a per-SHOP (forwarder) property, not per-SKU — AliExpress ships
+# faster than the Ocistok/Martkita sea-freight forwarder. Each import shop gets its
+# own observed lead (Tanggal Bayar→Sampai); a SKU inherits the lead of the shop that
+# supplies most of its purchase qty. Anything not listed here (local marketplaces,
+# domestic distributors) is treated as "Local" and ships in days (LEAD_TIME_MARKET_MONTHS).
+IMPORT_SHOP_KEYWORDS = {
+    "Ocistok/Martkita": OCISTOK_KEYWORDS,   # one forwarder (Ocistok=Martkita; 1688 via them)
+    "AliExpress": ["aliexpress"],
+    "Alibaba": ["alibaba"],
+    "Jasa Impor": ["jasa impor"],
+}
 MARKET_KEYWORDS = ["shopee ", "tokopedia ", "bukalapak ", "tiktok "]
 HPP_VARIANCE_THRESHOLD = 0.15
 SUPPLIER_TOP_N_SINGLE_SOURCE = 15
@@ -102,6 +116,17 @@ AB_MIN_TRANS_PRE = 3
 REORDER_OUTPUT_FILENAME = "Analisa_Reorder.xlsx"
 LEAD_TIME_CHINA_MONTHS = 2.0
 LEAD_TIME_MARKET_MONTHS = 0.25
+# Observed lead time: derive each SKU's China shipping time from BisaStok
+# (Tanggal Sampai − Tanggal Bayar) at this percentile so the reorder point
+# survives typical delays (not just the median). Per-SKU when it has ≥ MIN_LOTS
+# dated China lots, else the global-China percentile, else the constants above.
+LEAD_TIME_PERCENTILE = 0.75
+LEAD_TIME_MIN_LOTS = 2
+LEAD_TIME_MAX_DAYS = 365          # ignore lots with impossible/garbage date gaps
+# Mixed-sourcing: a SKU's lead = the SLOWEST shop supplying ≥ this qty share of it
+# (so an item bought partly via the slow Ocistok forwarder is planned for that delay,
+# not its occasional fast local top-up). Lower = more conservative / fewer stockouts.
+LEAD_SHOP_MIN_SHARE = 0.20
 BULK_CHINA_SHARE_THRESHOLD = 0.5
 VELOCITY_MIN_ACTIVE_MONTHS = 3
 CV_STABLE_MAX = 0.3
