@@ -426,7 +426,11 @@ def calculate_qty_setelah_restock(sku_agg: pd.DataFrame, jual: pd.DataFrame) -> 
 def _velocity_window(jual_sku: pd.DataFrame, today: pd.Timestamp,
                      months: int) -> tuple[float, float, int, float]:
     """Return (avg_monthly_qty, std_monthly_qty, n_active_months, max_single_order)
-    for the trailing window. Missing months padded as 0."""
+    for the trailing `months`-month window (by date). Average = total qty ÷ `months`
+    (the nominal window length), NOT ÷ the number of calendar buckets the window
+    touches: a date cutoff straddles months+1 buckets, so dividing by the bucket
+    count understates the monthly rate by ~1/(months+1). The monthly buckets are
+    still used for the volatility (std) and active-month count."""
     cutoff = today - pd.DateOffset(months=months)
     win = jual_sku[jual_sku["tanggal_pesan"] >= cutoff]
     if len(win) == 0:
@@ -435,7 +439,7 @@ def _velocity_window(jual_sku: pd.DataFrame, today: pd.Timestamp,
     all_m = pd.period_range(cutoff.to_period("M"), today.to_period("M"), freq="M")
     monthly = monthly.reindex(all_m, fill_value=0)
     return (
-        float(monthly.mean()),
+        float(win["qty_jual"].sum()) / months,
         float(monthly.std()) if len(monthly) > 1 else 0.0,
         int((monthly > 0).sum()),
         float(win["qty_jual"].max()),
