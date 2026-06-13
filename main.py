@@ -9,10 +9,10 @@ import pandas as pd
 
 from analysis import (aggregate_by_sku, build_stock_ledger, calculate_hpp_wa,
                       calculate_qty_setelah_restock, compute_harga_sekarang,
-                      compute_reorder_metrics, enrich_with_profit,
-                      find_sku_without_hpp)
-from ab_testing import (analyze_ab_tests, create_template, load_ab_tests,
-                        write_ab_test_report)
+                      compute_price_change_status, compute_reorder_metrics,
+                      enrich_with_profit, find_sku_without_hpp)
+from ab_testing import (analyze_ab_tests, create_template, load_ab_change_dates,
+                        load_ab_tests, write_ab_test_report)
 from config import (AB_TESTS_FILENAME, AB_TESTS_OUTPUT_FILENAME, DATA_DIR,
                     JUAL_GLOB, OUTPUT_DIR, OUTPUT_FILENAME,
                     REORDER_OUTPUT_FILENAME, STOK_GLOB)
@@ -54,10 +54,12 @@ def _load_all(data_dir: Path):
 
 def _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
                   year: int, output_dir: Path, reorder_df=None, today=None,
-                  sisa_by_sku=None, ledger_df=None):
+                  sisa_by_sku=None, ledger_df=None, ab_changes=None):
     """Run analysis for a single year using pre-loaded data.
-    `reorder_df`, `today`, `sisa_by_sku`, `ledger_df` are shared across years in --all.
-    Returns (path, profit, margin) or None if no data for that year."""
+    `reorder_df`, `today`, `sisa_by_sku`, `ledger_df`, `ab_changes` are shared across
+    years in --all. Returns (path, profit, margin) or None if no data for that year."""
+    if today is None:
+        today = pd.Timestamp(datetime.now().date())
     jual_year = jual_full_clean[jual_full_clean["tanggal_pesan"].dt.year == year].copy()
     print(f"\n--- Tahun {year}: {len(jual_year):,} transaksi ---")
 
@@ -71,8 +73,13 @@ def _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
     # 'Harga sekarang' uses the SKU's most recent selling day across ALL years
     # (like sisa/reorder), so the year filter doesn't truncate the latest price.
     harga_sekarang = compute_harga_sekarang(jual_full_clean)
+    # Recent-price-increase guard: hold the Kandidat recommendation for SKUs whose
+    # current price is a freshly-raised, under-validated price (qty earned at the old).
+    price_change = compute_price_change_status(jual_full_clean, harga_sekarang,
+                                               ab_changes, today, year)
     sku_agg = aggregate_by_sku(jual_with_profit, hpp_agg, year, qty_jual_all_time,
-                               sisa_by_sku=sisa_by_sku, harga_sekarang=harga_sekarang)
+                               sisa_by_sku=sisa_by_sku, harga_sekarang=harga_sekarang,
+                               price_change=price_change)
     sku_agg = calculate_qty_setelah_restock(sku_agg, jual_with_profit)
 
     tables = {
@@ -107,10 +114,12 @@ def run_analysis(year: int, data_dir: Path = DATA_DIR,
     stok, jual_full_clean, hpp_agg, qty_jual_all_time, sisa_by_sku, ledger_df = _load_all(data_dir)
     today = pd.Timestamp(datetime.now().date())
     reorder_df = compute_reorder_metrics(stok, jual_full_clean, today, sisa_by_sku=sisa_by_sku)
+    ab_changes = load_ab_change_dates(data_dir / AB_TESTS_FILENAME)
 
     result = _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
                            year, output_dir, reorder_df=reorder_df, today=today,
-                           sisa_by_sku=sisa_by_sku, ledger_df=ledger_df)
+                           sisa_by_sku=sisa_by_sku, ledger_df=ledger_df,
+                           ab_changes=ab_changes)
 
     if result is None:
         raise ValueError(f"Tidak ada data jual untuk tahun {year}")
@@ -132,6 +141,7 @@ def run_all_years(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> l
     stok, jual_full_clean, hpp_agg, qty_jual_all_time, sisa_by_sku, ledger_df = _load_all(data_dir)
     today = pd.Timestamp(datetime.now().date())
     reorder_df = compute_reorder_metrics(stok, jual_full_clean, today, sisa_by_sku=sisa_by_sku)
+    ab_changes = load_ab_change_dates(data_dir / AB_TESTS_FILENAME)
 
     years = sorted(int(y) for y in jual_full_clean["tanggal_pesan"].dt.year.dropna().unique())
     print(f"\n✓ Tahun ditemukan ({len(years)}): {', '.join(str(y) for y in years)}")
@@ -141,7 +151,8 @@ def run_all_years(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> l
         try:
             res = _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
                                 year, output_dir, reorder_df=reorder_df, today=today,
-                                sisa_by_sku=sisa_by_sku, ledger_df=ledger_df)
+                                sisa_by_sku=sisa_by_sku, ledger_df=ledger_df,
+                                ab_changes=ab_changes)
             if res is not None:
                 results.append((year,) + res)
         except Exception as e:
