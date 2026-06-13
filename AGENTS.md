@@ -16,4 +16,4 @@ Instructions for **ChatGPT Codex** (and any other coding agent).
 ## AI-instruction file map
 - `CLAUDE.md` — Claude Code **and Claude Chat** (full detail; this `AGENTS.md` → Codex defers to it).
 - `AGENTS.md` — ChatGPT Codex (this file).
-- `PROJECT_INSTRUCTIONS.md` — **ChatGPT Chat only** (≤8000-char condensed copy; exists because of ChatGPT's 8K limit).
+- `CHATGPT_CHAT.md` — **ChatGPT Chat only** (≤8000-char condensed copy; exists because of ChatGPT's 8K limit).
