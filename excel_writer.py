@@ -100,6 +100,15 @@ def _build_findings(sku_agg: pd.DataFrame, tables: dict,
     if len(kandidat) > 0:
         lines.append("🟢 TOP KANDIDAT NAIK HARGA (laris + margin sehat + stok ada):")
         for _, r in kandidat.head(5).iterrows():
+            if r.get("harga_baru_flag"):
+                tgl = r.get("tgl_naik")
+                tgl_str = tgl.strftime("%d %b %Y") if pd.notna(tgl) else "baru-baru ini"
+                lines.append(
+                    f"   • {r['SKU']} — {r['qty_terjual']:,.0f} pcs, harga BARU naik "
+                    f"{tgl_str} (Rp{r['harga_sekarang']:,.0f}) & belum tervalidasi — "
+                    f"pantau dulu, jangan naik lagi."
+                )
+                continue
             note = ""
             if r["restock_di_tahun"] and pd.notna(r["qty_setelah_restock"]) and r["qty_terjual"] > 0:
                 pct = r["qty_setelah_restock"] / r["qty_terjual"] * 100
@@ -367,7 +376,9 @@ def _write_kandidat(ws, df):
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:M2")
     ws["A3"] = ('⚠ "Harga Sekarang" = harga satuan TERENDAH di hari penjualan non-CoD terakhir SKU. '
-                '"Qty Setelah Restock" tinggi = restock baru cepat habis = harga underpriced.')
+                '"Qty Setelah Restock" tinggi = restock baru cepat habis = harga underpriced. '
+                'Baris ⏳ (abu-abu) = harga BARU dinaikkan & belum tervalidasi: kolom Harga +%/Proyeksi '
+                'dikosongkan karena qty/profit masih dari harga lama — kumpulkan data dulu, jangan naik lagi.')
     ws["A3"].font = ALERT_FONT
     ws.merge_cells("A3:M3")
 
@@ -399,10 +410,21 @@ def _write_kandidat(ws, df):
     formats += [FMT_RP, None]
     write_data_rows(ws, 6, out, formats=formats)
 
-    n_top = min(5, len(df))
-    for r in range(6, 6 + n_top):
+    # Highlight the top non-held candidates yellow (act on these); a recent,
+    # under-validated hike (harga_baru_flag) is greyed out (held, see Saran).
+    flags = (df["harga_baru_flag"].tolist() if "harga_baru_flag" in df.columns
+             else [False] * len(df))
+    yellow_left = 5
+    for r_idx in range(len(df)):
+        if flags[r_idx]:
+            fill = LIGHT_FILL
+        elif yellow_left > 0:
+            fill = YELLOW_FILL
+            yellow_left -= 1
+        else:
+            continue
         for c in range(1, len(headers) + 1):
-            ws.cell(row=r, column=c).fill = YELLOW_FILL
+            ws.cell(row=6 + r_idx, column=c).fill = fill
 
 
 def _write_platform(ws, plat_df, jual):
