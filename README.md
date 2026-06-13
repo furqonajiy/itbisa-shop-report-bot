@@ -71,6 +71,27 @@ Kolom **"Harga Sekarang"** (Sheet 04 & 05, juga Sheet 07) = **harga satuan teren
   Harga +10/15/20% di sheet Kandidat.
 - SKU tanpa penjualan non-CoD sama sekali → fallback ke `harga_jual_avg`.
 
+### Guard "harga baru naik" (Kandidat Naik Harga)
+
+`Harga Sekarang` itu titik-waktu (hari jual terakhir), tapi `Qty Terjual`/`Profit`
+itu kumulatif. Kalau harga **baru saja dinaikkan**, qty & profit itu diraih di harga
+**lama yang lebih murah** — jadi merekomendasikan naik lagi dan memproyeksikan profit
+dari qty setahun penuh di harga baru itu **tidak valid**. Sheet 05 mendeteksi ini dan
+**menahan** rekomendasinya (baris di-grey, kolom `Harga +10/15/20%` & `Proyeksi Profit`
+dikosongkan, Saran diganti `⏳ Harga baru naik <tgl> (Rp lama→Rp baru); baru X% qty di
+harga baru — kumpulkan data dulu, jangan naik lagi`).
+
+- **Tanggal perubahan**: dari `ab_tests.xlsx` bila SKU tercatat (otoritatif), else
+  **auto-deteksi** lonjakan harga (rata-rata tertimbang window terbaru vs baseline sebelumnya).
+- **Ditandai hanya bila** (a) `Harga Sekarang` benar-benar di atas harga lama
+  (≥ `PRICE_CHANGE_MIN_STEP`) **dan** (b) demand di harga baru masih tipis
+  (< `PRICE_CHANGE_VALIDATION_MIN_SHARE` dari qty tahun itu). Harga yang sudah lama
+  stabil (mis. Rp999 berbulan-bulan) **tidak** ditandai walau jauh di atas rata-rata.
+- Tunable di `config.py`: `PRICE_CHANGE_RECENT_DAYS`, `PRICE_CHANGE_MIN_STEP`,
+  `PRICE_CHANGE_VALIDATION_MIN_SHARE`, `PRICE_CHANGE_AUTO_RECENT_DAYS`,
+  `PRICE_CHANGE_AUTO_PRIOR_DAYS`, `PRICE_CHANGE_PRE_WINDOW_DAYS`. Lihat
+  `compute_price_change_status` di `analysis.py`.
+
 ### Markup, bukan margin
 
 Aturan harga minimum = **HPP dasar harga × 1.30** (markup 30% di atas HPP), **bukan**
