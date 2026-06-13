@@ -58,8 +58,9 @@ TOP_N_DIMINATI = 40
 TOP_N_PROFIT = 40
 TOP_N_PER_PLATFORM = 10
 
-# Supplier classification keywords (case-insensitive substring match on supplier name)
-CHINA_KEYWORDS = ["ocistok", "martkita", "aliexpress", "jasa impor", "1688", "alibaba"]
+# Supplier classification keywords (case-insensitive substring match on the
+# standardized Toko value, e.g. "Ocistok/Martkita", "AliExpress", "Shopee").
+CHINA_KEYWORDS = ["ocistok", "martkita", "aliexpress", "jasa impor", "1688", "alibaba", "osell"]
 # Consistent China-direct forwarder. Ocistok rebranded to Martkita (SAME company),
 # and 1688 orders are fulfilled through them — so all three are ONE shop/channel.
 OCISTOK_KEYWORDS = ["ocistok", "martkita", "1688"]
@@ -73,8 +74,11 @@ IMPORT_SHOP_KEYWORDS = {
     "AliExpress": ["aliexpress"],
     "Alibaba": ["alibaba"],
     "Jasa Impor": ["jasa impor"],
+    "Osell": ["osell"],
 }
-MARKET_KEYWORDS = ["shopee ", "tokopedia ", "bukalapak ", "tiktok "]
+# Match the standardized Toko marketplaces exactly (no trailing space — values are
+# now clean "Shopee"/"Tokopedia", not "Shopee Aji").
+MARKET_KEYWORDS = ["shopee", "tokopedia", "bukalapak", "blibli", "tiktok"]
 HPP_VARIANCE_THRESHOLD = 0.15
 SUPPLIER_TOP_N_SINGLE_SOURCE = 15
 
@@ -146,7 +150,8 @@ COL_STOK_SKU = "SKU"
 COL_STOK_QTY = "Banyak\nBarang\n(Buah)"
 COL_STOK_TOTAL_HPP = "Total\nHPP\n(Rp)"
 COL_STOK_TANGGAL_BAYAR = "Tanggal\nBayar"
-COL_STOK_TOKO = "Toko[spasi]Akun Pemesan"
+COL_STOK_TOKO = "Toko"                         # standardized supplier/forwarder column
+COL_STOK_TOKO_LEGACY = "Toko[spasi]Akun Pemesan"   # pre-standardization header (auto-renamed on load)
 COL_STOK_LUAR_NEGERI = "Luar\nNegeri?"
 
 # --- Current-workbook stock ledger (reconcile to BisaRekapBarang) ---

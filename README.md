@@ -115,11 +115,16 @@ menunggu kiriman. Lead time itu **sifat SHOP/forwarder, bukan per-SKU** — AliE
    dianggap satu forwarder** (Ocistok rebrand jadi Martkita; 1688 lewat mereka) —
    `OCISTOK_KEYWORDS` / `IMPORT_SHOP_KEYWORDS`.
 2. **Per SKU**: ambil lead **shop paling lambat yang menyuplai ≥ `LEAD_SHOP_MIN_SHARE`
-   qty** SKU itu (rencanakan untuk impor lambat, bukan top-up lokal sesekali). Status
-   impor dilihat dari share qty **`Luar Negeri?`/keyword China** (bukan nama toko — toko
-   sering nama AKUN pembayaran seperti "Tokopedia Furqonajiy", padahal Luar Negeri=1),
-   dan SKU impor di-floor ke lead global impor. SKU yang disuplai lokal pakai
-   `LEAD_TIME_MARKET_MONTHS` (≈ 1 minggu).
+   qty** SKU itu (rencanakan untuk impor lambat, bukan top-up lokal sesekali). Forwarder
+   diambil dari kolom **`Toko` yang sudah distandarkan** (mis. `Jasa Impor Tiongkok`,
+   `Ocistok/Martkita`, `AliExpress`, `Osell`), sedangkan status impor dari share qty
+   **`Luar Negeri?`/keyword China** (otoritatif); SKU impor di-floor ke lead global impor.
+   SKU yang disuplai lokal pakai `LEAD_TIME_MARKET_MONTHS` (≈ 1 minggu).
+
+> **Catatan data**: `Toko` = sumber/forwarder yang sudah distandarkan; detail akun
+> bayar + invoice/resi pindah ke `Keterangan Pembelian`; `Luar Negeri?` tetap penanda
+> impor (mis. "Tokopedia Furqonajiy" yang bayar Jasa Impor Tiongkok kini `Toko = Jasa
+> Impor Tiongkok`). Loader otomatis menerima header lama `Toko[spasi]Akun Pemesan`.
 
 Lihat `compute_lead_time_months` di `analysis.py`.
 
