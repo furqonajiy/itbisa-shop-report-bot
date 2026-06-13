@@ -103,6 +103,26 @@ Baris dengan kolom Toko berawalan `Migrasi` = stok akhir tahun yang dibawa ke fi
 berikutnya — **referensi saja, bukan pembelian riil**. Otomatis di-drop saat ada data
 pembelian non-Migrasi untuk SKU yang sama (mencegah double-count HPP & sisa stok berlebih).
 
+### Lead time reorder (per shop, dari data)
+
+Titik reorder (ROP) butuh tahu **berapa lama barang sampai** supaya tidak kehabisan saat
+menunggu kiriman. Lead time itu **sifat SHOP/forwarder, bukan per-SKU** — AliExpress
+(~1 bln) jauh lebih cepat dari forwarder laut Ocistok/Martkita (~2,5 bln). Caranya:
+
+1. **Per shop**: tiap shop impor dihitung **persentil 75** (`LEAD_TIME_PERCENTILE`) dari
+   selisih `Tanggal Bayar` → `Tanggal Sampai` (baris Migrasi dikecualikan); shop dengan
+   < `LEAD_TIME_MIN_LOTS` lot pakai persentil global impor. **Ocistok = Martkita = 1688
+   dianggap satu forwarder** (Ocistok rebrand jadi Martkita; 1688 lewat mereka) —
+   `OCISTOK_KEYWORDS` / `IMPORT_SHOP_KEYWORDS`.
+2. **Per SKU**: ambil lead **shop paling lambat yang menyuplai ≥ `LEAD_SHOP_MIN_SHARE`
+   qty** SKU itu (rencanakan untuk impor lambat, bukan top-up lokal sesekali). Status
+   impor dilihat dari share qty **`Luar Negeri?`/keyword China** (bukan nama toko — toko
+   sering nama AKUN pembayaran seperti "Tokopedia Furqonajiy", padahal Luar Negeri=1),
+   dan SKU impor di-floor ke lead global impor. SKU yang disuplai lokal pakai
+   `LEAD_TIME_MARKET_MONTHS` (≈ 1 minggu).
+
+Lihat `compute_lead_time_months` di `analysis.py`.
+
 ## Struktur sheet output (laporan penjualan)
 
 | Sheet | Isi |
