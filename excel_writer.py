@@ -79,7 +79,7 @@ def write_data_rows(ws: Worksheet, start_row: int, df: pd.DataFrame,
 
 
 def _build_findings(sku_agg: pd.DataFrame, tables: dict,
-                    sku_no_hpp: list[str]) -> list[str]:
+                    sku_no_hpp: list[str], oversold: list[str] | None = None) -> list[str]:
     lines: list[str] = []
 
     rugi = tables["rugi"]
@@ -179,16 +179,27 @@ def _build_findings(sku_agg: pd.DataFrame, tables: dict,
                 lines.append(f"   • 🔵 {n_over} SKU overstock (> {OVERSTOCK_MONTHS:.0f} bulan cadangan) — stop reorder")
             lines.append("")
 
-    if sku_no_hpp:
-        lines.append(
-            f"CATATAN: {len(sku_no_hpp)} SKU dijual tanpa HPP (excluded): "
-            + ", ".join(sku_no_hpp[:10])
-            + ("..." if len(sku_no_hpp) > 10 else "")
+    dq: list[str] = []
+    if oversold:
+        dq.append(
+            f"{len(oversold)} SKU OVERSOLD (sisa stok tercatat negatif — kemungkinan "
+            f"baris pembelian hilang/salah tag, cek data sumber): "
+            + ", ".join(oversold[:10]) + ("..." if len(oversold) > 10 else "")
         )
+    if sku_no_hpp:
+        dq.append(
+            f"{len(sku_no_hpp)} SKU dijual tanpa HPP (di-exclude dari profit): "
+            + ", ".join(sku_no_hpp[:10]) + ("..." if len(sku_no_hpp) > 10 else "")
+        )
+    if dq:
+        lines.append("🧹 KUALITAS DATA (rapikan di sumber agar laporan makin akurat):")
+        for x in dq:
+            lines.append(f"   • {x}")
+        lines.append("")
     return lines
 
 
-def _write_summary(ws, year, jual, sku_agg, tables, sku_no_hpp):
+def _write_summary(ws, year, jual, sku_agg, tables, sku_no_hpp, oversold=None):
     ws["A1"] = f"LAPORAN ANALISA PENJUALAN ITBISA SHOP {year}"
     ws["A1"].font = BIG_TITLE_FONT
     ws.merge_cells("A1:D1")
@@ -196,6 +207,17 @@ def _write_summary(ws, year, jual, sku_agg, tables, sku_no_hpp):
                 f"Periode: {year}  |  Metode HPP: Weighted Average")
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:D2")
+
+    # Partial / in-progress year: totals here are NOT a full year — flag so they
+    # aren't compared straight against complete years.
+    last_date = pd.to_datetime(jual["tanggal_pesan"]).max()
+    if year == datetime.now().year and pd.notna(last_date):
+        c = ws.cell(row=3, column=1, value=(
+            f"⚠ TAHUN BERJALAN — data s/d {last_date.strftime('%d %b %Y')} "
+            f"(belum setahun penuh). Total di bawah jangan dibandingkan langsung "
+            f"dengan tahun yang sudah penuh."))
+        c.font = ALERT_FONT
+        ws.merge_cells("A3:D3")
 
     total_omzet = jual["omzet"].sum()
     total_hpp = jual["hpp_total"].sum()
@@ -235,11 +257,11 @@ def _write_summary(ws, year, jual, sku_agg, tables, sku_no_hpp):
 
     ws["A21"] = "TEMUAN UTAMA & REKOMENDASI"
     ws["A21"].font = TITLE_FONT
-    findings = _build_findings(sku_agg, tables, sku_no_hpp)
+    findings = _build_findings(sku_agg, tables, sku_no_hpp, oversold)
     for i, line in enumerate(findings, start=22):
         c = ws.cell(row=i, column=1, value=line)
         c.font = NORMAL_FONT
-        if line and any(line.startswith(em) for em in ["🔴", "🟢", "⭐", "💰", "🏪", "🏭", "📦"]):
+        if line and any(line.startswith(em) for em in ["🔴", "🟢", "⭐", "💰", "🏪", "🏭", "📦", "🧹"]):
             c.font = BOLD_FONT
         ws.merge_cells(start_row=i, start_column=1, end_row=i, end_column=10)
 
@@ -751,7 +773,12 @@ def write_report(output_path: Path, year: int, jual: pd.DataFrame,
     wb = Workbook()
     ws = wb.active
     ws.title = "00_Summary"
-    _write_summary(ws, year, jual, sku_agg, tables, sku_no_hpp)
+    # Oversold = SKUs the current-workbook ledger shows at a negative on-hand total
+    # (sold more than ever purchased) — surface them as a data-quality note.
+    oversold = (sorted(ledger_df.loc[ledger_df["Total"] < 0, "SKU"].astype(str))
+                if ledger_df is not None and len(ledger_df) and "Total" in ledger_df.columns
+                else [])
+    _write_summary(ws, year, jual, sku_agg, tables, sku_no_hpp, oversold=oversold)
 
     _write_diminati(wb.create_sheet("01_Paling_Diminati"), tables["diminati"])
     _write_profit(wb.create_sheet("02_Profit_Tertinggi"), tables["profit"])
