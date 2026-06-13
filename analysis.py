@@ -7,14 +7,95 @@ import pandas as pd
 
 from config import (
     BULK_CHINA_SHARE_THRESHOLD, CHINA_KEYWORDS, CV_MODERATE_MAX, CV_STABLE_MAX,
-    LEAD_TIME_CHINA_MONTHS, LEAD_TIME_MARKET_MONTHS, MARKET_KEYWORDS,
-    OVERSTOCK_MONTHS, PRICE_CHANGE_AUTO_PRIOR_DAYS, PRICE_CHANGE_AUTO_RECENT_DAYS,
-    PRICE_CHANGE_MIN_STEP, PRICE_CHANGE_PRE_WINDOW_DAYS, PRICE_CHANGE_RECENT_DAYS,
+    IMPORT_SHOP_KEYWORDS, LEAD_SHOP_MIN_SHARE, LEAD_TIME_CHINA_MONTHS,
+    LEAD_TIME_MARKET_MONTHS, LEAD_TIME_MAX_DAYS, LEAD_TIME_MIN_LOTS,
+    LEAD_TIME_PERCENTILE, MARKET_KEYWORDS, MIGRASI_PREFIX, OVERSTOCK_MONTHS,
+    PRICE_CHANGE_AUTO_PRIOR_DAYS,
+    PRICE_CHANGE_AUTO_RECENT_DAYS, PRICE_CHANGE_MIN_STEP,
+    PRICE_CHANGE_PRE_WINDOW_DAYS, PRICE_CHANGE_RECENT_DAYS,
     PRICE_CHANGE_VALIDATION_MIN_SHARE, ROP_NOW_RATIO, ROP_SOON_RATIO,
     ROP_URGENT_RATIO, SAFETY_MULT_MODERATE, SAFETY_MULT_STABLE,
     SAFETY_MULT_VOLATILE, SLOW_DEAD_MAX_VELOCITY, TARGET_MONTHS_POST_REORDER,
     VELOCITY_MIN_ACTIVE_MONTHS,
 )
+
+_DAYS_PER_MONTH = 365.25 / 12.0
+
+
+def _canon_shop(toko) -> str:
+    """Canonical supplier shop for lead-time grouping: an import forwarder name from
+    IMPORT_SHOP_KEYWORDS, else 'Local' (marketplaces / domestic distributors that
+    ship in days). Ocistok = Martkita = 1688 collapse to one forwarder."""
+    t = str(toko).lower()
+    for shop, kws in IMPORT_SHOP_KEYWORDS.items():
+        if any(k in t for k in kws):
+            return shop
+    return "Local"
+
+
+def compute_lead_time_months(stok: pd.DataFrame) -> tuple[pd.Series, float]:
+    """Reorder lead time (months) derived PER SHOP (the forwarder), then assigned to
+    each SKU via its primary shop — because lead time is a property of who you buy
+    from, not the item (AliExpress ships faster than the Ocistok/Martkita sea-freight
+    forwarder; Ocistok=Martkita=1688 are one shop). Two steps:
+      1) For each import shop, the LEAD_TIME_PERCENTILE (p75) of observed shipping
+         time (Tanggal Bayar→Sampai, non-Migrasi); a shop with < LEAD_TIME_MIN_LOTS
+         dated lots falls back to the global import percentile.
+      2) Each SKU inherits the lead of the shop supplying most of its purchase qty.
+         SKUs sourced mainly from local shops use LEAD_TIME_MARKET_MONTHS.
+
+    A mixed-sourced SKU takes the lead of the SLOWEST shop supplying ≥
+    LEAD_SHOP_MIN_SHARE of its qty (plan for the slow import, not the occasional fast
+    local top-up); import SKUs are floored at the global import lead.
+
+    Returns (per_sku_lead: Series, global_import_lead: float). Falls back to
+    LEAD_TIME_CHINA_MONTHS if there is no usable import-shipping history at all."""
+    cols = {"toko", "tanggal_bayar", "tanggal_sampai", "qty_beli"}
+    if not cols.issubset(stok.columns):
+        return pd.Series(dtype=float), LEAD_TIME_CHINA_MONTHS
+
+    s = stok.copy()
+    s = s[~s["toko"].astype(str).str.startswith(MIGRASI_PREFIX, na=False)].copy()
+    s["_shop"] = s["toko"].map(_canon_shop)
+    s["_lead"] = (s["tanggal_sampai"] - s["tanggal_bayar"]).dt.days
+
+    # 1) per-import-shop lead (p75 of dated lots); thin shops → global import lead.
+    dated = s[(s["_shop"] != "Local") & s["_lead"].between(0, LEAD_TIME_MAX_DAYS)]
+    if len(dated) == 0:
+        return pd.Series(dtype=float), LEAD_TIME_CHINA_MONTHS
+    global_import = float(dated["_lead"].quantile(LEAD_TIME_PERCENTILE)) / _DAYS_PER_MONTH
+    shop_lead = dated.groupby("_shop")["_lead"].quantile(LEAD_TIME_PERCENTILE) / _DAYS_PER_MONTH
+    shop_n = dated.groupby("_shop")["_lead"].count()
+    shop_lead = shop_lead.where(shop_n >= LEAD_TIME_MIN_LOTS, global_import)
+
+    # 2) Per-SKU lead = the slowest shop with a meaningful qty share. Whether a SKU is
+    #    an import is taken from the reliable Luar Negeri / China-keyword qty share
+    #    (NOT the toko name — many import lots are booked under a local marketplace
+    #    ACCOUNT like "Tokopedia Furqonajiy", Luar Negeri=1); import SKUs are floored
+    #    at the global import lead so a hidden-forwarder import isn't planned as local.
+    def _shop_lead(sh):
+        return LEAD_TIME_MARKET_MONTHS if sh == "Local" else float(shop_lead.get(sh, global_import))
+
+    is_import = _compute_china_share(stok) >= BULK_CHINA_SHARE_THRESHOLD
+    valid = s[s["qty_beli"] > 0]
+    shop_qty = valid.groupby(["SKU", "_shop"])["qty_beli"].sum()
+    sku_total = valid.groupby("SKU")["qty_beli"].sum()
+
+    per_sku = {}
+    for sku in sku_total.index:
+        shares = shop_qty[sku] / sku_total[sku]
+        leads = [_shop_lead(sh) for sh, sh_share in shares.items() if sh_share >= LEAD_SHOP_MIN_SHARE]
+        lead = max(leads) if leads else LEAD_TIME_MARKET_MONTHS
+        if bool(is_import.get(sku, False)):
+            lead = max(lead, global_import)
+        per_sku[sku] = lead
+    per_sku = pd.Series(per_sku, dtype=float)
+
+    shops_txt = ", ".join(f"{sh}={lead:.2f}bln(n{int(shop_n.get(sh, 0))})"
+                          for sh, lead in shop_lead.sort_values().items())
+    print(f"✓ Lead time per-shop (p{int(LEAD_TIME_PERCENTILE*100)}): {shops_txt}; "
+          f"global-impor {global_import:.2f} bln; {len(per_sku):,} SKU dipetakan (shop terlambat ≥{int(LEAD_SHOP_MIN_SHARE*100)}% qty)")
+    return per_sku, global_import
 
 
 def build_stock_ledger(stok_arrived: pd.DataFrame, jual_nonvoid: pd.DataFrame,
@@ -501,6 +582,9 @@ def compute_reorder_metrics(stok: pd.DataFrame, jual: pd.DataFrame,
     omzet_total = jual.groupby("SKU")["omzet"].sum()
     china_share = _compute_china_share(stok)
     is_bulk_china = china_share >= BULK_CHINA_SHARE_THRESHOLD
+    # Per-shop observed lead time mapped to each SKU's primary supplier (replaces the
+    # old flat LEAD_TIME_CHINA_MONTHS guess). See compute_lead_time_months.
+    per_sku_lead, global_import_lead = compute_lead_time_months(stok)
 
     all_skus = sorted(set(qty_beli_total.index) | set(qty_jual_total.index))
 
@@ -532,7 +616,11 @@ def compute_reorder_metrics(stok: pd.DataFrame, jual: pd.DataFrame,
 
         vol_cat, safety_mult = _classify_volatility(cv)
         is_china_bulk = bool(is_bulk_china.get(sku, False))
-        lead = LEAD_TIME_CHINA_MONTHS if is_china_bulk else LEAD_TIME_MARKET_MONTHS
+        # Lead = the SKU's primary supplier shop's observed shipping time. SKUs with
+        # no purchase history fall back: global import lead if China-heavy, else market.
+        lead = per_sku_lead.get(sku)
+        if lead is None or pd.isna(lead):
+            lead = global_import_lead if is_china_bulk else LEAD_TIME_MARKET_MONTHS
         lead_demand = vel * lead
 
         rop_safety = lead_demand * safety_mult

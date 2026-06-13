@@ -62,10 +62,11 @@ def load_stok_files(file_paths: list[Path]) -> pd.DataFrame:
         COL_STOK_QTY: "qty_beli",
         COL_STOK_TOTAL_HPP: "total_hpp",
         COL_STOK_TANGGAL_BAYAR: "tanggal_bayar",
+        COL_STOK_TANGGAL_SAMPAI: "tanggal_sampai",
         COL_STOK_TOKO: "toko",
         COL_STOK_LUAR_NEGERI: "luar_negeri",
     })
-    for col in ["toko", "luar_negeri", "tanggal_bayar"]:
+    for col in ["toko", "luar_negeri", "tanggal_bayar", "tanggal_sampai"]:
         if col not in df.columns:
             df[col] = np.nan
 
@@ -75,6 +76,7 @@ def load_stok_files(file_paths: list[Path]) -> pd.DataFrame:
     df["qty_beli"] = pd.to_numeric(df["qty_beli"], errors="coerce")
     df["total_hpp"] = pd.to_numeric(df["total_hpp"], errors="coerce")
     df["tanggal_bayar"] = pd.to_datetime(df["tanggal_bayar"], errors="coerce")
+    df["tanggal_sampai"] = pd.to_datetime(df["tanggal_sampai"], errors="coerce")
     df["luar_negeri"] = pd.to_numeric(df["luar_negeri"], errors="coerce")
     df = df.dropna(subset=["qty_beli", "total_hpp"])
     print(f"  → Stok bersih: {len(df):,} baris (dari {raw_count:,} mentah)")

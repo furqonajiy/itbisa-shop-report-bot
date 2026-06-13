@@ -12,7 +12,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from config import (
     ALERT_TEXT_COLOR, BLUE_FILL_COLOR, FMT_DEC, FMT_NUM, FMT_PCT, FMT_RP,
     FONT_NAME, GREEN_FILL_COLOR, HEADER_BG_COLOR, HEADER_TEXT_COLOR,
-    LEAD_TIME_CHINA_MONTHS, LEAD_TIME_MARKET_MONTHS, LEDGER_SHEET_NAME,
+    LEAD_TIME_MARKET_MONTHS, LEAD_TIME_PERCENTILE, LEDGER_SHEET_NAME,
     LIGHT_GRAY_COLOR,
     MARKUP_THRESHOLD_KANDIDAT, ORANGE_FILL_COLOR, OVERSTOCK_MONTHS,
     PRICE_SCENARIOS, RED_FILL_COLOR, ROP_SOON_RATIO, ROP_URGENT_RATIO,
@@ -650,7 +650,8 @@ def _write_reorder_analysis(ws, reorder_tables, today=None):
         f"<{int(0.7*100)}%=Moderate, ≥{int(0.7*100)}%=Volatile.",
         f"• Safety multiplier × lead demand: Stabil={SAFETY_MULT_STABLE}×, "
         f"Moderate={SAFETY_MULT_MODERATE}×, Volatile={SAFETY_MULT_VOLATILE}×.",
-        f"• Lead time: China direct={LEAD_TIME_CHINA_MONTHS} bulan, "
+        f"• Lead time impor: dari riwayat kirim Ocistok/Martkita (Tanggal Bayar→Sampai), "
+        f"persentil {int(LEAD_TIME_PERCENTILE*100)} per-SKU (fallback global China). "
         f"Market buy={LEAD_TIME_MARKET_MONTHS} bulan (≈ 1 minggu).",
         "• ROP = MAX dari (a) lead demand × safety multiplier, "
         "(b) lead demand + max 1 order (proteksi bulk buyer).",
