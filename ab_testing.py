@@ -48,6 +48,20 @@ def load_ab_tests(filepath: Path) -> pd.DataFrame:
     return df
 
 
+def load_ab_change_dates(ab_config_path: Path) -> pd.Series:
+    """Per-SKU latest logged change date (SKU normalized to UPPER().strip() to match
+    the jual data) from ab_tests.xlsx — the authoritative signal for the Kandidat
+    recent-increase guard. Empty Series if the file is missing or has no valid rows."""
+    if not ab_config_path.exists():
+        return pd.Series(dtype="datetime64[ns]")
+    df = load_ab_tests(ab_config_path)
+    if len(df) == 0:
+        return pd.Series(dtype="datetime64[ns]")
+    df = df.copy()
+    df["sku"] = df["sku"].astype(str).str.upper().str.strip()
+    return df.groupby("sku")["tanggal_perubahan"].max()
+
+
 def _compute_period_metrics(jual_sub: pd.DataFrame, hpp_wa: float) -> dict:
     """Compute metrics for a slice of jual transactions."""
     if len(jual_sub) == 0:

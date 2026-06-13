@@ -71,10 +71,36 @@ def build_table_kandidat(sku_agg: pd.DataFrame) -> pd.DataFrame:
     ).round(0)
 
     kandidat["saran"] = kandidat.apply(_saran_kandidat, axis=1)
+
+    # Recent, under-validated price hike → hold the recommendation: blank the +%
+    # price suggestions and profit projection so they can't be read as a go-ahead.
+    # The qty/profit they extrapolate were earned at the OLD price; the Saran
+    # explains why (see _saran_harga_baru / compute_price_change_status).
+    if "harga_baru_flag" in kandidat.columns and kandidat["harga_baru_flag"].any():
+        proj_cols = [f"harga_+{int(p*100)}pct" for p in PRICE_SCENARIOS]
+        proj_cols.append(f"proyeksi_profit_+{int(base*100)}pct")
+        kandidat.loc[kandidat["harga_baru_flag"], proj_cols] = np.nan
+
     return kandidat.sort_values("score_total", ascending=False).reset_index(drop=True)
 
 
+def _saran_harga_baru(r) -> str:
+    """Saran for a SKU whose current price is a recent, not-yet-validated hike."""
+    tgl = r.get("tgl_naik")
+    tgl_str = tgl.strftime("%d %b %Y") if pd.notna(tgl) else "baru-baru ini"
+    lama = r.get("harga_lama")
+    transisi = (f"Rp{lama:,.0f}→Rp{r['harga_sekarang']:,.0f}"
+                if pd.notna(lama) else f"Rp{r['harga_sekarang']:,.0f}")
+    share = r.get("share_validasi")
+    share_str = f"{share*100:.0f}%" if pd.notna(share) and share >= 0.005 else "<1%"
+    src = " [ab_test]" if r.get("sumber_perubahan") == "ab_test" else ""
+    return (f"⏳ Harga baru naik {tgl_str} ({transisi}){src}; baru {share_str} qty di "
+            f"harga baru — kumpulkan data dulu, jangan naik lagi")
+
+
 def _saran_kandidat(r) -> str:
+    if r.get("harga_baru_flag"):
+        return _saran_harga_baru(r)
     if (r["restock_di_tahun"] and pd.notna(r["qty_setelah_restock"])
             and r["qty_setelah_restock"] > r["qty_terjual"] * 0.5):
         return "🔥 Restock cepat habis — naik 15-20%"

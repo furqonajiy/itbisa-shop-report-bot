@@ -8,9 +8,11 @@ import pandas as pd
 from config import (
     BULK_CHINA_SHARE_THRESHOLD, CHINA_KEYWORDS, CV_MODERATE_MAX, CV_STABLE_MAX,
     LEAD_TIME_CHINA_MONTHS, LEAD_TIME_MARKET_MONTHS, MARKET_KEYWORDS,
-    OVERSTOCK_MONTHS, ROP_NOW_RATIO, ROP_SOON_RATIO, ROP_URGENT_RATIO,
-    SAFETY_MULT_MODERATE, SAFETY_MULT_STABLE, SAFETY_MULT_VOLATILE,
-    SLOW_DEAD_MAX_VELOCITY, TARGET_MONTHS_POST_REORDER,
+    OVERSTOCK_MONTHS, PRICE_CHANGE_AUTO_PRIOR_DAYS, PRICE_CHANGE_AUTO_RECENT_DAYS,
+    PRICE_CHANGE_MIN_STEP, PRICE_CHANGE_PRE_WINDOW_DAYS, PRICE_CHANGE_RECENT_DAYS,
+    PRICE_CHANGE_VALIDATION_MIN_SHARE, ROP_NOW_RATIO, ROP_SOON_RATIO,
+    ROP_URGENT_RATIO, SAFETY_MULT_MODERATE, SAFETY_MULT_STABLE,
+    SAFETY_MULT_VOLATILE, SLOW_DEAD_MAX_VELOCITY, TARGET_MONTHS_POST_REORDER,
     VELOCITY_MIN_ACTIVE_MONTHS,
 )
 
@@ -233,10 +235,105 @@ def compute_harga_sekarang(jual_full_clean: pd.DataFrame) -> pd.Series:
     return d[d["_hari"] == last_day].groupby("SKU")["_unit"].min()
 
 
+def _wavg_price(jual_sub: pd.DataFrame) -> float:
+    """Qty-weighted average unit price (Omzet/Qty) over a slice; NaN if empty."""
+    q = jual_sub["qty_jual"].sum()
+    return float(jual_sub["omzet"].sum() / q) if q > 0 else float("nan")
+
+
+def compute_price_change_status(jual_full_clean: pd.DataFrame,
+                                harga_sekarang: pd.Series,
+                                ab_changes: pd.Series | None,
+                                today: pd.Timestamp, year: int) -> pd.DataFrame:
+    """Per-SKU detection of a RECENT, not-yet-validated price INCREASE.
+
+    Why: 'harga sekarang' is a point-in-time figure (latest selling day), but
+    qty_terjual/profit are cumulative. If the current price is a recent hike, the
+    historical demand was earned at the OLD price — so recommending a further raise
+    and projecting profit on the full-year qty at the new price is invalid. Such a
+    SKU should be flagged and held, not recommended, until demand accrues at the
+    new price. (See the Kandidat Naik Harga guard in tables.py.)
+
+    Change date is taken from ab_tests.xlsx when logged (authoritative), else from a
+    two-window auto step-detection (recent qty-weighted avg vs prior baseline). The
+    flag fires only when (a) harga_sekarang is genuinely above the pre-change price
+    (≥ MIN_STEP) and (b) the post-change demand is thin (< VALIDATION_MIN_SHARE of
+    the year's qty), i.e. the new price level is under-validated.
+
+    Returns a DataFrame indexed by SKU with: harga_lama, tgl_naik, qty_validasi,
+    share_validasi, sumber_perubahan ('ab_test'/'auto'), harga_baru_flag.
+    SKUs with no recent change are absent (caller treats them as not flagged)."""
+    d = jual_full_clean
+    if "_sheet_source" in d.columns:
+        d = d[d["_sheet_source"] != "BisaJualCoD"]
+    d = d[(d["qty_jual"] > 0) & (d["omzet"] > 0) & d["tanggal_pesan"].notna()].copy()
+    if len(d) == 0:
+        return pd.DataFrame()
+    d["_unit"] = d["omzet"] / d["qty_jual"]
+    ab_changes = ab_changes if ab_changes is not None else pd.Series(dtype="datetime64[ns]")
+    recent_cut = today - pd.Timedelta(days=PRICE_CHANGE_RECENT_DAYS)
+
+    rows = {}
+    for sku, s in d.groupby("SKU"):
+        hs = harga_sekarang.get(sku)
+        if pd.isna(hs):
+            continue
+        last = s["tanggal_pesan"].max()
+
+        # 1) Change date: ab_tests (authoritative) → else auto two-window step.
+        tgl_naik, sumber = None, ""
+        abd = ab_changes.get(sku)
+        if pd.notna(abd) and recent_cut <= pd.Timestamp(abd) <= today:
+            tgl_naik, sumber = pd.Timestamp(abd).normalize(), "ab_test"
+        else:
+            rec = s[s["tanggal_pesan"] >= today - pd.Timedelta(days=PRICE_CHANGE_AUTO_RECENT_DAYS)]
+            prior = s[(s["tanggal_pesan"] < today - pd.Timedelta(days=PRICE_CHANGE_AUTO_RECENT_DAYS))
+                      & (s["tanggal_pesan"] >= today - pd.Timedelta(
+                          days=PRICE_CHANGE_AUTO_RECENT_DAYS + PRICE_CHANGE_AUTO_PRIOR_DAYS))]
+            p_rec, p_prior = _wavg_price(rec), _wavg_price(prior)
+            if pd.notna(p_rec) and pd.notna(p_prior) and p_rec >= p_prior * (1 + PRICE_CHANGE_MIN_STEP):
+                stepped = rec[rec["_unit"] >= p_prior * (1 + PRICE_CHANGE_MIN_STEP)]
+                tgl_naik = (stepped["tanggal_pesan"].min().normalize() if len(stepped)
+                            else (today - pd.Timedelta(days=PRICE_CHANGE_AUTO_RECENT_DAYS)).normalize())
+                sumber = "auto"
+        if tgl_naik is None:
+            continue
+
+        # 2) Pre-change price (harga_lama) and post-change validation share.
+        pre = s[(s["tanggal_pesan"] >= tgl_naik - pd.Timedelta(days=PRICE_CHANGE_PRE_WINDOW_DAYS))
+                & (s["tanggal_pesan"] < tgl_naik)]
+        harga_lama = _wavg_price(pre)
+        yr = s[s["tanggal_pesan"].dt.year == year]
+        post_yr = yr[yr["tanggal_pesan"] >= tgl_naik]
+        qty_year = yr["qty_jual"].sum()
+        qty_validasi = float(post_yr["qty_jual"].sum())
+        share = qty_validasi / qty_year if qty_year > 0 else float("nan")
+
+        # 3) Flag only a genuine, under-validated increase.
+        is_increase = pd.notna(harga_lama) and hs > harga_lama * (1 + PRICE_CHANGE_MIN_STEP)
+        flag = bool(is_increase and pd.notna(share)
+                    and share < PRICE_CHANGE_VALIDATION_MIN_SHARE)
+        rows[sku] = {
+            "harga_lama": harga_lama,
+            "tgl_naik": tgl_naik,
+            "qty_validasi": qty_validasi,
+            "share_validasi": share,
+            "sumber_perubahan": sumber,
+            "harga_baru_flag": flag,
+        }
+
+    df = pd.DataFrame.from_dict(rows, orient="index")
+    n_flag = int(df["harga_baru_flag"].sum()) if len(df) else 0
+    print(f"✓ Cek harga baru naik: {len(df):,} SKU dgn perubahan terdeteksi, "
+          f"{n_flag:,} ditandai 'baru naik & belum tervalidasi' (di-hold dari rekomendasi)")
+    return df
+
+
 def aggregate_by_sku(jual: pd.DataFrame, hpp_agg: pd.DataFrame, year: int,
                      qty_jual_all_time: pd.Series | None = None,
                      sisa_by_sku: pd.Series | None = None,
-                     harga_sekarang: pd.Series | None = None) -> pd.DataFrame:
+                     harga_sekarang: pd.Series | None = None,
+                     price_change: pd.DataFrame | None = None) -> pd.DataFrame:
     """Per-SKU aggregation joined with stock info.
     qty_jual_all_time: per-SKU total qty sold across all years (for fallback sisa).
     sisa_by_sku: authoritative on-hand from the current-workbook ledger
@@ -297,6 +394,19 @@ def aggregate_by_sku(jual: pd.DataFrame, hpp_agg: pd.DataFrame, year: int,
     else:
         sku_agg["sisa_stok"] = sku_agg["total_qty_beli"] - sku_agg["qty_terjual_all_time"]
     sku_agg["restock_di_tahun"] = sku_agg["tanggal_pembelian_terakhir"] >= datetime(year, 1, 1)
+
+    # Recent-price-increase guard (see compute_price_change_status). When a SKU's
+    # current price is a freshly-raised, under-validated price, the pricing
+    # recommendation built on pre-increase demand is held back downstream.
+    pc_cols = ["harga_lama", "tgl_naik", "qty_validasi", "share_validasi",
+               "sumber_perubahan", "harga_baru_flag"]
+    if price_change is not None and len(price_change) > 0:
+        pc = price_change.reindex(columns=pc_cols).reset_index().rename(columns={"index": "SKU"})
+        sku_agg = sku_agg.merge(pc, on="SKU", how="left")
+    else:
+        for c in pc_cols:
+            sku_agg[c] = np.nan
+    sku_agg["harga_baru_flag"] = sku_agg["harga_baru_flag"].fillna(False).astype(bool)
     return sku_agg
 
 

@@ -34,6 +34,21 @@ MARKUP_BORDERLINE_MIN = 0.0
 MARKUP_BORDERLINE_MAX = 30.0
 TARGET_MARKUP_KOREKSI = 0.30
 
+# --- Recent price-change guard for Kandidat Naik Harga (sheet 05) ---
+# A SKU whose 'harga sekarang' is a RECENT price increase that little demand has
+# been observed at yet is NOT a valid "raise further" candidate: its qty/profit
+# were earned at the old, lower price, so the +% suggestions and profit projection
+# would extrapolate stale demand. Detected via ab_tests.xlsx change dates
+# (authoritative) + automatic two-window price-step detection (fallback). Flagged
+# rows stay listed but their price/projection columns are blanked and the Saran is
+# replaced with a "kumpulkan data dulu" note.
+PRICE_CHANGE_RECENT_DAYS = 75          # only changes this recent count as "baru naik"
+PRICE_CHANGE_MIN_STEP = 0.05           # harga_sekarang must be ≥5% over old price
+PRICE_CHANGE_VALIDATION_MIN_SHARE = 0.25  # flag if <25% of year qty sold post-change
+PRICE_CHANGE_AUTO_RECENT_DAYS = 30     # auto-detect: recent window (qty-weighted avg)
+PRICE_CHANGE_AUTO_PRIOR_DAYS = 90      # auto-detect: prior baseline window
+PRICE_CHANGE_PRE_WINDOW_DAYS = 60      # window before change date → harga_lama
+
 SCORE_WEIGHT_VELOCITY = 0.6
 SCORE_WEIGHT_MARGIN = 0.4
 
