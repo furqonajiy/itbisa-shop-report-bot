@@ -51,6 +51,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 ## Conventions
 - All constants live in `config.py` — never hardcode thresholds/column names in logic.
 - User-facing console strings are Bahasa Indonesia.
+- **Markdown docs (`*.md`) are written in English prose**, keeping **special Indonesian terms verbatim**: Excel sheet names (`01_Paling_Diminati`, `11_Rekap_Stok_per_Gudang`, …), input sheet/column names (`BisaStok`, `Toko`, `Keterangan Pembelian`, `Luar Negeri?`, `Tanggal Bayar`, `Harga RMB`, …), domain terms (`HPP`, `Migrasi`, `omzet`), supplier/forwarder names (`Ocistok/Martkita`, `Jasa Impor Tiongkok`, …), and any Bahasa Indonesia console string quoted as an example. The console strings emitted by the code stay Bahasa Indonesia (per the bullet above).
 - **The user runs Windows PowerShell** — give any CLI command/snippet you hand to the user in **PowerShell** syntax (backtick `` ` `` line-continuation, `$arrays`), not bash.
 - Minimal, targeted changes only; preserve existing behavior unless explicitly in scope.
 
