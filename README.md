@@ -27,6 +27,7 @@ python main.py --sales 2026     # laporan penjualan satu tahun
 python main.py --sales          # semua tahun yang ada di data jual (= --sales all)
 python main.py --reorder        # analisa reorder standalone
 python main.py --ab-test        # analisa A/B test perubahan harga (baca data/ab_tests.xlsx)
+python main.py --restock-check  # cek harga restock & rekomendasi harga jual (baca data/restock_check.xlsx)
 python main.py --all            # sales semua tahun + reorder + A/B test sekaligus
 ```
 
@@ -144,6 +145,24 @@ Lihat `compute_lead_time_months` di `analysis.py`.
 | 09_Reorder_Analysis | Status reorder per SKU |
 | 10_Reorder_Data_Lengkap | Detail perhitungan reorder |
 | 11_Rekap_Stok_per_Gudang | Saldo stok per gudang |
+
+## Cek harga restock (`--restock-check`)
+
+Menjawab: **supplier ini mahal/murah/wajar, dan kalau di-restock harus dijual berapa?**
+Input `data/restock_check.xlsx` (SKU, Toko, `Harga RMB` dan/atau `HPP IDR`, `Kompetitor Min`/`Max`).
+
+- **Prediksi HPP**: kalau diberi harga RMB, HPP landed (Rp) diprediksi dengan faktor yang
+  **dikalibrasi dari histori** — `HPP landed/pcs ÷ harga (x RMB)` dari kolom `Keterangan` (per-SKU
+  bila ada ≥ `RESTOCK_RMB_MIN_LOTS` lot, else median global ≈ Rp`RMB_TO_IDR_FALLBACK`/RMB). Kalau
+  `HPP IDR` diisi langsung, itu yang dipakai.
+- **Verdict biaya**: HPP landed vs `hpp_wa` histori SKU (±`RESTOCK_COST_TOL`) → lebih murah / wajar / lebih mahal.
+- **Harga jual per marketplace**: `HPP × (1 + RESTOCK_TARGET_NET_MARKUP) / (1 − fee)` supaya net ≥
+  target **setelah fee**. Fee tiap marketplace **diambil dari data** `BisaJual` (`|admin|/omzet`,
+  fallback `PLATFORM_FEE_FALLBACK`).
+- **Keputusan** vs rentang kompetitor: 🟢 restock & jual (target tercapai di dalam rentang pasar),
+  🟡 tipis (untung tapi di bawah target), 🔴 jangan jual (rugi walau di harga pasar tertinggi).
+
+Output: `output/Analisa_Restock_Check.xlsx`. Lihat `restock_pricing.py`.
 
 ## A/B Test perubahan harga (`--ab-test`)
 

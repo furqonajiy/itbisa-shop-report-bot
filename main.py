@@ -13,9 +13,14 @@ from analysis import (aggregate_by_sku, build_stock_ledger, calculate_hpp_wa,
                       enrich_with_profit, find_sku_without_hpp)
 from ab_testing import (analyze_ab_tests, create_template, load_ab_change_dates,
                         load_ab_tests, write_ab_test_report)
+from restock_pricing import (analyze_restock, compute_platform_fees,
+                             compute_rmb_factor, create_restock_template,
+                             load_restock_check, load_rmb_hpp_history,
+                             write_restock_report)
 from config import (AB_TESTS_FILENAME, AB_TESTS_OUTPUT_FILENAME, DATA_DIR,
                     JUAL_GLOB, OUTPUT_DIR, OUTPUT_FILENAME,
-                    REORDER_OUTPUT_FILENAME, STOK_GLOB)
+                    REORDER_OUTPUT_FILENAME, RESTOCK_CHECK_FILENAME,
+                    RESTOCK_OUTPUT_FILENAME, STOK_GLOB)
 from data_loader import (clean_jual, latest_file, load_current_jual_nonvoid,
                          load_current_stok_arrived, load_hilang, load_jual_files,
                          load_pindah, load_stok_files)
@@ -193,6 +198,48 @@ def run_reorder(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Pat
     return output_path
 
 
+def run_restock_check(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Path:
+    """Evaluate offered restock prices and recommend selling prices per marketplace.
+    Reads data/restock_check.xlsx (auto-creates template if missing)."""
+    print(f"\n{'='*60}")
+    print(f"ANALISA HARGA RESTOCK — BELI & JUAL")
+    print(f"{'='*60}\n")
+
+    rc_path = data_dir / RESTOCK_CHECK_FILENAME
+    if not rc_path.exists():
+        print(f"⚠ Config restock belum ada. Membuat template di {rc_path}")
+        create_restock_template(rc_path)
+        print(f"\nEdit file tersebut (SKU, Harga RMB/HPP IDR, Toko, Kompetitor), lalu run ulang.")
+        return rc_path
+
+    checks = load_restock_check(rc_path)
+    if len(checks) == 0:
+        print(f"⚠ {RESTOCK_CHECK_FILENAME} kosong — tidak ada SKU untuk dicek.")
+        return rc_path
+
+    stok_files = sorted(data_dir.glob(STOK_GLOB))
+    stok = load_stok_files(stok_files)
+    jual = clean_jual(load_jual_files(sorted(data_dir.glob(JUAL_GLOB))), year=None)[0]
+    hpp_agg = calculate_hpp_wa(stok)
+    hist = load_rmb_hpp_history(stok_files)
+    fees = compute_platform_fees(jual)
+    _per_sku, factor_global = compute_rmb_factor(hist)
+    print(f"  → Fee marketplace (dari data): "
+          + ", ".join(f"{p} {fees[p]*100:.0f}%" for p in fees))
+    print(f"  → Prediksi HPP: 1 RMB ≈ Rp{factor_global:,.0f} landed (kalibrasi histori)")
+
+    results = analyze_restock(checks, hpp_agg, hist, fees)
+    today = datetime.now()
+    output_path = output_dir / RESTOCK_OUTPUT_FILENAME
+    write_restock_report(output_path, results, fees, factor_global, today)
+
+    print(f"\n{'='*60}")
+    for _, r in results.iterrows():
+        print(f"  {r['SKU']}: {r.get('keputusan','')}")
+    print(f"{'='*60}\n")
+    return output_path
+
+
 def run_ab_test(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Path:
     """Run A/B test analysis. Creates template if config file missing."""
     print(f"\n{'='*60}")
@@ -291,6 +338,8 @@ def main() -> int:
                         help="Generate laporan reorder standalone (cepat, tanpa analisa tahunan).")
     parser.add_argument("--ab-test", action="store_true",
                         help="Generate laporan A/B test (perubahan harga). Otomatis bikin template kalau belum ada.")
+    parser.add_argument("--restock-check", action="store_true",
+                        help="Analisa harga restock (beli vs jual per marketplace). Otomatis bikin template kalau belum ada.")
     parser.add_argument("--all", action="store_true",
                         help="Run SEMUANYA: sales all years + reorder + ab-test (kalau template ada).")
     parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
@@ -300,6 +349,8 @@ def main() -> int:
     try:
         if args.all:
             run_everything(args.data_dir, args.output_dir)
+        elif args.restock_check:
+            run_restock_check(args.data_dir, args.output_dir)
         elif args.ab_test:
             run_ab_test(args.data_dir, args.output_dir)
         elif args.reorder:
