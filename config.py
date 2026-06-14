@@ -156,10 +156,14 @@ RESTOCK_PLATFORMS = ["Shopee", "Tokopedia", "Tiktok"]
 # So sell_min = HPP * (1 + markup) / (1 - fee). e.g. HPP 450, 30% → net ≥ 135.
 RESTOCK_TARGET_NET_MARKUP = 0.30
 RESTOCK_COST_TOL = 0.10               # ±band around historical HPP for the "Wajar" verdict
-# Predicting landed HPP from a raw RMB price: landed IDR per 1 RMB (incl. shipping/
-# import), CALIBRATED from history (per-SKU when it has ≥ MIN_LOTS lots that carry
-# both a "(x RMB)" note and a realized HPP, else the global median). Fallback below.
+# Predicting landed HPP from a raw RMB price: the FINAL landed IDR per 1 RMB
+# (already includes the forwarder's = Ocistok/Martkita margin + shipping + import),
+# CALIBRATED from history as realized `HPP per Buah (Rp)` ÷ the `(x RMB)` note,
+# per-SKU when it has ≥ MIN_LOTS Ocistok/Martkita lots, else the global median.
+# It runs ~25% above the raw RMB→IDR spot (RMB_SPOT_FX_IDR) — that gap IS the
+# forwarder margin + shipping + import. Fallback factor below.
 RMB_TO_IDR_FALLBACK = 2832
+RMB_SPOT_FX_IDR = 2250            # ≈ raw RMB→IDR spot, reference only (for the breakdown note)
 RESTOCK_RMB_MIN_LOTS = 2
 # Marketplace fee fallback (used only when sales history for a platform is too thin);
 # the real fee = |admin| / omzet derived from BisaJual is preferred.

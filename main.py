@@ -226,7 +226,8 @@ def run_restock_check(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) 
     _per_sku, factor_global = compute_rmb_factor(hist)
     print(f"  → Fee marketplace (dari data): "
           + ", ".join(f"{p} {fees[p]*100:.0f}%" for p in fees))
-    print(f"  → Prediksi HPP: 1 RMB ≈ Rp{factor_global:,.0f} landed (kalibrasi histori)")
+    print(f"  → Prediksi HPP landed: 1 RMB ≈ Rp{factor_global:,.0f} "
+          f"(termasuk margin Martkita + ongkir + impor; kalibrasi histori Ocistok/Martkita)")
 
     results = analyze_restock(checks, hpp_agg, hist, fees)
     today = datetime.now()
