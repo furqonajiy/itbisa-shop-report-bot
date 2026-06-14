@@ -15,6 +15,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - `tables.py` — table builders (diminati, profit, rugi, kandidat, supplier, reorder).
 - `excel_writer.py` — Excel output, incl. the per-gudang stock-reconciliation sheet.
 - `ab_testing.py` — A/B price-test analyzer + template creation.
+- `restock_pricing.py` — restock price evaluator (predict landed HPP, judge supplier price, recommend per-marketplace selling price) + template.
 - `data/` — input Excel (gitignored). `output/` — generated reports.
 
 ## CLI (`python main.py`)
@@ -22,6 +23,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - `--sales` → all years (one file per year); `--sales YEAR` → specific year.
 - `--reorder` → standalone `Analisa_Reorder.xlsx`.
 - `--ab-test` → `Analisa_AB_Test.xlsx` (auto-creates `data/ab_tests.xlsx` template if missing).
+- `--restock-check` → `Analisa_Restock_Check.xlsx` (auto-creates `data/restock_check.xlsx` template if missing).
 - `--all` → all years + reorder + ab-test.
 - `--data-dir` / `--output-dir` override the defaults.
 
@@ -43,6 +45,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - **No dedup**: the old `drop_duplicates` was removed (it discarded genuine duplicate purchase lots); only drop-Migrasi remains.
 - **Reorder**: velocity = avg monthly qty over the trailing N-month window, computed as **total ÷ N months** (not ÷ the calendar buckets the date-window straddles, which is N+1 and would dilute the rate by ~1/(N+1)); 6mo window, fallback 12→24mo. Volatility CV → safety multiplier; **lead time is per-SHOP, not per-SKU** (the forwarder ships at its own pace — AliExpress ≈1mo vs the Ocistok/Martkita sea-freight forwarder ≈2.5mo): each import shop's lead = `LEAD_TIME_PERCENTILE` (p75) of its observed `Tanggal Bayar`→`Tanggal Sampai` (non-Migrasi), thin shops (<`LEAD_TIME_MIN_LOTS`) → global-import p75. **Ocistok = Martkita = 1688 are one forwarder** (`OCISTOK_KEYWORDS`/`IMPORT_SHOP_KEYWORDS`). A SKU takes the **slowest shop supplying ≥`LEAD_SHOP_MIN_SHARE` of its qty** (plan for the slow import, not an occasional fast local top-up); import status comes from the reliable `Luar Negeri?`/China-keyword qty share and the forwarder from the **standardized `Toko`** value, and import SKUs are floored at the global-import lead. Local-sourced → `LEAD_TIME_MARKET_MONTHS`. Then ROP, suggested order; action buckets STOCKOUT/URGENT/Now/Soon/Overstock + Slow/Dead. Tunables in `config.py`. See `compute_lead_time_months`.
 - **Summary (00) surfacing**: the sheet flags a **partial/current year** (data not yet full-year, don't compare straight to complete years) and a **data-quality** block (OVERSOLD SKUs from the ledger + SKUs sold without HPP) so they're visible in the workbook, not just console.
+- **Restock price check (`--restock-check`)**: input `data/restock_check.xlsx` (SKU, Toko, `Harga RMB` and/or `HPP IDR`, `Kompetitor Min`/`Max`). Predicts landed HPP from the raw RMB price via a factor **calibrated on history** (per-SKU median of `landed HPP/pc ÷ (x RMB)` from the `Keterangan` note when it has ≥`RESTOCK_RMB_MIN_LOTS` lots, else the global median ≈ Rp`RMB_TO_IDR_FALLBACK`/RMB); a given `HPP IDR` overrides. Cost verdict = landed HPP vs the SKU's `hpp_wa` (±`RESTOCK_COST_TOL`). Per-marketplace selling price = `HPP × (1 + RESTOCK_TARGET_NET_MARKUP) / (1 − fee)` so net profit ≥ target AFTER the fee; **fees derived per platform from `BisaJual`** (`|admin|/omzet`, fallback `PLATFORM_FEE_FALLBACK`). Decision vs the competitor range: 🟢 restock & sell (hits target within market), 🟡 thin (profitable only below target), 🔴 don't sell (loss even at the competitor's max). See `restock_pricing.py`.
 - **Supplier classification**: China = `Luar Negeri? = 1` or the standardized `Toko` matches `CHINA_KEYWORDS` (Ocistok/Martkita, AliExpress, Jasa Impor, 1688, Alibaba, Osell); Market = `MARKET_KEYWORDS` (Shopee/Tokopedia/Bukalapak/Blibli/Tiktok — matched exactly against the clean `Toko`); else Other. The keyword lists are tuned to the standardized `Toko` values (no trailing-space hacks).
 
 ## Conventions

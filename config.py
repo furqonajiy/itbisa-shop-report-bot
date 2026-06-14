@@ -145,6 +145,34 @@ ROP_NOW_RATIO = 1.0
 ROP_SOON_RATIO = 1.3
 OVERSTOCK_MONTHS = 12.0
 
+# --- Restock price check (--restock-check) ---
+# Evaluate a supplier's offered restock price for a SKU and recommend the selling
+# price per marketplace. Input data/restock_check.xlsx (auto-template if missing).
+RESTOCK_CHECK_FILENAME = "restock_check.xlsx"
+RESTOCK_CHECK_SHEET = "RestockCheck"
+RESTOCK_OUTPUT_FILENAME = "Analisa_Restock_Check.xlsx"
+RESTOCK_PLATFORMS = ["Shopee", "Tokopedia", "Tiktok"]
+# Target net profit = this fraction of landed HPP, realized AFTER the platform fee.
+# So sell_min = HPP * (1 + markup) / (1 - fee). e.g. HPP 450, 30% → net ≥ 135.
+RESTOCK_TARGET_NET_MARKUP = 0.30
+RESTOCK_COST_TOL = 0.10               # ±band around historical HPP for the "Wajar" verdict
+# Predicting landed HPP from a raw RMB price: landed IDR per 1 RMB (incl. shipping/
+# import), CALIBRATED from history (per-SKU when it has ≥ MIN_LOTS lots that carry
+# both a "(x RMB)" note and a realized HPP, else the global median). Fallback below.
+RMB_TO_IDR_FALLBACK = 2832
+RESTOCK_RMB_MIN_LOTS = 2
+# Marketplace fee fallback (used only when sales history for a platform is too thin);
+# the real fee = |admin| / omzet derived from BisaJual is preferred.
+PLATFORM_FEE_FALLBACK = {"Shopee": 0.11, "Tokopedia": 0.10, "Tiktok": 0.25}
+# restock_check.xlsx input columns
+COL_RC_SKU = "SKU"
+COL_RC_TOKO = "Toko"
+COL_RC_RMB = "Harga RMB"          # raw supplier unit price in Yuan (optional)
+COL_RC_HPP = "HPP IDR"           # landed cost per pc in Rupiah (optional; overrides RMB)
+COL_RC_KMIN = "Kompetitor Min"   # competitor selling price, low end (Rp)
+COL_RC_KMAX = "Kompetitor Max"   # competitor selling price, high end (Rp)
+COL_RC_NOTE = "Catatan"
+
 # Source column names (raw from Excel with embedded newlines)
 COL_STOK_SKU = "SKU"
 COL_STOK_QTY = "Banyak\nBarang\n(Buah)"

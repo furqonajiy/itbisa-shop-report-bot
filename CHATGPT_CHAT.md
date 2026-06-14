@@ -11,7 +11,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - `data/` input (gitignored), `output/` reports.
 
 ## CLI (`python main.py`)
-- (no flag) current year · `--sales [YEAR]` all/one year · `--reorder` · `--ab-test` · `--all` · `--data-dir`/`--output-dir`.
+- (no flag) current year · `--sales [YEAR]` all/one year · `--reorder` · `--ab-test` · `--restock-check` · `--all` · `--data-dir`/`--output-dir`.
 
 ## Inputs (`data/`, by glob)
 - `*BisaStok*.xlsx` (purchases, sheet `BisaStok`; latest also needs `BisaHilang`+`BisaPindahBarang`) and `*BisaJual*.xlsx` (sales, ≥ `BisaJualShopee`).
@@ -27,6 +27,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - **Recent-price-increase guard (Kandidat Naik Harga)**: a freshly-raised, under-validated `harga_sekarang` is **held** — `Harga +%`/`Proyeksi Profit` blanked, Saran → `⏳ Harga baru naik …` — because its qty/profit were earned at the OLD price. Change date from `ab_tests.xlsx` (authoritative) else auto two-window step-detection; flags only when ≥`PRICE_CHANGE_MIN_STEP` over the old price AND post-change qty `< PRICE_CHANGE_VALIDATION_MIN_SHARE` of the year. See `compute_price_change_status`.
 - **Reorder**: velocity = avg monthly qty (total ÷ N months, trailing 6mo / fallback 12→24mo), CV → safety multiplier; **lead time is per-SHOP** from observed `Tanggal Bayar`→`Tanggal Sampai` at p75 (AliExpress ≈1mo, Ocistok/Martkita ≈2.5mo, Jasa Impor ≈1.6mo; Ocistok=Martkita=1688 are one forwarder). A SKU takes the **slowest shop supplying ≥`LEAD_SHOP_MIN_SHARE` of its qty** (import status from `Luar Negeri?`/China-keyword share; import floored at global-import); local-sourced → `LEAD_TIME_MARKET_MONTHS`. Then ROP, suggested order; buckets STOCKOUT/URGENT/Now/Soon/Overstock + Slow/Dead. See `compute_lead_time_months`.
 - **Supplier classification** (standardized `Toko` + `Luar Negeri?`): China = `Luar Negeri?=1` or `Toko` in `CHINA_KEYWORDS` (Ocistok/Martkita, AliExpress, Jasa Impor, Osell, 1688, Alibaba); Market = `MARKET_KEYWORDS` (Shopee/Tokopedia/Bukalapak/Blibli/Tiktok); else Other.
+- **Restock check (`--restock-check`)**: input data/restock_check.xlsx (SKU, Toko, Harga RMB and/or HPP IDR, Kompetitor Min/Max). Predicts landed HPP from RMB via a history-calibrated factor (≈Rp`RMB_TO_IDR_FALLBACK`/RMB; per-SKU when available), or uses given HPP IDR. Verdict = landed HPP vs `hpp_wa`. Per-marketplace sell price = HPP×(1+`RESTOCK_TARGET_NET_MARKUP`)/(1−fee) so net ≥ target after the fee (fees derived from BisaJual). Decision vs competitor range: 🟢 restock & sell / 🟡 thin / 🔴 don't sell. See `restock_pricing.py`.
 - **Summary (00)** surfaces a partial/current-year flag + a data-quality block (OVERSOLD + sold-without-HPP).
 - **SKU normalization** `UPPER().strip()` everywhere. **No dedup** (only drop-Migrasi).
 
