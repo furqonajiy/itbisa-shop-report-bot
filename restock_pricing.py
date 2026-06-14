@@ -26,9 +26,10 @@ from config import (
     COL_RC_HPP, COL_RC_KMAX, COL_RC_KMIN, COL_RC_NOTE, COL_RC_RMB, COL_RC_SKU,
     COL_RC_TOKO, COL_STOK_QTY, COL_STOK_TOTAL_HPP, FMT_NUM, FMT_RP, FONT_NAME,
     GREEN_FILL_COLOR, HEADER_BG_COLOR, HEADER_TEXT_COLOR, LIGHT_GRAY_COLOR,
-    PLATFORM_FEE_FALLBACK, RED_FILL_COLOR, RESTOCK_CHECK_SHEET, RESTOCK_COST_TOL,
-    RESTOCK_PLATFORMS, RESTOCK_RMB_MIN_LOTS, RESTOCK_TARGET_NET_MARKUP,
-    RMB_TO_IDR_FALLBACK, STOK_SHEET, TITLE_COLOR, YELLOW_FILL_COLOR,
+    OCISTOK_KEYWORDS, PLATFORM_FEE_FALLBACK, RED_FILL_COLOR, RESTOCK_CHECK_SHEET,
+    RESTOCK_COST_TOL, RESTOCK_PLATFORMS, RESTOCK_RMB_MIN_LOTS,
+    RESTOCK_TARGET_NET_MARKUP, RMB_SPOT_FX_IDR, RMB_TO_IDR_FALLBACK, STOK_SHEET,
+    TITLE_COLOR, YELLOW_FILL_COLOR,
 )
 
 HEADER_FONT = Font(name=FONT_NAME, bold=True, color=HEADER_TEXT_COLOR, size=11)
@@ -133,6 +134,8 @@ def load_rmb_hpp_history(stok_files: list[Path]) -> pd.DataFrame:
         df = pd.read_excel(fp, sheet_name=STOK_SHEET, header=1)
         ket_cols = [c for c in df.columns if str(c).strip().startswith("Keterangan")]
         ket = ket_cols[0] if ket_cols else None
+        tok_cols = [c for c in df.columns if str(c).strip().lower().startswith("toko")]
+        tok = tok_cols[0] if tok_cols else None
         df = df[df["SKU"].notna()]
         for _, r in df.iterrows():
             qty = _num(r.get(COL_STOK_QTY))
@@ -143,15 +146,20 @@ def load_rmb_hpp_history(stok_files: list[Path]) -> pd.DataFrame:
                 m = re.search(r"\(([\d.]+)\s*RMB\)", str(r.get(ket)))
                 if m:
                     rmb = float(m.group(1))
-            rows.append((_norm_sku(r["SKU"]), rmb, hpp_pc))
-    return pd.DataFrame(rows, columns=["SKU", "rmb", "hpp_idr_pc"])
+            rows.append((_norm_sku(r["SKU"]), str(r.get(tok)) if tok else "", rmb, hpp_pc))
+    return pd.DataFrame(rows, columns=["SKU", "toko", "rmb", "hpp_idr_pc"])
 
 
 def compute_rmb_factor(hist: pd.DataFrame) -> tuple[pd.Series, float]:
-    """(per_sku_factor, global_factor) = landed IDR per 1 RMB (incl. shipping/import)."""
+    """(per_sku_factor, global_factor) = FINAL landed IDR per 1 RMB. Calibrated on
+    the Ocistok/Martkita forwarder channel only — so it embeds that forwarder's
+    margin + shipping + import (it's realized HPP/pc ÷ the (x RMB) price)."""
     d = hist[(hist["rmb"] > 0) & (hist["hpp_idr_pc"] > 0)].copy()
     if len(d) == 0:
         return pd.Series(dtype=float), float(RMB_TO_IDR_FALLBACK)
+    tl = d["toko"].astype(str).str.lower()
+    oci = d[tl.apply(lambda t: any(k in t for k in OCISTOK_KEYWORDS))]
+    d = oci if len(oci) else d            # prefer the forwarder channel; else all RMB lots
     d["factor"] = d["hpp_idr_pc"] / d["rmb"]
     glob = float(d["factor"].median())
     g = d.groupby("SKU")["factor"]
@@ -206,7 +214,8 @@ def analyze_restock(checks: pd.DataFrame, hpp_agg: pd.DataFrame,
             factor = float(per_sku_factor.get(sku, global_factor))
             hpp = r["rmb"] * factor
             src = "histori SKU" if sku in per_sku_factor.index else "global"
-            rec["input"] = f"{r['rmb']:g} RMB × {factor:,.0f} ({src})"
+            rec["input"] = (f"{r['rmb']:g} RMB × {factor:,.0f} landed ({src}; "
+                            f"sudah termasuk margin Martkita + ongkir + impor)")
             rec["factor"] = factor
         else:
             rec.update(hpp=np.nan, verdict="⚠ Tidak ada Harga RMB / HPP IDR",
@@ -287,13 +296,16 @@ def write_restock_report(filepath: Path, results: pd.DataFrame,
     ws["A1"].font = BIG_TITLE_FONT
     ws.merge_cells("A1:K1")
     feetxt = ", ".join(f"{p} {fees[p]*100:.0f}%" for p in RESTOCK_PLATFORMS)
+    uplift = (factor_global / RMB_SPOT_FX_IDR - 1) * 100 if RMB_SPOT_FX_IDR else 0
     ws["A2"] = (f"Per {today.strftime('%d %B %Y')}  |  Target net ≥ {RESTOCK_TARGET_NET_MARKUP*100:.0f}% HPP "
                 f"setelah fee  |  Fee marketplace (dari data): {feetxt}  |  "
-                f"Prediksi HPP: 1 RMB ≈ Rp{factor_global:,.0f} landed")
+                f"Prediksi HPP landed: 1 RMB ≈ Rp{factor_global:,.0f} "
+                f"(kurs spot ≈ Rp{RMB_SPOT_FX_IDR:,.0f}, +{uplift:.0f}% = margin Martkita + ongkir + impor)")
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:K2")
-    ws["A3"] = ("Verdict = harga supplier vs HPP histori. 'Jual …' = harga jual minimal agar net ≥ target "
-                "setelah fee marketplace. Keputusan = vs rentang harga kompetitor.")
+    ws["A3"] = ("Landed HPP = biaya final per pcs (sudah termasuk margin forwarder + ongkir + impor), dikalibrasi "
+                "dari histori lot Ocistok/Martkita. Verdict = vs HPP histori SKU. 'Jual …' = harga jual minimal "
+                "agar net ≥ target setelah fee marketplace. Keputusan = vs rentang harga kompetitor.")
     ws["A3"].font = SUB_FONT
     ws.merge_cells("A3:K3")
 

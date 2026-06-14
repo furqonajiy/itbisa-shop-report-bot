@@ -151,10 +151,12 @@ Lihat `compute_lead_time_months` di `analysis.py`.
 Menjawab: **supplier ini mahal/murah/wajar, dan kalau di-restock harus dijual berapa?**
 Input `data/restock_check.xlsx` (SKU, Toko, `Harga RMB` dan/atau `HPP IDR`, `Kompetitor Min`/`Max`).
 
-- **Prediksi HPP**: kalau diberi harga RMB, HPP landed (Rp) diprediksi dengan faktor yang
-  **dikalibrasi dari histori** — `HPP landed/pcs ÷ harga (x RMB)` dari kolom `Keterangan` (per-SKU
-  bila ada ≥ `RESTOCK_RMB_MIN_LOTS` lot, else median global ≈ Rp`RMB_TO_IDR_FALLBACK`/RMB). Kalau
-  `HPP IDR` diisi langsung, itu yang dipakai.
+- **Prediksi HPP landed**: kalau diberi harga RMB, HPP final (Rp) diprediksi dengan faktor yang
+  **dikalibrasi dari histori channel Ocistok/Martkita** — `HPP per Buah (Rp) ÷ harga (x RMB)` dari
+  kolom `Keterangan` (per-SKU bila ada ≥ `RESTOCK_RMB_MIN_LOTS` lot, else median global ≈
+  Rp`RMB_TO_IDR_FALLBACK`/RMB). Faktor ini **sudah termasuk margin Martkita + ongkir + impor**
+  (≈25% di atas kurs spot `RMB_SPOT_FX_IDR`, karena diambil dari biaya final yang benar-benar
+  dibayar). Kalau `HPP IDR` diisi langsung, itu yang dipakai.
 - **Verdict biaya**: HPP landed vs `hpp_wa` histori SKU (±`RESTOCK_COST_TOL`) → lebih murah / wajar / lebih mahal.
 - **Harga jual per marketplace**: `HPP × (1 + RESTOCK_TARGET_NET_MARKUP) / (1 − fee)` supaya net ≥
   target **setelah fee**. Fee tiap marketplace **diambil dari data** `BisaJual` (`|admin|/omzet`,
