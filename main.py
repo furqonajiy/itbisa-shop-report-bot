@@ -306,23 +306,62 @@ def _run_ab_test_if_configured(data_dir: Path, output_dir: Path) -> Path | None:
     return output_path
 
 
+def _run_restock_check_if_configured(data_dir: Path, output_dir: Path) -> Path | None:
+    """For --all mode: run restock-check only if the template exists with rows.
+    Skip silently otherwise (don't create-a-template-and-halt like the standalone)."""
+    rc_path = data_dir / RESTOCK_CHECK_FILENAME
+    if not rc_path.exists():
+        print(f"⊘ Restock-check dilewati: {RESTOCK_CHECK_FILENAME} belum ada.")
+        print(f"  Run 'python main.py --restock-check' untuk setup template.")
+        return None
+
+    checks = load_restock_check(rc_path)
+    if len(checks) == 0:
+        print(f"⊘ Restock-check dilewati: {RESTOCK_CHECK_FILENAME} kosong.")
+        return None
+
+    stok_files = sorted(data_dir.glob(STOK_GLOB))
+    stok = load_stok_files(stok_files)
+    jual = clean_jual(load_jual_files(sorted(data_dir.glob(JUAL_GLOB))), year=None)[0]
+    hpp_agg = calculate_hpp_wa(stok)
+    hist = load_rmb_hpp_history(stok_files)
+    fees = compute_platform_fees(jual)
+    _per_sku, factor_global = compute_rmb_factor(hist)
+    print(f"  → Fee marketplace (dari data): "
+          + ", ".join(f"{p} {fees[p]*100:.0f}%" for p in fees))
+    print(f"  → Prediksi HPP landed: 1 RMB ≈ Rp{factor_global:,.0f} "
+          f"(termasuk margin Martkita + ongkir + impor; kalibrasi histori Ocistok/Martkita)")
+
+    results = analyze_restock(checks, hpp_agg, hist, fees)
+    today = datetime.now()
+    output_path = output_dir / RESTOCK_OUTPUT_FILENAME
+    write_restock_report(output_path, results, fees, factor_global, today)
+    for _, r in results.iterrows():
+        print(f"  {r['SKU']}: {r.get('keputusan','')}")
+    return output_path
+
+
 def run_everything(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> None:
-    """Run sales all years + reorder standalone + ab-test (if configured)."""
+    """Run sales all years + reorder standalone + ab-test + restock-check (if configured)."""
     print(f"\n{'#'*60}")
-    print(f"# RUN EVERYTHING — SALES (ALL YEARS) + REORDER + AB TEST")
+    print(f"# RUN EVERYTHING — SALES (ALL YEARS) + REORDER + AB TEST + RESTOCK")
     print(f"{'#'*60}")
 
-    print(f"\n[1/3] Sales analysis untuk semua tahun")
+    print(f"\n[1/4] Sales analysis untuk semua tahun")
     print(f"{'-'*60}")
     run_all_years(data_dir, output_dir)
 
-    print(f"\n[2/3] Reorder analysis standalone")
+    print(f"\n[2/4] Reorder analysis standalone")
     print(f"{'-'*60}")
     run_reorder(data_dir, output_dir)
 
-    print(f"\n[3/3] A/B test")
+    print(f"\n[3/4] A/B test")
     print(f"{'-'*60}")
     _run_ab_test_if_configured(data_dir, output_dir)
+
+    print(f"\n[4/4] Restock price check")
+    print(f"{'-'*60}")
+    _run_restock_check_if_configured(data_dir, output_dir)
 
     print(f"\n{'#'*60}")
     print(f"# ✓ Selesai semua. Hasil di folder: {output_dir}")
@@ -334,7 +373,7 @@ def main() -> int:
     parser.add_argument("--sales", nargs="?", const="all", default=None, metavar="YEAR",
                         help="Sales analysis. Tanpa argumen = semua tahun. "
                              "Dengan tahun (mis. --sales 2026) = tahun spesifik. "
-                             "Tanpa flag = tahun berjalan.")
+                             "(Tanpa flag apa pun = jalankan semua, lihat --all.)")
     parser.add_argument("--reorder", action="store_true",
                         help="Generate laporan reorder standalone (cepat, tanpa analisa tahunan).")
     parser.add_argument("--ab-test", action="store_true",
@@ -342,7 +381,8 @@ def main() -> int:
     parser.add_argument("--restock-check", action="store_true",
                         help="Analisa harga restock (beli vs jual per marketplace). Otomatis bikin template kalau belum ada.")
     parser.add_argument("--all", action="store_true",
-                        help="Run SEMUANYA: sales all years + reorder + ab-test (kalau template ada).")
+                        help="Run SEMUANYA: sales all years + reorder + ab-test + restock-check "
+                             "(ab-test & restock-check jalan kalau template-nya ada isinya).")
     parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
     parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     args = parser.parse_args()
@@ -367,7 +407,8 @@ def main() -> int:
                     return 1
                 run_analysis(year, args.data_dir, args.output_dir)
         else:
-            run_analysis(datetime.now().year, args.data_dir, args.output_dir)
+            # No flag → run the full suite (same as --all).
+            run_everything(args.data_dir, args.output_dir)
         return 0
     except FileNotFoundError as e:
         print(f"❌ {e}", file=sys.stderr)
