@@ -19,12 +19,12 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - `data/` — input Excel (gitignored). `output/` — generated reports.
 
 ## CLI (`python main.py`)
-- (no flag) → sales analysis for the current year.
+- (no flag) → **runs the full suite (same as `--all`)**: all years sales + reorder + ab-test + restock-check.
 - `--sales` → all years (one file per year); `--sales YEAR` → specific year.
 - `--reorder` → standalone `Analisa_Reorder.xlsx`.
 - `--ab-test` → `Analisa_AB_Test.xlsx` (auto-creates `data/ab_tests.xlsx` template if missing).
 - `--restock-check` → `Analisa_Restock_Check.xlsx` (auto-creates `data/restock_check.xlsx` template if missing).
-- `--all` → all years + reorder + ab-test.
+- `--all` → all years + reorder + ab-test + restock-check. In `--all` (and the no-flag default) the ab-test and restock-check steps run **only when their template exists with rows** — otherwise they're skipped silently (no template is auto-created, so the full run never halts). Use the dedicated `--ab-test` / `--restock-check` flag to bootstrap a template.
 - `--data-dir` / `--output-dir` override the defaults.
 
 ## Inputs (`data/`, matched by glob)

@@ -23,13 +23,19 @@ Bila ada beberapa file yang cocok, **file terbaru** (berdasarkan nama) dipakai s
 ## Cara pakai
 
 ```bash
+python main.py                  # JALANKAN SEMUA (= --all): sales semua tahun + reorder + A/B test + restock-check
 python main.py --sales 2026     # laporan penjualan satu tahun
 python main.py --sales          # semua tahun yang ada di data jual (= --sales all)
 python main.py --reorder        # analisa reorder standalone
 python main.py --ab-test        # analisa A/B test perubahan harga (baca data/ab_tests.xlsx)
 python main.py --restock-check  # cek harga restock & rekomendasi harga jual (baca data/restock_check.xlsx)
-python main.py --all            # sales semua tahun + reorder + A/B test sekaligus
+python main.py --all            # sales semua tahun + reorder + A/B test + restock-check sekaligus
 ```
+
+> Tanpa flag, `python main.py` menjalankan paket lengkap (sama seperti `--all`). Langkah A/B test dan
+> restock-check hanya jalan kalau template-nya (`data/ab_tests.xlsx` / `data/restock_check.xlsx`) sudah ada
+> isinya — kalau belum, langkah itu dilewati otomatis (tidak menghentikan proses). Jalankan flag khusus
+> `--ab-test` / `--restock-check` untuk membuat template-nya pertama kali.
 
 Hasil ditulis ke folder `output/`.
 
