@@ -221,6 +221,17 @@ MOMENTUM_TRAILING_DAYS = 365      # window used to rank trailing profit for ABC
 ABC_A_SHARE = 0.80                # cumulative trailing-profit share cutoff for class A
 ABC_B_SHARE = 0.95               # ...and class B (the rest are class C)
 
+# --- Price-elasticity miner (--elasticity) ---
+# Estimate each SKU's demand sensitivity to price (log-log OLS on monthly price vs qty)
+# and recommend raise (inelastic) / caution (elastic). Observational data is noisy, so
+# low-confidence fits are flagged, not acted on. Zero-config (built from BisaJual).
+ELASTICITY_OUTPUT_FILENAME = "Analisa_Elastisitas_Harga.xlsx"
+ELASTICITY_MIN_MONTHS = 6         # min months with sales before a SKU can be fit
+ELASTICITY_MIN_PRICE_CV = 0.05    # min price coefficient-of-variation (needs real price movement)
+ELASTICITY_INELASTIC_THRESHOLD = 1.0  # |elasticity| < this = inelastic (raising price lifts revenue)
+ELASTICITY_MIN_R2 = 0.30          # fit R² below this = low confidence
+ELASTICITY_PRICE_NUDGE = 0.10     # model a +10% price scenario for the recommendation
+
 # Source column names (raw from Excel with embedded newlines)
 COL_STOK_SKU = "SKU"
 COL_STOK_QTY = "Banyak\nBarang\n(Buah)"
