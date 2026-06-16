@@ -17,7 +17,10 @@ from restock_pricing import (analyze_restock, compute_platform_fees,
                              compute_rmb_factor, create_restock_template,
                              load_restock_check, load_rmb_hpp_history,
                              write_restock_report)
-from config import (AB_TESTS_FILENAME, AB_TESTS_OUTPUT_FILENAME, DATA_DIR,
+from cashflow import (build_restock_plan, pivot_month_supplier, summarize_by_month,
+                      write_cashflow_report, _months_axis)
+from config import (AB_TESTS_FILENAME, AB_TESTS_OUTPUT_FILENAME,
+                    CASHFLOW_HORIZON_MONTHS, CASHFLOW_OUTPUT_FILENAME, DATA_DIR,
                     JUAL_GLOB, OUTPUT_DIR, OUTPUT_FILENAME,
                     REORDER_OUTPUT_FILENAME, RESTOCK_CHECK_FILENAME,
                     RESTOCK_OUTPUT_FILENAME, STOK_GLOB)
@@ -198,6 +201,38 @@ def run_reorder(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Pat
     return output_path
 
 
+def run_cashflow(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Path:
+    """Cash-flow restock plan: how much capital is needed, and when, to keep stock.
+    Built from the reorder metrics + replacement HPP — no template needed."""
+    print(f"\n{'='*60}")
+    print(f"RENCANA CASH-FLOW RESTOCK — MODAL BELI")
+    print(f"{'='*60}\n")
+
+    stok, jual_full_clean, hpp_agg, _qty, sisa_by_sku, _ledger = _load_all(data_dir)
+    today = pd.Timestamp(datetime.now().date())
+    reorder_df = compute_reorder_metrics(stok, jual_full_clean, today, sisa_by_sku=sisa_by_sku)
+
+    plan = build_restock_plan(reorder_df, hpp_agg, stok, today, CASHFLOW_HORIZON_MONTHS)
+    months = _months_axis(today, CASHFLOW_HORIZON_MONTHS)
+    monthly = summarize_by_month(plan, months)
+    pivot = pivot_month_supplier(plan, months)
+
+    output_path = output_dir / CASHFLOW_OUTPUT_FILENAME
+    write_cashflow_report(output_path, plan, monthly, pivot, months, today,
+                          CASHFLOW_HORIZON_MONTHS)
+
+    total = float(plan["order_cost"].sum(skipna=True)) if len(plan) else 0.0
+    print(f"\n{'='*60}")
+    print(f"  Total modal restock {CASHFLOW_HORIZON_MONTHS} bln: Rp {total:,.0f} "
+          f"({len(plan)} SKU)")
+    this_month = months[0]
+    due_now = (float(plan[plan['order_month'] == this_month]['order_cost'].sum(skipna=True))
+               if len(plan) else 0.0)
+    print(f"  Jatuh tempo bulan ini ({this_month}): Rp {due_now:,.0f}")
+    print(f"{'='*60}\n")
+    return output_path
+
+
 def run_restock_check(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Path:
     """Evaluate offered restock prices and recommend selling prices per marketplace.
     Reads data/restock_check.xlsx (auto-creates template if missing)."""
@@ -342,24 +377,28 @@ def _run_restock_check_if_configured(data_dir: Path, output_dir: Path) -> Path |
 
 
 def run_everything(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> None:
-    """Run sales all years + reorder standalone + ab-test + restock-check (if configured)."""
+    """Run sales all years + reorder + cash-flow + ab-test + restock-check (if configured)."""
     print(f"\n{'#'*60}")
-    print(f"# RUN EVERYTHING — SALES (ALL YEARS) + REORDER + AB TEST + RESTOCK")
+    print(f"# RUN EVERYTHING — SALES + REORDER + CASH-FLOW + AB TEST + RESTOCK")
     print(f"{'#'*60}")
 
-    print(f"\n[1/4] Sales analysis untuk semua tahun")
+    print(f"\n[1/5] Sales analysis untuk semua tahun")
     print(f"{'-'*60}")
     run_all_years(data_dir, output_dir)
 
-    print(f"\n[2/4] Reorder analysis standalone")
+    print(f"\n[2/5] Reorder analysis standalone")
     print(f"{'-'*60}")
     run_reorder(data_dir, output_dir)
 
-    print(f"\n[3/4] A/B test")
+    print(f"\n[3/5] Cash-flow restock plan")
+    print(f"{'-'*60}")
+    run_cashflow(data_dir, output_dir)
+
+    print(f"\n[4/5] A/B test")
     print(f"{'-'*60}")
     _run_ab_test_if_configured(data_dir, output_dir)
 
-    print(f"\n[4/4] Restock price check")
+    print(f"\n[5/5] Restock price check")
     print(f"{'-'*60}")
     _run_restock_check_if_configured(data_dir, output_dir)
 
@@ -376,6 +415,8 @@ def main() -> int:
                              "(Tanpa flag apa pun = jalankan semua, lihat --all.)")
     parser.add_argument("--reorder", action="store_true",
                         help="Generate laporan reorder standalone (cepat, tanpa analisa tahunan).")
+    parser.add_argument("--cashflow", action="store_true",
+                        help="Rencana cash-flow restock: modal beli yang dibutuhkan & kapan, per supplier.")
     parser.add_argument("--ab-test", action="store_true",
                         help="Generate laporan A/B test (perubahan harga). Otomatis bikin template kalau belum ada.")
     parser.add_argument("--restock-check", action="store_true",
@@ -394,6 +435,8 @@ def main() -> int:
             run_restock_check(args.data_dir, args.output_dir)
         elif args.ab_test:
             run_ab_test(args.data_dir, args.output_dir)
+        elif args.cashflow:
+            run_cashflow(args.data_dir, args.output_dir)
         elif args.reorder:
             run_reorder(args.data_dir, args.output_dir)
         elif args.sales is not None:
