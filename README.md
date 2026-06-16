@@ -23,13 +23,15 @@ for the stock ledger; all files are used for sales history & HPP.
 ## Usage
 
 ```bash
-python main.py                  # RUN EVERYTHING (= --all): sales + reorder + cash-flow + channel + bundle + A/B test + restock-check
+python main.py                  # RUN EVERYTHING (= --all): sales + reorder + cash-flow + channel + bundle + dead-stock + momentum + A/B test + restock-check
 python main.py --sales 2026     # sales report for a single year
 python main.py --sales          # all years present in the sales data (= --sales all)
 python main.py --reorder        # standalone reorder analysis
 python main.py --cashflow       # cash-flow restock plan: how much capital is needed & when (per supplier)
 python main.py --channel        # per-SKU channel optimizer: which marketplace nets the most
 python main.py --bundle         # bundle / cross-sell: SKUs frequently bought together
+python main.py --deadstock      # dead-stock / capital release: Rupiah frozen in slow/dead/overstock + how to free it
+python main.py --momentum       # momentum + ABC focus: accelerating vs declining SKUs, what to push vs prune
 python main.py --ab-test        # A/B price-change test analysis (reads data/ab_tests.xlsx)
 python main.py --restock-check  # restock price check & selling-price recommendation (reads data/restock_check.xlsx)
 python main.py --all            # everything together (same as no flag)
@@ -215,6 +217,41 @@ Output: `output/Analisa_Bundle_CrossSell.xlsx` — `00_Ringkasan`, `01_Pasangan_
 `02_Cross_Sell_per_SKU` ("if they buy X, offer Y" — each SKU's best partner by confidence).
 See `basket_analysis.py`.
 
+## Dead-stock / capital release (`--deadstock`)
+
+Answers: **how much of my capital is stuck in stock that isn't moving, and what do I do about it?**
+Built from the reorder metrics; no template needed, so it always runs in `--all`. It looks at the
+SKUs the reorder analysis flags `🔵 Overstock` and `💤 Slow/Dead`.
+
+- **Held value** = `sisa_stok × HPP_WA` — the capital tied up, valued at what you paid.
+- **Freeable** = `max(0, sisa_stok − target_qty_post_reorder) × HPP_WA` — the excess above the
+  reorder target, i.e. the actionable opportunity.
+- **Recommendation**: 🧹 Likuidasi (no demand — velocity ≈ 0 or no sale in `DEADSTOCK_DEAD_DAYS`),
+  🏷️ Markdown (slow turnover — cut price to speed it up), or ⛔ Stop reorder (healthy demand but
+  far above target — stop buying / bundle to clear).
+
+Output: `output/Analisa_Modal_Beku.xlsx` — `00_Ringkasan` (held vs freeable totals + top
+opportunities), `01_Modal_Beku_per_SKU`, and `02_Per_Supplier` (whose goods are piling up).
+See `deadstock_analysis.py`.
+
+## Momentum + ABC focus (`--momentum`)
+
+Answers: **what should I push, and what should I prune?** Two lenses, combined into one
+recommendation per SKU. No template needed; it always runs in `--all`.
+
+- **Momentum** = qty in the last `MOMENTUM_WINDOW_DAYS` vs the prior window: 🚀 Akselerasi /
+  📉 Menurun (±`MOMENTUM_GROWTH_THRESHOLD`), ➡️ Stabil, 🆕 Baru naik (no prior sales), 💤 Berhenti
+  (stopped selling). Needs ≥ `MOMENTUM_MIN_QTY` total to be classified.
+- **ABC** = Pareto by trailing profit (`omzet + admin − HPP_WA × qty` over `MOMENTUM_TRAILING_DAYS`):
+  cumulative share ≤ `ABC_A_SHARE` → A, ≤ `ABC_B_SHARE` → B, else C.
+- **Recommendation** combines them — A-class accelerating → ⭐ Dorong (protect stock & ads),
+  A-class declining → ⚠ Lindungi (investigate price/stock/competitor), C-class declining →
+  ✂ Pangkas (stop reorder / clearance), and so on.
+
+Output: `output/Analisa_Momentum_ABC.xlsx` — `00_Ringkasan` (class & momentum counts + the
+A-class-declining alert list), `01_Fokus_SKU` (the combined per-SKU view), and `02_ABC_Pareto`
+(the profit-concentration ranking). See `momentum_analysis.py`.
+
 ## Restock price check (`--restock-check`)
 
 Answers: **is this supplier expensive/cheap/fair, and if I restock, what should I sell it for?**
@@ -275,4 +312,6 @@ Config `data/ab_tests.xlsx` (sheet `BisaABTest`): `SKU`, `Tanggal Perubahan`, `N
 - `cashflow.py` — cash-flow restock plan (purchasing-budget calendar)
 - `channel_analysis.py` — per-SKU channel optimizer (best marketplace by net margin)
 - `basket_analysis.py` — bundle / cross-sell market-basket analysis
+- `deadstock_analysis.py` — dead-stock / capital-release analysis
+- `momentum_analysis.py` — sales-momentum + ABC focus analysis
 - `main.py` — CLI entry point
