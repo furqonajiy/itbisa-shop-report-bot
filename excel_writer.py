@@ -12,8 +12,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from config import (
     ALERT_TEXT_COLOR, BLUE_FILL_COLOR, FMT_DEC, FMT_NUM, FMT_PCT, FMT_RP,
     FONT_NAME, GREEN_FILL_COLOR, HEADER_BG_COLOR, HEADER_TEXT_COLOR,
-    LEAD_TIME_MARKET_MONTHS, LEAD_TIME_PERCENTILE, LEDGER_SHEET_NAME,
-    LIGHT_GRAY_COLOR,
+    LEAD_TIME_MARKET_MONTHS, LEAD_TIME_PERCENTILE, LIGHT_GRAY_COLOR,
     MARKUP_THRESHOLD_KANDIDAT, ORANGE_FILL_COLOR, OVERSTOCK_MONTHS,
     PRICE_SCENARIOS, RED_FILL_COLOR, ROP_SOON_RATIO, ROP_URGENT_RATIO,
     SAFETY_MULT_MODERATE, SAFETY_MULT_STABLE, SAFETY_MULT_VOLATILE,
@@ -790,14 +789,10 @@ def write_report(output_path: Path, year: int, jual: pd.DataFrame,
     _write_full_data(wb.create_sheet("07_Data_Lengkap_per_SKU"), sku_agg)
     if "supplier" in tables:
         _write_supplier_analysis(wb.create_sheet("08_Supplier_Analysis"), tables["supplier"])
-    if "reorder" in tables:
-        _write_reorder_analysis(wb.create_sheet("09_Reorder_Analysis"),
-                                tables["reorder"], today=today)
-        _write_reorder_full(wb.create_sheet("10_Reorder_Data_Lengkap"),
-                            tables["reorder"]["full"])
 
-    if ledger_df is not None and len(ledger_df) > 0:
-        _write_stock_ledger(wb.create_sheet(LEDGER_SHEET_NAME), ledger_df, today=today)
+    # Reorder and per-gudang stock are a current-day snapshot (not year-specific), so
+    # they live only in Analisa_Reorder.xlsx — the yearly sales file stays pure history
+    # (sheets 00–08). ledger_df is still used above for the 00_Summary oversold note.
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(output_path)

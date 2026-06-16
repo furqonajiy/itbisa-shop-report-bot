@@ -85,11 +85,13 @@ def _load_shared(data_dir: Path) -> _Loaded:
 
 
 def _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
-                  year: int, output_dir: Path, reorder_df=None, today=None,
+                  year: int, output_dir: Path, today=None,
                   sisa_by_sku=None, ledger_df=None, ab_changes=None):
     """Run analysis for a single year using pre-loaded data.
-    `reorder_df`, `today`, `sisa_by_sku`, `ledger_df`, `ab_changes` are shared across
-    years in --all. Returns (path, profit, margin) or None if no data for that year."""
+    `today`, `sisa_by_sku`, `ledger_df`, `ab_changes` are shared across years in --all.
+    The yearly file is pure sales history (sheets 00–08); reorder + per-gudang stock
+    (a current snapshot, not year-specific) live only in Analisa_Reorder.xlsx.
+    Returns (path, profit, margin) or None if no data for that year."""
     if today is None:
         today = pd.Timestamp(datetime.now().date())
     jual_year = jual_full_clean[jual_full_clean["tanggal_pesan"].dt.year == year].copy()
@@ -123,8 +125,6 @@ def _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
         "platform": build_table_platform(jual_with_profit),
         "supplier": build_supplier_analysis(stok, sku_agg),
     }
-    if reorder_df is not None:
-        tables["reorder"] = build_reorder_tables(reorder_df)
 
     output_path = output_dir / OUTPUT_FILENAME.format(year=year)
     write_report(output_path, year, jual_with_profit, sku_agg, tables, sku_no_hpp,
@@ -146,7 +146,7 @@ def run_analysis(year: int, data_dir: Path = DATA_DIR,
     if loaded is None:
         loaded = _load_shared(data_dir)
     result = _analyze_year(loaded.stok, loaded.jual, loaded.hpp_agg, loaded.qty_jual,
-                           year, output_dir, reorder_df=loaded.reorder, today=loaded.today,
+                           year, output_dir, today=loaded.today,
                            sisa_by_sku=loaded.sisa, ledger_df=loaded.ledger,
                            ab_changes=loaded.ab_changes)
 
@@ -179,7 +179,7 @@ def run_all_years(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
     for year in years:
         try:
             res = _analyze_year(loaded.stok, jual_full_clean, loaded.hpp_agg, loaded.qty_jual,
-                                year, output_dir, reorder_df=loaded.reorder, today=loaded.today,
+                                year, output_dir, today=loaded.today,
                                 sisa_by_sku=loaded.sisa, ledger_df=loaded.ledger,
                                 ab_changes=loaded.ab_changes)
             if res is not None:
