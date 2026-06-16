@@ -23,9 +23,10 @@ for the stock ledger; all files are used for sales history & HPP.
 ## Usage
 
 ```bash
-python main.py                  # RUN EVERYTHING (= --all): sales + reorder + cash-flow + channel + bundle + dead-stock + momentum + elasticity + A/B test + restock-check
+python main.py                  # RUN EVERYTHING (= --all): sales + trend + reorder + cash-flow + channel + bundle + dead-stock + momentum + elasticity + A/B test + restock-check
 python main.py --sales 2026     # sales report for a single year
 python main.py --sales          # all years present in the sales data (= --sales all)
+python main.py --trend          # sales trend & seasonality: cross-year omzet/profit trend, YoY growth, seasonal index
 python main.py --reorder        # standalone reorder analysis
 python main.py --cashflow       # cash-flow restock plan: how much capital is needed & when (per supplier)
 python main.py --channel        # per-SKU channel optimizer: which marketplace nets the most
@@ -257,6 +258,26 @@ Output: `output/Analisa_Momentum_ABC.xlsx` — `00_Ringkasan` (class & momentum 
 A-class-declining alert list), `01_Fokus_SKU` (the combined per-SKU view), and `02_ABC_Pareto`
 (the profit-concentration ranking). See `momentum_analysis.py`.
 
+## Sales trend & seasonality (`--trend`)
+
+Answers: **are we growing, and which months consistently sell best?** A cross-year view the
+isolated per-year files can't give. No template needed; it always runs in `--all`.
+
+- **Yearly trend** — omzet / qty / profit / orders per year, with **YoY** omzet growth (the
+  current year is flagged partial).
+- **Monthly trend** — the full omzet/profit time series across every month.
+- **Seasonality** — a per-calendar-month index: each `(year, month)` omzet ÷ that year's own
+  monthly average (so a growing business doesn't make later months look "seasonal"), averaged
+  over the **complete** years only (the partial current year is excluded). Index > 1 = a month
+  that consistently beats its year's average → a good time to stock up and push ads.
+  Months are classed 🔥 Puncak / 🟢 above-avg / ⚪ Normal / 🔻 Sepi (`TREND_PEAK_INDEX`,
+  `TREND_LOW_INDEX`); months with fewer than `TREND_SEASONAL_MIN_YEARS` years are marked thin.
+- The summary also shows **year-to-date vs the same period last year**.
+
+`profit = omzet + admin − HPP_WA × qty` (SKUs without HPP still count toward omzet, not profit).
+Output: `output/Analisa_Tren_Musiman.xlsx` — `00_Ringkasan`, `01_Tren_Tahunan`, `02_Tren_Bulanan`,
+`03_Musiman`. See `trend_analysis.py`.
+
 ## Price-elasticity miner (`--elasticity`)
 
 Answers: **where do I have room to raise price, and where would a hike cost me volume?** For
@@ -339,4 +360,5 @@ Config `data/ab_tests.xlsx` (sheet `BisaABTest`): `SKU`, `Tanggal Perubahan`, `N
 - `deadstock_analysis.py` — dead-stock / capital-release analysis
 - `momentum_analysis.py` — sales-momentum + ABC focus analysis
 - `elasticity_analysis.py` — price-elasticity miner
+- `trend_analysis.py` — sales trend & seasonality analysis
 - `main.py` — CLI entry point
