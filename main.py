@@ -267,7 +267,7 @@ def run_channel(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
         loaded = _load_shared(data_dir)
     per_sku, matrix = analyze_channels(loaded.jual, loaded.hpp_agg)
     output_path = output_dir / CHANNEL_OUTPUT_FILENAME
-    write_channel_report(output_path, per_sku, matrix, datetime.now())
+    write_channel_report(output_path, per_sku, matrix, loaded.today)
     return output_path
 
 
@@ -282,7 +282,7 @@ def run_bundle(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
         loaded = _load_shared(data_dir)
     pairs, cross, stats = analyze_baskets(loaded.jual)
     output_path = output_dir / BASKET_OUTPUT_FILENAME
-    write_basket_report(output_path, pairs, cross, stats, datetime.now())
+    write_basket_report(output_path, pairs, cross, stats, loaded.today)
     return output_path
 
 

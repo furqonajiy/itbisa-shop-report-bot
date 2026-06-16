@@ -16,7 +16,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - `excel_writer.py` — Excel output, incl. the per-gudang stock-reconciliation sheet.
 - `ab_testing.py` — A/B price-test analyzer + template creation.
 - `restock_pricing.py` — restock price evaluator (predict landed HPP, judge supplier price, recommend per-marketplace selling price) + template.
-- `cashflow.py` — cash-flow restock plan: from the reorder metrics, project each SKU's next-order timing/qty/cost and bucket the Rupiah by month & supplier.
+- `cashflow.py` — cash-flow restock plan: from the reorder metrics, project each order's timing/qty/cost (all cycles in the horizon) and bucket the Rupiah by month & supplier.
 - `channel_analysis.py` — per-SKU channel optimizer: realized net margin/unit per marketplace, recommend the best channel.
 - `basket_analysis.py` — bundle / cross-sell market basket: SKU pairs frequently bought in one `Invoice`.
 - `data/` — input Excel (gitignored). `output/` — generated reports.

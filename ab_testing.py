@@ -9,7 +9,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from config import (
-    AB_BULK_CONCENTRATION, AB_MIN_DAYS_POST, AB_MIN_TRANS_PRE,
+    AB_BULK_CONCENTRATION, AB_MIN_DAYS_POST, AB_MIN_TRANS_POST, AB_MIN_TRANS_PRE,
     AB_PRE_WINDOW_DAYS, AB_TESTS_SHEET, ALERT_TEXT_COLOR, COL_AB_CATATAN,
     COL_AB_NAMA, COL_AB_SKU, COL_AB_TANGGAL, FMT_DEC, FMT_NUM, FMT_PCT, FMT_RP,
     FONT_NAME, GREEN_FILL_COLOR, HEADER_BG_COLOR, HEADER_TEXT_COLOR,
@@ -159,7 +159,7 @@ def _confound_flags(pre_m: dict, post_m: dict, bridge: dict) -> list[str]:
     flags = []
     if post_m["days"] < AB_MIN_DAYS_POST:
         flags.append(f"post baru {post_m['days']} hari")
-    if post_m["n_trans"] < AB_MIN_DAYS_POST:
+    if post_m["n_trans"] < AB_MIN_TRANS_POST:
         flags.append(f"post cuma {post_m['n_trans']} transaksi")
     if pre_m["n_trans"] < AB_MIN_TRANS_PRE:
         flags.append(f"baseline pre tipis ({pre_m['n_trans']} trx)")

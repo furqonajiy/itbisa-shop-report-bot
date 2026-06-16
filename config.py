@@ -115,6 +115,8 @@ AB_PRE_WINDOW_DAYS = 60
 AB_BULK_CONCENTRATION = 0.40
 # Min transaksi di window pre sebelum baseline dianggap cukup.
 AB_MIN_TRANS_PRE = 3
+# Min transaksi di window post sebelum klaim sebab-akibat dianggap cukup.
+AB_MIN_TRANS_POST = 3
 
 # Reorder analysis config
 REORDER_OUTPUT_FILENAME = "Analisa_Reorder.xlsx"
