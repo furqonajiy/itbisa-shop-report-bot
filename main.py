@@ -22,12 +22,14 @@ from cashflow import (build_restock_plan, pivot_month_supplier, summarize_by_mon
                       write_cashflow_report, _months_axis)
 from channel_analysis import analyze_channels, write_channel_report
 from basket_analysis import analyze_baskets, write_basket_report
+from deadstock_analysis import analyze_deadstock, write_deadstock_report
+from momentum_analysis import analyze_momentum, write_momentum_report
 from config import (AB_TESTS_FILENAME, AB_TESTS_OUTPUT_FILENAME,
                     BASKET_OUTPUT_FILENAME, CASHFLOW_HORIZON_MONTHS,
                     CASHFLOW_OUTPUT_FILENAME, CHANNEL_OUTPUT_FILENAME, DATA_DIR,
-                    JUAL_GLOB, OUTPUT_DIR, OUTPUT_FILENAME,
-                    REORDER_OUTPUT_FILENAME, RESTOCK_CHECK_FILENAME,
-                    RESTOCK_OUTPUT_FILENAME, STOK_GLOB)
+                    DEADSTOCK_OUTPUT_FILENAME, JUAL_GLOB, MOMENTUM_OUTPUT_FILENAME,
+                    OUTPUT_DIR, OUTPUT_FILENAME, REORDER_OUTPUT_FILENAME,
+                    RESTOCK_CHECK_FILENAME, RESTOCK_OUTPUT_FILENAME, STOK_GLOB)
 from data_loader import (clean_jual, latest_file, load_current_jual_nonvoid,
                          load_current_stok_arrived, load_hilang, load_jual_files,
                          load_pindah, load_stok_files)
@@ -286,6 +288,36 @@ def run_bundle(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
     return output_path
 
 
+def run_deadstock(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
+                  loaded: _Loaded | None = None) -> Path:
+    """Dead-stock / capital-release: capital frozen in slow/dead/overstock + how to free it."""
+    print(f"\n{'='*60}")
+    print(f"MODAL BEKU — KAPITAL TERTAHAN DI STOK LAMBAT/MATI")
+    print(f"{'='*60}\n")
+
+    if loaded is None:
+        loaded = _load_shared(data_dir)
+    df = analyze_deadstock(loaded.reorder, loaded.hpp_agg, loaded.jual, loaded.stok, loaded.today)
+    output_path = output_dir / DEADSTOCK_OUTPUT_FILENAME
+    write_deadstock_report(output_path, df, loaded.today)
+    return output_path
+
+
+def run_momentum(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
+                 loaded: _Loaded | None = None) -> Path:
+    """Momentum + ABC focus: which SKUs to push (rising winners) vs prune (declining tail)."""
+    print(f"\n{'='*60}")
+    print(f"MOMENTUM & ABC — APA YANG DIDORONG vs DIPANGKAS")
+    print(f"{'='*60}\n")
+
+    if loaded is None:
+        loaded = _load_shared(data_dir)
+    df = analyze_momentum(loaded.jual, loaded.hpp_agg, loaded.today)
+    output_path = output_dir / MOMENTUM_OUTPUT_FILENAME
+    write_momentum_report(output_path, df, loaded.today)
+    return output_path
+
+
 def run_restock_check(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Path:
     """Evaluate offered restock prices and recommend selling prices per marketplace.
     Reads data/restock_check.xlsx (auto-creates template if missing)."""
@@ -437,41 +469,50 @@ def _run_restock_check_if_configured(data_dir: Path, output_dir: Path,
 
 
 def run_everything(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> None:
-    """Run sales + reorder + cash-flow + channel + bundle + ab-test + restock-check.
-    Loads the workbooks once and shares them across every step."""
+    """Run sales + reorder + cash-flow + channel + bundle + dead-stock + momentum
+    + ab-test + restock-check. Loads the workbooks once and shares them across steps."""
     print(f"\n{'#'*60}")
-    print(f"# RUN EVERYTHING — SALES + REORDER + CASH-FLOW + CHANNEL + BUNDLE + AB + RESTOCK")
+    print(f"# RUN EVERYTHING — SALES + REORDER + CASH-FLOW + CHANNEL + BUNDLE")
+    print(f"#                + DEAD-STOCK + MOMENTUM + AB + RESTOCK")
     print(f"{'#'*60}")
 
-    print(f"\n[0/7] Memuat data (sekali untuk semua langkah)")
+    print(f"\n[0/9] Memuat data (sekali untuk semua langkah)")
     print(f"{'-'*60}")
     loaded = _load_shared(data_dir)
 
-    print(f"\n[1/7] Sales analysis untuk semua tahun")
+    print(f"\n[1/9] Sales analysis untuk semua tahun")
     print(f"{'-'*60}")
     run_all_years(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[2/7] Reorder analysis standalone")
+    print(f"\n[2/9] Reorder analysis standalone")
     print(f"{'-'*60}")
     run_reorder(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[3/7] Cash-flow restock plan")
+    print(f"\n[3/9] Cash-flow restock plan")
     print(f"{'-'*60}")
     run_cashflow(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[4/7] Channel optimizer per SKU")
+    print(f"\n[4/9] Channel optimizer per SKU")
     print(f"{'-'*60}")
     run_channel(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[5/7] Bundle & cross-sell")
+    print(f"\n[5/9] Bundle & cross-sell")
     print(f"{'-'*60}")
     run_bundle(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[6/7] A/B test")
+    print(f"\n[6/9] Modal beku (dead-stock / capital release)")
+    print(f"{'-'*60}")
+    run_deadstock(data_dir, output_dir, loaded=loaded)
+
+    print(f"\n[7/9] Momentum & ABC focus")
+    print(f"{'-'*60}")
+    run_momentum(data_dir, output_dir, loaded=loaded)
+
+    print(f"\n[8/9] A/B test")
     print(f"{'-'*60}")
     _run_ab_test_if_configured(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[7/7] Restock price check")
+    print(f"\n[9/9] Restock price check")
     print(f"{'-'*60}")
     _run_restock_check_if_configured(data_dir, output_dir, loaded=loaded)
 
@@ -494,6 +535,10 @@ def main() -> int:
                         help="Optimasi channel per SKU: marketplace mana yang net margin-nya terbaik.")
     parser.add_argument("--bundle", action="store_true",
                         help="Bundle & cross-sell: SKU yang sering dibeli bersama (market basket).")
+    parser.add_argument("--deadstock", action="store_true",
+                        help="Modal beku: kapital tertahan di stok lambat/mati + cara membebaskannya.")
+    parser.add_argument("--momentum", action="store_true",
+                        help="Momentum & ABC: SKU mana yang didorong (naik) vs dipangkas (turun).")
     parser.add_argument("--ab-test", action="store_true",
                         help="Generate laporan A/B test (perubahan harga). Otomatis bikin template kalau belum ada.")
     parser.add_argument("--restock-check", action="store_true",
@@ -518,6 +563,10 @@ def main() -> int:
             run_channel(args.data_dir, args.output_dir)
         elif args.bundle:
             run_bundle(args.data_dir, args.output_dir)
+        elif args.deadstock:
+            run_deadstock(args.data_dir, args.output_dir)
+        elif args.momentum:
+            run_momentum(args.data_dir, args.output_dir)
         elif args.reorder:
             run_reorder(args.data_dir, args.output_dir)
         elif args.sales is not None:

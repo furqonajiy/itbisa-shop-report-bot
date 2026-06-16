@@ -204,6 +204,23 @@ BASKET_OUTPUT_FILENAME = "Analisa_Bundle_CrossSell.xlsx"
 BASKET_MIN_PAIR_SUPPORT = 5      # min co-occurring orders before a SKU pair is reported
 BASKET_TOP_N = 150               # cap on pair rows in the report
 
+# --- Dead-stock / capital-release (--deadstock) ---
+# Quantify capital frozen in Overstock + Slow/Dead SKUs and recommend how to free it
+# (markdown / liquidate / stop-reorder). Built from the reorder metrics. Zero-config.
+DEADSTOCK_OUTPUT_FILENAME = "Analisa_Modal_Beku.xlsx"
+DEADSTOCK_DEAD_DAYS = 180        # no sale in N days → liquidate (vs markdown to speed turnover)
+
+# --- Momentum + ABC focus (--momentum) ---
+# Classify SKUs by sales momentum (recent vs prior window) and ABC (Pareto by trailing
+# profit), to guide push vs prune. Built from BisaJual + HPP. Zero-config.
+MOMENTUM_OUTPUT_FILENAME = "Analisa_Momentum_ABC.xlsx"
+MOMENTUM_WINDOW_DAYS = 90         # each comparison window (recent vs the prior one)
+MOMENTUM_MIN_QTY = 10             # min (recent + prior) qty before a SKU is classified
+MOMENTUM_GROWTH_THRESHOLD = 0.30  # ± this vs the prior window → accelerating / declining
+MOMENTUM_TRAILING_DAYS = 365      # window used to rank trailing profit for ABC
+ABC_A_SHARE = 0.80                # cumulative trailing-profit share cutoff for class A
+ABC_B_SHARE = 0.95               # ...and class B (the rest are class C)
+
 # Source column names (raw from Excel with embedded newlines)
 COL_STOK_SKU = "SKU"
 COL_STOK_QTY = "Banyak\nBarang\n(Buah)"
