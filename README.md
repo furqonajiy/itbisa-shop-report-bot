@@ -162,13 +162,15 @@ reorder analysis into a purchasing-budget calendar — useful for an importer wh
 upfront and waits ~2.5 months for sea freight. No template needed; it is built entirely from
 the stock/sales data, so it always runs in `--all`.
 
-For each SKU with demand it projects the **next** order:
+For each SKU with demand it projects **every** order due within the window (not just the next
+one), via an inventory-position simulation:
 
-- **When to order** = when projected stock crosses the reorder point:
-  `months_to_order = max(0, (sisa stok − ROP) / velocity)`. A SKU at or below its ROP (or in
-  STOCKOUT) is due now. Only orders falling within `CASHFLOW_HORIZON_MONTHS` (default 6) are
-  budgeted.
-- **How much** = the reorder suggested order qty (`target cover + lead demand − stock at order time`).
+- **When to order** = whenever the projected inventory position crosses the reorder point. A SKU
+  at or below its ROP (or in STOCKOUT) is due now; after each order the position is replenished
+  and then depletes at `velocity` until the next crossing. Only orders within
+  `CASHFLOW_HORIZON_MONTHS` (default 6) are budgeted, and `CASHFLOW_MAX_CYCLES` caps the
+  simulation. So a fast mover like NE555P gets several orders in the window.
+- **How much** = the reorder qty (`target cover + lead demand − stock at order time`).
 - **Cost** = qty × **replacement HPP** = `hpp_pricing` (the latest overseas lot price — what you
   would actually pay to restock now), falling back to `hpp_wa`.
 - **Supplier** = the SKU's dominant standardized `Toko` (by non-Migrasi purchase qty), so spend
@@ -176,10 +178,8 @@ For each SKU with demand it projects the **next** order:
 
 Output: `output/Analisa_Cashflow_Restock.xlsx` — `00_Ringkasan` (total capital over the horizon
 + how much is due this month + a per-month table), `01_Kalender_per_Bulan` (a supplier × month
-Rupiah matrix), and `02_Detail_per_SKU` (every planned order). See `cashflow.py`.
-
-> v1 plans the **next** reorder per SKU within the horizon; a fast mover that needs several
-> reorder cycles in the window is not yet multi-counted (a later step).
+Rupiah matrix), and `02_Detail_per_SKU` (one row per order, with the order number per SKU).
+See `cashflow.py`.
 
 ## Restock price check (`--restock-check`)
 

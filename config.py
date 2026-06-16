@@ -185,6 +185,7 @@ COL_RC_NOTE = "Catatan"
 # (built entirely from the stok/jual data), so it always runs in --all.
 CASHFLOW_OUTPUT_FILENAME = "Analisa_Cashflow_Restock.xlsx"
 CASHFLOW_HORIZON_MONTHS = 6       # plan window: only orders due within N months are budgeted
+CASHFLOW_MAX_CYCLES = 60          # safety cap on reorder cycles simulated per SKU in the window
 
 # Source column names (raw from Excel with embedded newlines)
 COL_STOK_SKU = "SKU"

@@ -28,9 +28,9 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from config import (
-    BLUE_FILL_COLOR, CASHFLOW_HORIZON_MONTHS, FMT_NUM, FMT_RP, FONT_NAME,
-    HEADER_BG_COLOR, HEADER_TEXT_COLOR, LIGHT_GRAY_COLOR, MIGRASI_PREFIX,
-    RED_FILL_COLOR, TITLE_COLOR,
+    BLUE_FILL_COLOR, CASHFLOW_HORIZON_MONTHS, CASHFLOW_MAX_CYCLES, FMT_NUM,
+    FMT_RP, FONT_NAME, HEADER_BG_COLOR, HEADER_TEXT_COLOR, LIGHT_GRAY_COLOR,
+    MIGRASI_PREFIX, RED_FILL_COLOR, TITLE_COLOR,
 )
 
 _DAYS_PER_MONTH = 365.25 / 12.0
@@ -64,12 +64,15 @@ def compute_primary_shop(stok: pd.DataFrame) -> pd.Series:
 def build_restock_plan(reorder_df: pd.DataFrame, hpp_agg: pd.DataFrame,
                        stok: pd.DataFrame, today: pd.Timestamp,
                        horizon_months: int = CASHFLOW_HORIZON_MONTHS) -> pd.DataFrame:
-    """One row per planned (next) reorder due within `horizon_months`.
+    """One row per planned reorder (ALL cycles) due within `horizon_months`.
 
-    Order timing = when projected stock crosses `rop_final`:
-    `months_to_order = max(0, (sisa − rop_final) / velocity)`. STOCKOUT/below-ROP
-    SKUs are due now (month 0). Order qty reuses the reorder formula (target cover
-    + lead demand − stock at order time). Cost = qty × `hpp_pricing` (else `hpp_wa`)."""
+    Per SKU, an inventory-position model rolls forward: order whenever the position
+    crosses `rop_final`, up to the order-up-to level S = `target_qty_post_reorder`
+    + `lead_demand`; the position then depletes at `velocity`/month until the next
+    crossing. STOCKOUT/below-ROP SKUs are due now (month 0). A fast mover therefore
+    gets several orders inside the window (not just the next one). Order qty = the
+    reorder formula (S − stock at order time); cost = qty × `hpp_pricing` (else
+    `hpp_wa`). `CASHFLOW_MAX_CYCLES` caps the simulation defensively."""
     if reorder_df is None or len(reorder_df) == 0:
         return pd.DataFrame()
 
@@ -86,45 +89,49 @@ def build_restock_plan(reorder_df: pd.DataFrame, hpp_agg: pd.DataFrame,
             continue
         sisa = float(r["sisa_stok"])
         rop = float(r["rop_final"])
-        daily = vel / _DAYS_PER_MONTH
-
-        if sisa <= rop:                    # already at/below ROP → order now
-            days_to_order = 0.0
-            stock_at_order = sisa
-        else:
-            days_to_order = (sisa - rop) / daily if daily > 0 else float("inf")
-            stock_at_order = rop
-        months_to_order = days_to_order / _DAYS_PER_MONTH
-        if months_to_order > horizon_months:   # beyond the plan window — budget later
-            continue
-
-        qty = max(0.0, float(r["target_qty_post_reorder"]) - stock_at_order
-                  + float(r["lead_demand"]))
-        qty = math.ceil(qty)
-        if qty <= 0:
+        order_up_to = float(r["target_qty_post_reorder"]) + float(r["lead_demand"])
+        if order_up_to <= 0:
             continue
 
         sku = r["SKU"]
         unit = hpp_pricing.get(sku)
         if unit is None or pd.isna(unit) or unit <= 0:
             unit = hpp_wa.get(sku, np.nan)
-        cost = qty * unit if (unit is not None and pd.notna(unit) and unit > 0) else np.nan
+        supplier = str(primary_shop.get(sku, "—")) or "—"
 
-        order_date = today + pd.Timedelta(days=float(days_to_order))
-        rows.append({
-            "SKU": sku,
-            "supplier": str(primary_shop.get(sku, "—")) or "—",
-            "status": r["status"],
-            "sisa_stok": sisa,
-            "velocity": vel,
-            "lead_months": float(r["lead_months"]),
-            "months_to_order": months_to_order,
-            "order_date": order_date,
-            "order_month": order_date.strftime("%Y-%m"),
-            "qty_order": qty,
-            "unit_cost": unit,
-            "order_cost": cost,
-        })
+        ip = sisa                          # inventory position (on-hand; no on-order data)
+        t = 0.0                            # months from today
+        order_no = 0
+        while t <= horizon_months and order_no < CASHFLOW_MAX_CYCLES:
+            if ip > rop:                   # deplete down to ROP before the next order
+                t += (ip - rop) / vel
+                if t > horizon_months:
+                    break
+                stock_at_order = rop
+            else:                          # at/below ROP → order at the current time
+                stock_at_order = ip
+            qty = math.ceil(max(0.0, order_up_to - stock_at_order))
+            if qty <= 0:                   # degenerate (S ≤ ROP) → stop
+                break
+            cost = qty * unit if (unit is not None and pd.notna(unit) and unit > 0) else np.nan
+            order_date = today + pd.Timedelta(days=t * _DAYS_PER_MONTH)
+            order_no += 1
+            rows.append({
+                "SKU": sku,
+                "supplier": supplier,
+                "status": r["status"],
+                "sisa_stok": sisa,
+                "velocity": vel,
+                "lead_months": float(r["lead_months"]),
+                "order_no": order_no,
+                "months_to_order": t,
+                "order_date": order_date,
+                "order_month": order_date.strftime("%Y-%m"),
+                "qty_order": qty,
+                "unit_cost": unit,
+                "order_cost": cost,
+            })
+            ip = stock_at_order + qty      # = order_up_to after restock
 
     plan = pd.DataFrame(rows)
     if len(plan):
@@ -139,13 +146,13 @@ def _months_axis(today: pd.Timestamp, horizon: int) -> list[str]:
 
 
 def summarize_by_month(plan: pd.DataFrame, months: list[str]) -> pd.DataFrame:
-    """Total order cost + qty + SKU count per order month, over the full month axis."""
+    """Order count + qty + cost per order month, over the full month axis."""
     out = []
     for m in months:
         sub = plan[plan["order_month"] == m] if len(plan) else plan
         out.append({
             "Bulan": m,
-            "SKU": int(len(sub)),
+            "Order": int(len(sub)),
             "Qty": int(sub["qty_order"].sum()) if len(sub) else 0,
             "Biaya": float(sub["order_cost"].sum(skipna=True)) if len(sub) else 0.0,
         })
@@ -191,14 +198,15 @@ def write_cashflow_report(filepath: Path, plan: pd.DataFrame, monthly: pd.DataFr
     ws["A1"].font = BIG_TITLE_FONT
     ws.merge_cells("A1:D1")
     total = float(plan["order_cost"].sum(skipna=True)) if len(plan) else 0.0
-    n_sku = int(len(plan))
+    n_orders = int(len(plan))
+    n_sku = int(plan["SKU"].nunique()) if len(plan) else 0
     this_month = months[0] if months else today.strftime("%Y-%m")
     due_now = (float(plan[plan["order_month"] == this_month]["order_cost"].sum(skipna=True))
                if len(plan) else 0.0)
-    n_no_hpp = int(plan["order_cost"].isna().sum()) if len(plan) else 0
+    n_no_hpp = (int(plan[plan["order_cost"].isna()]["SKU"].nunique()) if len(plan) else 0)
     ws["A2"] = (f"Per {today.strftime('%d %B %Y')}  |  Horizon {horizon} bulan  |  "
                 f"Biaya pakai HPP pengganti (lot luar negeri terakhir, fallback HPP_WA). "
-                f"v1: merencanakan reorder BERIKUTNYA per SKU dalam horizon.")
+                f"Merencanakan SEMUA siklus reorder dalam horizon (mover cepat = beberapa order).")
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:D2")
 
@@ -207,6 +215,7 @@ def write_cashflow_report(filepath: Path, plan: pd.DataFrame, monthly: pd.DataFr
         ("Total modal restock (horizon)", total, FMT_RP),
         (f"Jatuh tempo bulan ini ({this_month})", due_now, FMT_RP),
         ("Jumlah SKU yang perlu di-restock", n_sku, FMT_NUM),
+        ("Jumlah order dalam horizon", n_orders, FMT_NUM),
     ]
     for label, val, fmt in headline:
         ws.cell(row=r, column=1, value=label).font = BOLD_FONT
@@ -223,12 +232,12 @@ def write_cashflow_report(filepath: Path, plan: pd.DataFrame, monthly: pd.DataFr
     r += 1
     ws.cell(row=r, column=1, value="Rincian per bulan").font = TITLE_FONT
     r += 1
-    _style_header(ws, r, ["Bulan", "Jumlah SKU", "Qty", "Biaya"], [14, 14, 12, 18])
+    _style_header(ws, r, ["Bulan", "Order", "Qty", "Biaya"], [14, 14, 12, 18])
     hdr_row = r
     r += 1
     for _, m in monthly.iterrows():
         ws.cell(row=r, column=1, value=m["Bulan"]).font = NORMAL_FONT
-        ws.cell(row=r, column=2, value=int(m["SKU"])).font = NORMAL_FONT
+        ws.cell(row=r, column=2, value=int(m["Order"])).font = NORMAL_FONT
         ws.cell(row=r, column=3, value=int(m["Qty"])).font = NORMAL_FONT
         ws.cell(row=r, column=3).number_format = FMT_NUM
         c = ws.cell(row=r, column=4, value=float(m["Biaya"]))
@@ -240,6 +249,7 @@ def write_cashflow_report(filepath: Path, plan: pd.DataFrame, monthly: pd.DataFr
         r += 1
     # total row
     ws.cell(row=r, column=1, value="TOTAL").font = BOLD_FONT
+    ws.cell(row=r, column=2, value=int(monthly["Order"].sum())).font = BOLD_FONT
     ws.cell(row=r, column=3, value=int(monthly["Qty"].sum())).font = BOLD_FONT
     ws.cell(row=r, column=3).number_format = FMT_NUM
     tc = ws.cell(row=r, column=4, value=float(monthly["Biaya"].sum()))
@@ -293,21 +303,22 @@ def write_cashflow_report(filepath: Path, plan: pd.DataFrame, monthly: pd.DataFr
     ws3 = wb.create_sheet("02_Detail_per_SKU")
     ws3["A1"] = "DETAIL RENCANA RESTOCK PER SKU"
     ws3["A1"].font = TITLE_FONT
-    ws3.merge_cells("A1:K1")
-    headers = ["SKU", "Supplier", "Status", "Sisa Stok", "Velocity/bln", "Lead (bln)",
-               "Order dalam (bln)", "Tgl Order", "Qty Order", "HPP/pcs", "Total Biaya"]
-    widths = [34, 18, 18, 11, 12, 10, 14, 13, 11, 13, 16]
+    ws3.merge_cells("A1:L1")
+    headers = ["SKU", "Supplier", "Status", "Order ke-", "Sisa Stok", "Velocity/bln",
+               "Lead (bln)", "Order dalam (bln)", "Tgl Order", "Qty Order", "HPP/pcs",
+               "Total Biaya"]
+    widths = [34, 18, 18, 9, 11, 12, 10, 14, 13, 11, 13, 16]
     _style_header(ws3, 3, headers, widths)
     if plan is not None and len(plan):
         rr = 4
         for _, p in plan.iterrows():
-            vals = [p["SKU"], p["supplier"], p["status"], round(p["sisa_stok"]),
-                    round(p["velocity"], 1), round(p["lead_months"], 2),
-                    round(p["months_to_order"], 1),
+            vals = [p["SKU"], p["supplier"], p["status"], int(p["order_no"]),
+                    round(p["sisa_stok"]), round(p["velocity"], 1),
+                    round(p["lead_months"], 2), round(p["months_to_order"], 1),
                     p["order_date"].strftime("%Y-%m-%d"), int(p["qty_order"]),
                     (round(p["unit_cost"]) if pd.notna(p["unit_cost"]) else None),
                     (round(p["order_cost"]) if pd.notna(p["order_cost"]) else None)]
-            fmts = [None, None, None, FMT_NUM, FMT_NUM, FMT_NUM, FMT_NUM, None,
+            fmts = [None, None, None, FMT_NUM, FMT_NUM, FMT_NUM, FMT_NUM, FMT_NUM, None,
                     FMT_NUM, FMT_RP, FMT_RP]
             for ci, (v, fmt) in enumerate(zip(vals, fmts), start=1):
                 c = ws3.cell(row=rr, column=ci, value=v)
@@ -317,7 +328,7 @@ def write_cashflow_report(filepath: Path, plan: pd.DataFrame, monthly: pd.DataFr
                 if rr % 2 == 1:
                     c.fill = LIGHT_FILL
             if p["order_month"] == this_month:                 # due now → red flag
-                ws3.cell(row=rr, column=8).fill = RED_FILL
+                ws3.cell(row=rr, column=9).fill = RED_FILL
             rr += 1
         ws3.freeze_panes = "A4"
     else:
