@@ -23,13 +23,14 @@ for the stock ledger; all files are used for sales history & HPP.
 ## Usage
 
 ```bash
-python main.py                  # RUN EVERYTHING (= --all): sales all years + reorder + A/B test + restock-check
+python main.py                  # RUN EVERYTHING (= --all): sales all years + reorder + cash-flow + A/B test + restock-check
 python main.py --sales 2026     # sales report for a single year
 python main.py --sales          # all years present in the sales data (= --sales all)
 python main.py --reorder        # standalone reorder analysis
+python main.py --cashflow       # cash-flow restock plan: how much capital is needed & when (per supplier)
 python main.py --ab-test        # A/B price-change test analysis (reads data/ab_tests.xlsx)
 python main.py --restock-check  # restock price check & selling-price recommendation (reads data/restock_check.xlsx)
-python main.py --all            # sales all years + reorder + A/B test + restock-check together
+python main.py --all            # sales all years + reorder + cash-flow + A/B test + restock-check together
 ```
 
 > With no flag, `python main.py` runs the full suite (same as `--all`). The A/B test and
@@ -154,6 +155,32 @@ See `compute_lead_time_months` in `analysis.py`.
 | 10_Reorder_Data_Lengkap | Reorder calculation detail |
 | 11_Rekap_Stok_per_Gudang | Stock balance per warehouse |
 
+## Cash-flow restock plan (`--cashflow`)
+
+Answers: **how much capital do I need to keep everything in stock, and when?** It turns the
+reorder analysis into a purchasing-budget calendar — useful for an importer who pays suppliers
+upfront and waits ~2.5 months for sea freight. No template needed; it is built entirely from
+the stock/sales data, so it always runs in `--all`.
+
+For each SKU with demand it projects the **next** order:
+
+- **When to order** = when projected stock crosses the reorder point:
+  `months_to_order = max(0, (sisa stok − ROP) / velocity)`. A SKU at or below its ROP (or in
+  STOCKOUT) is due now. Only orders falling within `CASHFLOW_HORIZON_MONTHS` (default 6) are
+  budgeted.
+- **How much** = the reorder suggested order qty (`target cover + lead demand − stock at order time`).
+- **Cost** = qty × **replacement HPP** = `hpp_pricing` (the latest overseas lot price — what you
+  would actually pay to restock now), falling back to `hpp_wa`.
+- **Supplier** = the SKU's dominant standardized `Toko` (by non-Migrasi purchase qty), so spend
+  is grouped by who you buy from.
+
+Output: `output/Analisa_Cashflow_Restock.xlsx` — `00_Ringkasan` (total capital over the horizon
++ how much is due this month + a per-month table), `01_Kalender_per_Bulan` (a supplier × month
+Rupiah matrix), and `02_Detail_per_SKU` (every planned order). See `cashflow.py`.
+
+> v1 plans the **next** reorder per SKU within the horizon; a fast mover that needs several
+> reorder cycles in the window is not yet multi-counted (a later step).
+
 ## Restock price check (`--restock-check`)
 
 Answers: **is this supplier expensive/cheap/fair, and if I restock, what should I sell it for?**
@@ -211,4 +238,5 @@ Config `data/ab_tests.xlsx` (sheet `BisaABTest`): `SKU`, `Tanggal Perubahan`, `N
 - `excel_writer.py` — render the Excel workbook
 - `ab_testing.py` — A/B price-change test analysis
 - `restock_pricing.py` — restock price check & selling-price recommendation
+- `cashflow.py` — cash-flow restock plan (purchasing-budget calendar)
 - `main.py` — CLI entry point

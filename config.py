@@ -177,6 +177,15 @@ COL_RC_KMIN = "Kompetitor Min"   # competitor selling price, low end (Rp)
 COL_RC_KMAX = "Kompetitor Max"   # competitor selling price, high end (Rp)
 COL_RC_NOTE = "Catatan"
 
+# --- Cash-flow restock plan (--cashflow) ---
+# Turn the reorder metrics into a purchasing budget calendar: for each SKU that
+# crosses its reorder point within the horizon, project WHEN to order, HOW MUCH,
+# the COST (qty × replacement HPP = latest overseas lot price, fallback HPP_WA),
+# and WHICH supplier — then bucket the Rupiah by month and supplier. Zero-config
+# (built entirely from the stok/jual data), so it always runs in --all.
+CASHFLOW_OUTPUT_FILENAME = "Analisa_Cashflow_Restock.xlsx"
+CASHFLOW_HORIZON_MONTHS = 6       # plan window: only orders due within N months are budgeted
+
 # Source column names (raw from Excel with embedded newlines)
 COL_STOK_SKU = "SKU"
 COL_STOK_QTY = "Banyak\nBarang\n(Buah)"
