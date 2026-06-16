@@ -25,13 +25,14 @@ from basket_analysis import analyze_baskets, write_basket_report
 from deadstock_analysis import analyze_deadstock, write_deadstock_report
 from momentum_analysis import analyze_momentum, write_momentum_report
 from elasticity_analysis import analyze_elasticity, write_elasticity_report
+from trend_analysis import analyze_trend, write_trend_report
 from config import (AB_TESTS_FILENAME, AB_TESTS_OUTPUT_FILENAME,
                     BASKET_OUTPUT_FILENAME, CASHFLOW_HORIZON_MONTHS,
                     CASHFLOW_OUTPUT_FILENAME, CHANNEL_OUTPUT_FILENAME, DATA_DIR,
                     DEADSTOCK_OUTPUT_FILENAME, ELASTICITY_OUTPUT_FILENAME, JUAL_GLOB,
                     MOMENTUM_OUTPUT_FILENAME, OUTPUT_DIR, OUTPUT_FILENAME,
                     REORDER_OUTPUT_FILENAME, RESTOCK_CHECK_FILENAME,
-                    RESTOCK_OUTPUT_FILENAME, STOK_GLOB)
+                    RESTOCK_OUTPUT_FILENAME, STOK_GLOB, TREND_OUTPUT_FILENAME)
 from data_loader import (clean_jual, latest_file, load_current_jual_nonvoid,
                          load_current_stok_arrived, load_hilang, load_jual_files,
                          load_pindah, load_stok_files)
@@ -335,6 +336,21 @@ def run_elasticity(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
     return output_path
 
 
+def run_trend(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
+              loaded: _Loaded | None = None) -> Path:
+    """Sales trend & seasonality: cross-year omzet/profit trend, YoY growth, seasonal index."""
+    print(f"\n{'='*60}")
+    print(f"TREN & MUSIMAN PENJUALAN — LINTAS TAHUN")
+    print(f"{'='*60}\n")
+
+    if loaded is None:
+        loaded = _load_shared(data_dir)
+    data = analyze_trend(loaded.jual, loaded.hpp_agg, loaded.today)
+    output_path = output_dir / TREND_OUTPUT_FILENAME
+    write_trend_report(output_path, data, loaded.today)
+    return output_path
+
+
 def run_restock_check(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Path:
     """Evaluate offered restock prices and recommend selling prices per marketplace.
     Reads data/restock_check.xlsx (auto-creates template if missing)."""
@@ -486,54 +502,58 @@ def _run_restock_check_if_configured(data_dir: Path, output_dir: Path,
 
 
 def run_everything(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> None:
-    """Run sales + reorder + cash-flow + channel + bundle + dead-stock + momentum
+    """Run sales + trend + reorder + cash-flow + channel + bundle + dead-stock + momentum
     + elasticity + ab-test + restock-check. Loads the workbooks once and shares them."""
     print(f"\n{'#'*60}")
-    print(f"# RUN EVERYTHING — SALES + REORDER + CASH-FLOW + CHANNEL + BUNDLE")
-    print(f"#                + DEAD-STOCK + MOMENTUM + ELASTICITY + AB + RESTOCK")
+    print(f"# RUN EVERYTHING — SALES + TREND + REORDER + CASH-FLOW + CHANNEL")
+    print(f"#   + BUNDLE + DEAD-STOCK + MOMENTUM + ELASTICITY + AB + RESTOCK")
     print(f"{'#'*60}")
 
-    print(f"\n[0/10] Memuat data (sekali untuk semua langkah)")
+    print(f"\n[0/11] Memuat data (sekali untuk semua langkah)")
     print(f"{'-'*60}")
     loaded = _load_shared(data_dir)
 
-    print(f"\n[1/10] Sales analysis untuk semua tahun")
+    print(f"\n[1/11] Sales analysis untuk semua tahun")
     print(f"{'-'*60}")
     run_all_years(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[2/10] Reorder analysis standalone")
+    print(f"\n[2/11] Tren & musiman penjualan")
+    print(f"{'-'*60}")
+    run_trend(data_dir, output_dir, loaded=loaded)
+
+    print(f"\n[3/11] Reorder analysis standalone")
     print(f"{'-'*60}")
     run_reorder(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[3/10] Cash-flow restock plan")
+    print(f"\n[4/11] Cash-flow restock plan")
     print(f"{'-'*60}")
     run_cashflow(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[4/10] Channel optimizer per SKU")
+    print(f"\n[5/11] Channel optimizer per SKU")
     print(f"{'-'*60}")
     run_channel(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[5/10] Bundle & cross-sell")
+    print(f"\n[6/11] Bundle & cross-sell")
     print(f"{'-'*60}")
     run_bundle(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[6/10] Modal beku (dead-stock / capital release)")
+    print(f"\n[7/11] Modal beku (dead-stock / capital release)")
     print(f"{'-'*60}")
     run_deadstock(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[7/10] Momentum & ABC focus")
+    print(f"\n[8/11] Momentum & ABC focus")
     print(f"{'-'*60}")
     run_momentum(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[8/10] Elastisitas harga")
+    print(f"\n[9/11] Elastisitas harga")
     print(f"{'-'*60}")
     run_elasticity(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[9/10] A/B test")
+    print(f"\n[10/11] A/B test")
     print(f"{'-'*60}")
     _run_ab_test_if_configured(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[10/10] Restock price check")
+    print(f"\n[11/11] Restock price check")
     print(f"{'-'*60}")
     _run_restock_check_if_configured(data_dir, output_dir, loaded=loaded)
 
@@ -562,6 +582,8 @@ def main() -> int:
                         help="Momentum & ABC: SKU mana yang didorong (naik) vs dipangkas (turun).")
     parser.add_argument("--elasticity", action="store_true",
                         help="Elastisitas harga: SKU mana yang ada ruang naik harga (inelastis) vs sensitif.")
+    parser.add_argument("--trend", action="store_true",
+                        help="Tren & musiman: tren omzet/profit lintas tahun, pertumbuhan YoY, indeks musiman.")
     parser.add_argument("--ab-test", action="store_true",
                         help="Generate laporan A/B test (perubahan harga). Otomatis bikin template kalau belum ada.")
     parser.add_argument("--restock-check", action="store_true",
@@ -592,6 +614,8 @@ def main() -> int:
             run_momentum(args.data_dir, args.output_dir)
         elif args.elasticity:
             run_elasticity(args.data_dir, args.output_dir)
+        elif args.trend:
+            run_trend(args.data_dir, args.output_dir)
         elif args.reorder:
             run_reorder(args.data_dir, args.output_dir)
         elif args.sales is not None:

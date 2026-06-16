@@ -232,6 +232,14 @@ ELASTICITY_INELASTIC_THRESHOLD = 1.0  # |elasticity| < this = inelastic (raising
 ELASTICITY_MIN_R2 = 0.30          # fit R² below this = low confidence
 ELASTICITY_PRICE_NUDGE = 0.10     # model a +10% price scenario for the recommendation
 
+# --- Sales trend & seasonality (--trend) ---
+# Cross-year view: monthly/yearly omzet+profit time series, YoY growth, and a
+# seasonal index (which calendar months consistently over/under-perform). Zero-config.
+TREND_OUTPUT_FILENAME = "Analisa_Tren_Musiman.xlsx"
+TREND_SEASONAL_MIN_YEARS = 2      # min complete years contributing before a month's seasonal index is shown
+TREND_PEAK_INDEX = 1.15           # seasonal index ≥ this = peak month
+TREND_LOW_INDEX = 0.85            # seasonal index ≤ this = soft month
+
 # Source column names (raw from Excel with embedded newlines)
 COL_STOK_SKU = "SKU"
 COL_STOK_QTY = "Banyak\nBarang\n(Buah)"

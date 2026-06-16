@@ -7,11 +7,11 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 
 ## Stack & files (flat layout, no `src/`)
 - Python 3.10+. Deps: `pandas`, `openpyxl`.
-- `main.py` CLI/orchestration · `config.py` all constants · `data_loader.py` loading + SKU normalization + current-workbook loaders · `analysis.py` HPP, profit, aggregation, supplier classification, reorder, `build_stock_ledger`, `compute_lead_time_months`, `compute_price_change_status` · `tables.py` table builders · `excel_writer.py` Excel output · `ab_testing.py` A/B analyzer · `restock_pricing.py` restock price evaluator · `cashflow.py` cash-flow restock plan · `channel_analysis.py` per-SKU channel optimizer · `basket_analysis.py` bundle/cross-sell · `deadstock_analysis.py` modal beku · `momentum_analysis.py` momentum+ABC · `elasticity_analysis.py` elastisitas harga.
+- `main.py` CLI/orchestration · `config.py` all constants · `data_loader.py` loading + SKU normalization + current-workbook loaders · `analysis.py` HPP, profit, aggregation, supplier classification, reorder, `build_stock_ledger`, `compute_lead_time_months`, `compute_price_change_status` · `tables.py` table builders · `excel_writer.py` Excel output · `ab_testing.py` A/B analyzer · `restock_pricing.py` restock price evaluator · `cashflow.py` cash-flow restock plan · `channel_analysis.py` per-SKU channel optimizer · `basket_analysis.py` bundle/cross-sell · `deadstock_analysis.py` modal beku · `momentum_analysis.py` momentum+ABC · `elasticity_analysis.py` elastisitas harga · `trend_analysis.py` tren+musiman.
 - `data/` input (gitignored), `output/` reports.
 
 ## CLI (`python main.py`)
-- (no flag) = **full suite** (`--all`, 10 steps, loads data once via `_load_shared`, reorder once) · `--sales [YEAR]` · `--reorder` · `--cashflow` · `--channel` · `--bundle` · `--deadstock` · `--momentum` · `--elasticity` · `--ab-test` · `--restock-check` · `--data-dir`/`--output-dir`. Zero-config reports (cash-flow/channel/bundle/dead-stock/momentum/elasticity) always run; ab-test/restock-check run only if their template has rows.
+- (no flag) = **full suite** (`--all`, 11 steps, loads data once via `_load_shared`, reorder once) · `--sales [YEAR]` · `--trend` · `--reorder` · `--cashflow` · `--channel` · `--bundle` · `--deadstock` · `--momentum` · `--elasticity` · `--ab-test` · `--restock-check` · `--data-dir`/`--output-dir`. Zero-config reports (trend/cash-flow/channel/bundle/dead-stock/momentum/elasticity) always run; ab-test/restock-check run only if their template has rows.
 
 ## Inputs (`data/`, by glob)
 - `*BisaStok*.xlsx` (purchases, sheet `BisaStok`; latest also needs `BisaHilang`+`BisaPindahBarang`) and `*BisaJual*.xlsx` (sales, ≥ `BisaJualShopee`).
@@ -28,17 +28,18 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - **Reorder**: velocity = avg monthly qty (total ÷ N months, trailing 6mo / fallback 12→24mo), CV → safety multiplier; **lead time is per-SHOP** from observed `Tanggal Bayar`→`Tanggal Sampai` at p75 (Ocistok=Martkita=1688 = one forwarder ≈2.5mo vs market ≈1mo). A SKU takes the **slowest shop supplying ≥`LEAD_SHOP_MIN_SHARE` of its qty** (import floored at global-import lead); local → `LEAD_TIME_MARKET_MONTHS`. Then ROP + order qty; buckets STOCKOUT/URGENT/Now/Soon/Overstock + Slow/Dead.
 - **Supplier classification**: China = `Luar Negeri?=1` or `Toko`∈`CHINA_KEYWORDS`; Market = `MARKET_KEYWORDS`; else Other.
 - **Restock check (`--restock-check`)**: landed HPP from `Harga RMB` (calibrated factor ≈Rp`RMB_TO_IDR_FALLBACK`/RMB) or given HPP IDR; verdict vs `hpp_wa`. Per-marketplace sell price = HPP×(1+`RESTOCK_TARGET_NET_MARKUP`)/(1−fee); decision vs competitor range 🟢/🟡/🔴. Input `restock_check.xlsx` → `Analisa_Restock_Check.xlsx`.
-- **Cash-flow (`--cashflow`)**: reorder metrics → purchasing-budget calendar; inv-position sim plans **every** cycle in `CASHFLOW_HORIZON_MONTHS` (cost qty×`hpp_pricing`, by supplier×month). → `Analisa_Cashflow_Restock.xlsx`. Zero-config.
-- **Channel (`--channel`)**: per-SKU net margin/unit per marketplace = `(omzet+admin)/qty − hpp_wa`; flag 🔁 shift to a better channel (gap ≥ `CHANNEL_SHIFT_MIN_GAP × hpp`). → `Analisa_Channel_per_SKU.xlsx`. Zero-config.
-- **Bundle (`--bundle`)**: market basket per `Invoice` — support/confidence/lift, pairs ≥ `BASKET_MIN_PAIR_SUPPORT`. → `Analisa_Bundle_CrossSell.xlsx`. Zero-config.
-- **Dead-stock (`--deadstock`)**: capital frozen in `🔵 Overstock`+`💤 Slow/Dead`; held = sisa×hpp_wa, freeable = max(0, sisa−`target_qty_post_reorder`)×hpp_wa; aksi 🧹 likuidasi / 🏷️ markdown / ⛔ stop-reorder. → `Analisa_Modal_Beku.xlsx`. Zero-config.
-- **Elasticity (`--elasticity`)**: per-SKU log-log OLS `ln(qty)=a+b·ln(price)`, b=elastisitas (perlu ≥`ELASTICITY_MIN_MONTHS` bln & price CV ≥`ELASTICITY_MIN_PRICE_CV`). |b|<1 → 🔼 naikkan; |b|≥1 → 🔽 hati-hati; b≥0 ↔ tak konklusif. Confidence dari R² (Rendah tak jadi rek). → `Analisa_Elastisitas_Harga.xlsx`. Zero-config.
-- **Momentum + ABC (`--momentum`)**: momentum (recent vs prior qty: 🚀/📉 ±`MOMENTUM_GROWTH_THRESHOLD`, ➡️/🆕/💤) × ABC Pareto-by-trailing-profit (A ≤`ABC_A_SHARE`, B ≤`ABC_B_SHARE`); rek. dorong/lindungi/pangkas. → `Analisa_Momentum_ABC.xlsx`. Zero-config.
+- **Cash-flow (`--cashflow`)**: reorder metrics → purchasing-budget calendar; inv-position sim plans **every** cycle in `CASHFLOW_HORIZON_MONTHS` (cost qty×`hpp_pricing`, by supplier×month). → `Analisa_Cashflow_Restock.xlsx`.
+- **Channel (`--channel`)**: per-SKU net margin/unit per marketplace = `(omzet+admin)/qty − hpp_wa`; flag 🔁 shift to a better channel (gap ≥ `CHANNEL_SHIFT_MIN_GAP × hpp`). → `Analisa_Channel_per_SKU.xlsx`.
+- **Bundle (`--bundle`)**: market basket per `Invoice` — support/confidence/lift, pairs ≥ `BASKET_MIN_PAIR_SUPPORT`. → `Analisa_Bundle_CrossSell.xlsx`.
+- **Dead-stock (`--deadstock`)**: capital frozen in `🔵 Overstock`+`💤 Slow/Dead`; held = sisa×hpp_wa, freeable = max(0, sisa−`target_qty_post_reorder`)×hpp_wa; aksi 🧹 likuidasi / 🏷️ markdown / ⛔ stop-reorder. → `Analisa_Modal_Beku.xlsx`.
+- **Trend (`--trend`)**: cross-year omzet/profit trend + YoY growth + per-month seasonal index (omzet bln ÷ rata2 bulanan tahunnya, tahun penuh saja; >1 = puncak); headline YTD vs tahun lalu. → `Analisa_Tren_Musiman.xlsx`.
+- **Elasticity (`--elasticity`)**: per-SKU log-log OLS `ln(qty)=a+b·ln(price)`, b=elastisitas (perlu ≥`ELASTICITY_MIN_MONTHS` bln & price CV ≥`ELASTICITY_MIN_PRICE_CV`). |b|<1 → 🔼 naikkan; |b|≥1 → 🔽 hati-hati; b≥0 ↔ tak konklusif. Confidence dari R² (Rendah tak jadi rek). → `Analisa_Elastisitas_Harga.xlsx`.
+- **Momentum + ABC (`--momentum`)**: momentum (recent vs prior qty: 🚀/📉 ±`MOMENTUM_GROWTH_THRESHOLD`, ➡️/🆕/💤) × ABC Pareto-by-trailing-profit (A ≤`ABC_A_SHARE`, B ≤`ABC_B_SHARE`); rek. dorong/lindungi/pangkas. → `Analisa_Momentum_ABC.xlsx`.
 - **Summary (00)** surfaces a partial/current-year flag + a data-quality block (OVERSOLD + sold-without-HPP).
 - **SKU normalization** `UPPER().strip()` everywhere. **No dedup** (only drop-Migrasi).
 
 ## Conventions
-- All constants in `config.py` (never hardcode). Console strings Bahasa Indonesia. Minimal, targeted changes.
+- All constants in `config.py` (never hardcode). Console strings Bahasa Indonesia. Minimal changes.
 
 ## Workflow (process standard)
 - Branch `feature/<desc>` off `main`; doc/marker updates ride in the **same PR**. PR → **merge commit (`--no-ff`)**, title ends with the PR number. Authored **`C - Furqon Aji Yudhistira <furqonajiy@gmail.com>`**; **no AI/assistant references anywhere** (no "Claude"/"Anthropic"/`Co-Authored-By`/"Generated with"/session links); strip the auto-appended PR footer.
