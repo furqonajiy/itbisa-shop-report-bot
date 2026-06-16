@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse
 import sys
+from collections import namedtuple
 from datetime import datetime
 from pathlib import Path
 
@@ -60,6 +61,24 @@ def _load_all(data_dir: Path):
     return stok, jual_full_clean, hpp_agg, qty_jual_all_time, sisa_by_sku, ledger_df
 
 
+# Shared, already-computed inputs passed between steps in a full run so the Excel
+# files are read once and reorder/AB-change dates are computed once (not per step).
+_Loaded = namedtuple(
+    "_Loaded",
+    "stok jual hpp_agg qty_jual sisa ledger today reorder ab_changes")
+
+
+def _load_shared(data_dir: Path) -> _Loaded:
+    """Load stok+jual once and compute the shared aggregates (HPP, ledger, reorder,
+    A/B change dates) a single time. A full run (`--all` / no flag) builds this once
+    and hands it to every step, instead of each step re-reading the workbooks."""
+    stok, jual, hpp_agg, qty_jual, sisa, ledger = _load_all(data_dir)
+    today = pd.Timestamp(datetime.now().date())
+    reorder_df = compute_reorder_metrics(stok, jual, today, sisa_by_sku=sisa)
+    ab_changes = load_ab_change_dates(data_dir / AB_TESTS_FILENAME)
+    return _Loaded(stok, jual, hpp_agg, qty_jual, sisa, ledger, today, reorder_df, ab_changes)
+
+
 def _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
                   year: int, output_dir: Path, reorder_df=None, today=None,
                   sisa_by_sku=None, ledger_df=None, ab_changes=None):
@@ -113,21 +132,18 @@ def _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
 
 
 def run_analysis(year: int, data_dir: Path = DATA_DIR,
-                 output_dir: Path = OUTPUT_DIR) -> Path:
+                 output_dir: Path = OUTPUT_DIR, loaded: _Loaded | None = None) -> Path:
     """Single-year analysis."""
     print(f"\n{'='*60}")
     print(f"ANALISA PENJUALAN ITBISA — TAHUN {year}")
     print(f"{'='*60}\n")
 
-    stok, jual_full_clean, hpp_agg, qty_jual_all_time, sisa_by_sku, ledger_df = _load_all(data_dir)
-    today = pd.Timestamp(datetime.now().date())
-    reorder_df = compute_reorder_metrics(stok, jual_full_clean, today, sisa_by_sku=sisa_by_sku)
-    ab_changes = load_ab_change_dates(data_dir / AB_TESTS_FILENAME)
-
-    result = _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
-                           year, output_dir, reorder_df=reorder_df, today=today,
-                           sisa_by_sku=sisa_by_sku, ledger_df=ledger_df,
-                           ab_changes=ab_changes)
+    if loaded is None:
+        loaded = _load_shared(data_dir)
+    result = _analyze_year(loaded.stok, loaded.jual, loaded.hpp_agg, loaded.qty_jual,
+                           year, output_dir, reorder_df=loaded.reorder, today=loaded.today,
+                           sisa_by_sku=loaded.sisa, ledger_df=loaded.ledger,
+                           ab_changes=loaded.ab_changes)
 
     if result is None:
         raise ValueError(f"Tidak ada data jual untuk tahun {year}")
@@ -140,16 +156,16 @@ def run_analysis(year: int, data_dir: Path = DATA_DIR,
     return path
 
 
-def run_all_years(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> list:
+def run_all_years(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
+                  loaded: _Loaded | None = None) -> list:
     """Generate reports for all years found in jual data."""
     print(f"\n{'='*60}")
     print(f"ANALISA PENJUALAN ITBISA — ALL YEARS")
     print(f"{'='*60}\n")
 
-    stok, jual_full_clean, hpp_agg, qty_jual_all_time, sisa_by_sku, ledger_df = _load_all(data_dir)
-    today = pd.Timestamp(datetime.now().date())
-    reorder_df = compute_reorder_metrics(stok, jual_full_clean, today, sisa_by_sku=sisa_by_sku)
-    ab_changes = load_ab_change_dates(data_dir / AB_TESTS_FILENAME)
+    if loaded is None:
+        loaded = _load_shared(data_dir)
+    jual_full_clean = loaded.jual
 
     years = sorted(int(y) for y in jual_full_clean["tanggal_pesan"].dt.year.dropna().unique())
     print(f"\n✓ Tahun ditemukan ({len(years)}): {', '.join(str(y) for y in years)}")
@@ -157,10 +173,10 @@ def run_all_years(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> l
     results = []
     for year in years:
         try:
-            res = _analyze_year(stok, jual_full_clean, hpp_agg, qty_jual_all_time,
-                                year, output_dir, reorder_df=reorder_df, today=today,
-                                sisa_by_sku=sisa_by_sku, ledger_df=ledger_df,
-                                ab_changes=ab_changes)
+            res = _analyze_year(loaded.stok, jual_full_clean, loaded.hpp_agg, loaded.qty_jual,
+                                year, output_dir, reorder_df=loaded.reorder, today=loaded.today,
+                                sisa_by_sku=loaded.sisa, ledger_df=loaded.ledger,
+                                ab_changes=loaded.ab_changes)
             if res is not None:
                 results.append((year,) + res)
         except Exception as e:
@@ -177,19 +193,20 @@ def run_all_years(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> l
     return results
 
 
-def run_reorder(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Path:
+def run_reorder(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
+                loaded: _Loaded | None = None) -> Path:
     """Standalone reorder analysis report. Fast — skips yearly aggregation."""
     print(f"\n{'='*60}")
     print(f"ANALISA REORDER — KAPAN & BERAPA BANYAK")
     print(f"{'='*60}\n")
 
-    stok, jual_full_clean, _hpp, _qty, sisa_by_sku, ledger_df = _load_all(data_dir)
-    today = pd.Timestamp(datetime.now().date())
-    reorder_df = compute_reorder_metrics(stok, jual_full_clean, today, sisa_by_sku=sisa_by_sku)
+    if loaded is None:
+        loaded = _load_shared(data_dir)
+    reorder_df = loaded.reorder
     tables = build_reorder_tables(reorder_df)
 
     output_path = output_dir / REORDER_OUTPUT_FILENAME
-    write_reorder_standalone(output_path, tables, today=today, ledger_df=ledger_df)
+    write_reorder_standalone(output_path, tables, today=loaded.today, ledger_df=loaded.ledger)
 
     print(f"\n{'='*60}")
     print(f"Ringkasan:")
@@ -201,18 +218,20 @@ def run_reorder(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Pat
     return output_path
 
 
-def run_cashflow(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Path:
+def run_cashflow(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
+                 loaded: _Loaded | None = None) -> Path:
     """Cash-flow restock plan: how much capital is needed, and when, to keep stock.
     Built from the reorder metrics + replacement HPP — no template needed."""
     print(f"\n{'='*60}")
     print(f"RENCANA CASH-FLOW RESTOCK — MODAL BELI")
     print(f"{'='*60}\n")
 
-    stok, jual_full_clean, hpp_agg, _qty, sisa_by_sku, _ledger = _load_all(data_dir)
-    today = pd.Timestamp(datetime.now().date())
-    reorder_df = compute_reorder_metrics(stok, jual_full_clean, today, sisa_by_sku=sisa_by_sku)
+    if loaded is None:
+        loaded = _load_shared(data_dir)
+    today = loaded.today
 
-    plan = build_restock_plan(reorder_df, hpp_agg, stok, today, CASHFLOW_HORIZON_MONTHS)
+    plan = build_restock_plan(loaded.reorder, loaded.hpp_agg, loaded.stok, today,
+                              CASHFLOW_HORIZON_MONTHS)
     months = _months_axis(today, CASHFLOW_HORIZON_MONTHS)
     monthly = summarize_by_month(plan, months)
     pivot = pivot_month_supplier(plan, months)
@@ -222,9 +241,10 @@ def run_cashflow(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Pa
                           CASHFLOW_HORIZON_MONTHS)
 
     total = float(plan["order_cost"].sum(skipna=True)) if len(plan) else 0.0
+    n_sku = int(plan["SKU"].nunique()) if len(plan) else 0
     print(f"\n{'='*60}")
     print(f"  Total modal restock {CASHFLOW_HORIZON_MONTHS} bln: Rp {total:,.0f} "
-          f"({len(plan)} SKU)")
+          f"({n_sku} SKU, {len(plan)} order)")
     this_month = months[0]
     due_now = (float(plan[plan['order_month'] == this_month]['order_cost'].sum(skipna=True))
                if len(plan) else 0.0)
@@ -313,7 +333,8 @@ def run_ab_test(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Pat
     return output_path
 
 
-def _run_ab_test_if_configured(data_dir: Path, output_dir: Path) -> Path | None:
+def _run_ab_test_if_configured(data_dir: Path, output_dir: Path,
+                               loaded: _Loaded | None = None) -> Path | None:
     """For --all mode: run AB test only if template exists with rows. Skip silently otherwise."""
     ab_config_path = data_dir / AB_TESTS_FILENAME
     if not ab_config_path.exists():
@@ -326,7 +347,9 @@ def _run_ab_test_if_configured(data_dir: Path, output_dir: Path) -> Path | None:
         print(f"⊘ A/B test dilewati: {AB_TESTS_FILENAME} kosong.")
         return None
 
-    _stok, jual_full_clean, hpp_agg, _qty, _sisa, _ledger = _load_all(data_dir)
+    if loaded is None:
+        loaded = _load_shared(data_dir)
+    jual_full_clean, hpp_agg = loaded.jual, loaded.hpp_agg
     print(f"\n--- Menganalisa {len(ab_tests)} test ---")
     today = datetime.now()
     results = analyze_ab_tests(ab_tests, jual_full_clean, hpp_agg, today)
@@ -341,7 +364,8 @@ def _run_ab_test_if_configured(data_dir: Path, output_dir: Path) -> Path | None:
     return output_path
 
 
-def _run_restock_check_if_configured(data_dir: Path, output_dir: Path) -> Path | None:
+def _run_restock_check_if_configured(data_dir: Path, output_dir: Path,
+                                     loaded: _Loaded | None = None) -> Path | None:
     """For --all mode: run restock-check only if the template exists with rows.
     Skip silently otherwise (don't create-a-template-and-halt like the standalone)."""
     rc_path = data_dir / RESTOCK_CHECK_FILENAME
@@ -356,9 +380,12 @@ def _run_restock_check_if_configured(data_dir: Path, output_dir: Path) -> Path |
         return None
 
     stok_files = sorted(data_dir.glob(STOK_GLOB))
-    stok = load_stok_files(stok_files)
-    jual = clean_jual(load_jual_files(sorted(data_dir.glob(JUAL_GLOB))), year=None)[0]
-    hpp_agg = calculate_hpp_wa(stok)
+    if loaded is None:
+        stok = load_stok_files(stok_files)
+        jual = clean_jual(load_jual_files(sorted(data_dir.glob(JUAL_GLOB))), year=None)[0]
+        hpp_agg = calculate_hpp_wa(stok)
+    else:
+        jual, hpp_agg = loaded.jual, loaded.hpp_agg
     hist = load_rmb_hpp_history(stok_files)
     fees = compute_platform_fees(jual)
     _per_sku, factor_global = compute_rmb_factor(hist)
@@ -377,30 +404,35 @@ def _run_restock_check_if_configured(data_dir: Path, output_dir: Path) -> Path |
 
 
 def run_everything(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> None:
-    """Run sales all years + reorder + cash-flow + ab-test + restock-check (if configured)."""
+    """Run sales all years + reorder + cash-flow + ab-test + restock-check (if configured).
+    Loads the workbooks once and shares them across every step."""
     print(f"\n{'#'*60}")
     print(f"# RUN EVERYTHING — SALES + REORDER + CASH-FLOW + AB TEST + RESTOCK")
     print(f"{'#'*60}")
 
+    print(f"\n[0/5] Memuat data (sekali untuk semua langkah)")
+    print(f"{'-'*60}")
+    loaded = _load_shared(data_dir)
+
     print(f"\n[1/5] Sales analysis untuk semua tahun")
     print(f"{'-'*60}")
-    run_all_years(data_dir, output_dir)
+    run_all_years(data_dir, output_dir, loaded=loaded)
 
     print(f"\n[2/5] Reorder analysis standalone")
     print(f"{'-'*60}")
-    run_reorder(data_dir, output_dir)
+    run_reorder(data_dir, output_dir, loaded=loaded)
 
     print(f"\n[3/5] Cash-flow restock plan")
     print(f"{'-'*60}")
-    run_cashflow(data_dir, output_dir)
+    run_cashflow(data_dir, output_dir, loaded=loaded)
 
     print(f"\n[4/5] A/B test")
     print(f"{'-'*60}")
-    _run_ab_test_if_configured(data_dir, output_dir)
+    _run_ab_test_if_configured(data_dir, output_dir, loaded=loaded)
 
     print(f"\n[5/5] Restock price check")
     print(f"{'-'*60}")
-    _run_restock_check_if_configured(data_dir, output_dir)
+    _run_restock_check_if_configured(data_dir, output_dir, loaded=loaded)
 
     print(f"\n{'#'*60}")
     print(f"# ✓ Selesai semua. Hasil di folder: {output_dir}")
