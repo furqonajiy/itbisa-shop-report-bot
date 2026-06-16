@@ -12,7 +12,9 @@ that will cross its reorder point within the horizon, it projects
 
 It then buckets the Rupiah by month and by supplier, so an importer who pays
 suppliers upfront (and waits ~2.5 months for sea freight) can see how much
-capital is needed and when. v1 plans the NEXT reorder per SKU within the horizon.
+capital is needed and when. Plans EVERY reorder cycle within the horizon (a fast
+mover gets several orders), via the inventory-position simulation in
+`build_restock_plan`.
 
 Output: output/Analisa_Cashflow_Restock.xlsx. Built entirely from the stok/jual
 data — no template needed.
