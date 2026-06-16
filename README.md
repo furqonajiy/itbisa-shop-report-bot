@@ -144,6 +144,10 @@ See `compute_lead_time_months` in `analysis.py`.
 
 ## Output sheet structure (sales report)
 
+The yearly file `Analisa_Penjualan_ITBisa_<year>.xlsx` is **pure sales history (9 sheets)**.
+Reorder and per-gudang stock are a current-day snapshot (not year-specific), so they live
+only in `Analisa_Reorder.xlsx` (`--reorder`) — not duplicated into every yearly file.
+
 | Sheet | Contents |
 |---|---|
 | 00_Summary | Summary of total omzet, profit, margin |
@@ -155,9 +159,9 @@ See `compute_lead_time_months` in `analysis.py`.
 | 06_Per_Platform | Margin & cost breakdown per marketplace |
 | 07_Data_Lengkap_per_SKU | All per-SKU metrics (including pricing-basis HPP & its source) |
 | 08_Supplier_Analysis | Supplier analysis (China vs local) |
-| 09_Reorder_Analysis | Per-SKU reorder status |
-| 10_Reorder_Data_Lengkap | Reorder calculation detail |
-| 11_Rekap_Stok_per_Gudang | Stock balance per warehouse |
+
+The reorder workbook `Analisa_Reorder.xlsx` contains `00_Reorder_Summary`, `01_Reorder_Action`,
+`02_Reorder_Data_Lengkap`, and `03_Rekap_Stok_per_Gudang`.
 
 ## Cash-flow restock plan (`--cashflow`)
 
