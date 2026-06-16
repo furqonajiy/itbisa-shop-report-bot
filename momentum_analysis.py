@@ -129,7 +129,11 @@ def analyze_momentum(jual: pd.DataFrame, hpp_agg: pd.DataFrame, today) -> pd.Dat
             cum_shares.append(np.nan)
     df["abc"] = classes
     df["cum_share"] = cum_shares
-    df["profit_share"] = df["_p"] / pos_total if pos_total > 0 else np.nan
+    # share of the positive-profit total; NaN for loss-making / HPP-less SKUs (matches cum_share)
+    if pos_total > 0:
+        df["profit_share"] = np.where(df["_p"] > 0, df["_p"] / pos_total, np.nan)
+    else:
+        df["profit_share"] = np.nan
     df[["rec", "saran"]] = df.apply(lambda r: pd.Series(_recommend(r["abc"], r["momentum"])), axis=1)
     df = df.drop(columns="_p")
 
