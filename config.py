@@ -189,14 +189,6 @@ CASHFLOW_OUTPUT_FILENAME = "Analisa_Cashflow_Restock.xlsx"
 CASHFLOW_HORIZON_MONTHS = 6       # plan window: only orders due within N months are budgeted
 CASHFLOW_MAX_CYCLES = 60          # safety cap on reorder cycles simulated per SKU in the window
 
-# --- Per-SKU channel optimizer (--channel) ---
-# For each SKU, compare realized NET margin/unit (after the marketplace admin fee)
-# across the channels it sold on, and flag SKUs whose volume sits on a channel that
-# nets less than another established one. Zero-config (built from BisaJual).
-CHANNEL_OUTPUT_FILENAME = "Analisa_Channel_per_SKU.xlsx"
-CHANNEL_MIN_QTY = 10              # min qty on a channel before it counts as an "established" option
-CHANNEL_SHIFT_MIN_GAP = 0.05     # flag a shift only if the best channel beats the dominant one by ≥ this × HPP per pcs
-
 # --- Bundle / cross-sell market basket (--bundle) ---
 # Find SKU pairs frequently bought in the same order (Invoice) for bundles /
 # "frequently bought together". Zero-config (built from BisaJual).
