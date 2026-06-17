@@ -23,7 +23,7 @@ for the stock ledger; all files are used for sales history & HPP.
 ## Usage
 
 ```bash
-python main.py                  # RUN EVERYTHING (= --all): sales + trend + reorder + cash-flow + bundle + dead-stock + momentum + elasticity + A/B test + restock-check
+python main.py                  # RUN EVERYTHING (= --all): sales + trend + reorder + cash-flow + bundle + dead-stock + momentum + A/B test + restock-check
 python main.py --sales 2026     # sales report for a single year
 python main.py --sales          # all years present in the sales data (= --sales all)
 python main.py --trend          # sales trend & seasonality: cross-year omzet/profit trend, YoY growth, seasonal index
@@ -32,7 +32,6 @@ python main.py --cashflow       # cash-flow restock plan: how much capital is ne
 python main.py --bundle         # bundle / cross-sell: SKUs frequently bought together
 python main.py --deadstock      # dead-stock / capital release: Rupiah frozen in slow/dead/overstock + how to free it
 python main.py --momentum       # momentum + ABC focus: accelerating vs declining SKUs, what to push vs prune
-python main.py --elasticity     # price-elasticity miner: where there's room to raise price (inelastic) vs caution (elastic)
 python main.py --ab-test        # A/B price-change test analysis (reads data/ab_tests.xlsx)
 python main.py --restock-check  # restock price check & selling-price recommendation (reads data/restock_check.xlsx)
 python main.py --all            # everything together (same as no flag)
@@ -260,25 +259,6 @@ isolated per-year files can't give. No template needed; it always runs in `--all
 Output: `output/Analisa_Tren_Musiman.xlsx` — `00_Ringkasan`, `01_Tren_Tahunan`, `02_Tren_Bulanan`,
 `03_Musiman`. See `trend_analysis.py`.
 
-## Price-elasticity miner (`--elasticity`)
-
-Answers: **where do I have room to raise price, and where would a hike cost me volume?** For
-each SKU it fits a log-log regression on its own monthly history — `ln(qty) = a + b·ln(price)` —
-where `b` is the **price elasticity of demand**. No template needed; it always runs in `--all`.
-
-- A SKU needs ≥ `ELASTICITY_MIN_MONTHS` months of sales and real price movement
-  (price CV ≥ `ELASTICITY_MIN_PRICE_CV`) to be measurable; otherwise it's `⚪ Data kurang`.
-- `|b| < 1` (**inelastic**) → demand barely reacts → 🔼 **raise** (raising price lifts revenue).
-  `|b| ≥ 1` (**elastic**) → price-sensitive → 🔽 caution. `b ≥ 0` → ↔ inconclusive (other factors).
-- **Confidence** comes from the fit's `R²` (`Tinggi`/`Sedang`/`Rendah`). Observational elasticity is
-  confounded by seasonality, stock-outs, promos and competitors, so **low-confidence fits are
-  flagged and never turned into a "raise" recommendation** — validate first.
-- A modeled **+10%** price scenario shows the estimated qty and revenue change.
-
-Output: `output/Analisa_Elastisitas_Harga.xlsx` — `00_Ringkasan` (counts + top high-confidence
-raise candidates), `01_Rekomendasi_Harga` (per-SKU), `02_Data_Bulanan` (the monthly price/qty
-points used to fit). See `elasticity_analysis.py`.
-
 ## Restock price check (`--restock-check`)
 
 Answers: **is this supplier expensive/cheap/fair, and if I restock, what should I sell it for?**
@@ -340,6 +320,5 @@ Config `data/ab_tests.xlsx` (sheet `BisaABTest`): `SKU`, `Tanggal Perubahan`, `N
 - `basket_analysis.py` — bundle / cross-sell market-basket analysis
 - `deadstock_analysis.py` — dead-stock / capital-release analysis
 - `momentum_analysis.py` — sales-momentum + ABC focus analysis
-- `elasticity_analysis.py` — price-elasticity miner
 - `trend_analysis.py` — sales trend & seasonality analysis
 - `main.py` — CLI entry point
