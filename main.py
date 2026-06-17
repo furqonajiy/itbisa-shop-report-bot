@@ -20,7 +20,6 @@ from restock_pricing import (analyze_restock, compute_platform_fees,
                              write_restock_report)
 from cashflow import (build_restock_plan, pivot_month_supplier, summarize_by_month,
                       write_cashflow_report, _months_axis)
-from channel_analysis import analyze_channels, write_channel_report
 from basket_analysis import analyze_baskets, write_basket_report
 from deadstock_analysis import analyze_deadstock, write_deadstock_report
 from momentum_analysis import analyze_momentum, write_momentum_report
@@ -28,7 +27,7 @@ from elasticity_analysis import analyze_elasticity, write_elasticity_report
 from trend_analysis import analyze_trend, write_trend_report
 from config import (AB_TESTS_FILENAME, AB_TESTS_OUTPUT_FILENAME,
                     BASKET_OUTPUT_FILENAME, CASHFLOW_HORIZON_MONTHS,
-                    CASHFLOW_OUTPUT_FILENAME, CHANNEL_OUTPUT_FILENAME, DATA_DIR,
+                    CASHFLOW_OUTPUT_FILENAME, DATA_DIR,
                     DEADSTOCK_OUTPUT_FILENAME, ELASTICITY_OUTPUT_FILENAME, JUAL_GLOB,
                     MOMENTUM_OUTPUT_FILENAME, OUTPUT_DIR, OUTPUT_FILENAME,
                     REORDER_OUTPUT_FILENAME, RESTOCK_CHECK_FILENAME,
@@ -261,21 +260,6 @@ def run_cashflow(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
     return output_path
 
 
-def run_channel(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
-                loaded: _Loaded | None = None) -> Path:
-    """Per-SKU channel optimizer: which marketplace nets the most per SKU."""
-    print(f"\n{'='*60}")
-    print(f"OPTIMASI CHANNEL PER SKU — JUAL DI MANA PALING UNTUNG")
-    print(f"{'='*60}\n")
-
-    if loaded is None:
-        loaded = _load_shared(data_dir)
-    per_sku, matrix = analyze_channels(loaded.jual, loaded.hpp_agg)
-    output_path = output_dir / CHANNEL_OUTPUT_FILENAME
-    write_channel_report(output_path, per_sku, matrix, loaded.today)
-    return output_path
-
-
 def run_bundle(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR,
                loaded: _Loaded | None = None) -> Path:
     """Bundle / cross-sell market basket: SKUs frequently bought together."""
@@ -502,58 +486,54 @@ def _run_restock_check_if_configured(data_dir: Path, output_dir: Path,
 
 
 def run_everything(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> None:
-    """Run sales + trend + reorder + cash-flow + channel + bundle + dead-stock + momentum
+    """Run sales + trend + reorder + cash-flow + bundle + dead-stock + momentum
     + elasticity + ab-test + restock-check. Loads the workbooks once and shares them."""
     print(f"\n{'#'*60}")
-    print(f"# RUN EVERYTHING — SALES + TREND + REORDER + CASH-FLOW + CHANNEL")
-    print(f"#   + BUNDLE + DEAD-STOCK + MOMENTUM + ELASTICITY + AB + RESTOCK")
+    print(f"# RUN EVERYTHING — SALES + TREND + REORDER + CASH-FLOW + BUNDLE")
+    print(f"#   + DEAD-STOCK + MOMENTUM + ELASTICITY + AB + RESTOCK")
     print(f"{'#'*60}")
 
-    print(f"\n[0/11] Memuat data (sekali untuk semua langkah)")
+    print(f"\n[0/10] Memuat data (sekali untuk semua langkah)")
     print(f"{'-'*60}")
     loaded = _load_shared(data_dir)
 
-    print(f"\n[1/11] Sales analysis untuk semua tahun")
+    print(f"\n[1/10] Sales analysis untuk semua tahun")
     print(f"{'-'*60}")
     run_all_years(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[2/11] Tren & musiman penjualan")
+    print(f"\n[2/10] Tren & musiman penjualan")
     print(f"{'-'*60}")
     run_trend(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[3/11] Reorder analysis standalone")
+    print(f"\n[3/10] Reorder analysis standalone")
     print(f"{'-'*60}")
     run_reorder(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[4/11] Cash-flow restock plan")
+    print(f"\n[4/10] Cash-flow restock plan")
     print(f"{'-'*60}")
     run_cashflow(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[5/11] Channel optimizer per SKU")
-    print(f"{'-'*60}")
-    run_channel(data_dir, output_dir, loaded=loaded)
-
-    print(f"\n[6/11] Bundle & cross-sell")
+    print(f"\n[5/10] Bundle & cross-sell")
     print(f"{'-'*60}")
     run_bundle(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[7/11] Modal beku (dead-stock / capital release)")
+    print(f"\n[6/10] Modal beku (dead-stock / capital release)")
     print(f"{'-'*60}")
     run_deadstock(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[8/11] Momentum & ABC focus")
+    print(f"\n[7/10] Momentum & ABC focus")
     print(f"{'-'*60}")
     run_momentum(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[9/11] Elastisitas harga")
+    print(f"\n[8/10] Elastisitas harga")
     print(f"{'-'*60}")
     run_elasticity(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[10/11] A/B test")
+    print(f"\n[9/10] A/B test")
     print(f"{'-'*60}")
     _run_ab_test_if_configured(data_dir, output_dir, loaded=loaded)
 
-    print(f"\n[11/11] Restock price check")
+    print(f"\n[10/10] Restock price check")
     print(f"{'-'*60}")
     _run_restock_check_if_configured(data_dir, output_dir, loaded=loaded)
 
@@ -572,8 +552,6 @@ def main() -> int:
                         help="Generate laporan reorder standalone (cepat, tanpa analisa tahunan).")
     parser.add_argument("--cashflow", action="store_true",
                         help="Rencana cash-flow restock: modal beli yang dibutuhkan & kapan, per supplier.")
-    parser.add_argument("--channel", action="store_true",
-                        help="Optimasi channel per SKU: marketplace mana yang net margin-nya terbaik.")
     parser.add_argument("--bundle", action="store_true",
                         help="Bundle & cross-sell: SKU yang sering dibeli bersama (market basket).")
     parser.add_argument("--deadstock", action="store_true",
@@ -604,8 +582,6 @@ def main() -> int:
             run_ab_test(args.data_dir, args.output_dir)
         elif args.cashflow:
             run_cashflow(args.data_dir, args.output_dir)
-        elif args.channel:
-            run_channel(args.data_dir, args.output_dir)
         elif args.bundle:
             run_bundle(args.data_dir, args.output_dir)
         elif args.deadstock:

@@ -23,13 +23,12 @@ for the stock ledger; all files are used for sales history & HPP.
 ## Usage
 
 ```bash
-python main.py                  # RUN EVERYTHING (= --all): sales + trend + reorder + cash-flow + channel + bundle + dead-stock + momentum + elasticity + A/B test + restock-check
+python main.py                  # RUN EVERYTHING (= --all): sales + trend + reorder + cash-flow + bundle + dead-stock + momentum + elasticity + A/B test + restock-check
 python main.py --sales 2026     # sales report for a single year
 python main.py --sales          # all years present in the sales data (= --sales all)
 python main.py --trend          # sales trend & seasonality: cross-year omzet/profit trend, YoY growth, seasonal index
 python main.py --reorder        # standalone reorder analysis
 python main.py --cashflow       # cash-flow restock plan: how much capital is needed & when (per supplier)
-python main.py --channel        # per-SKU channel optimizer: which marketplace nets the most
 python main.py --bundle         # bundle / cross-sell: SKUs frequently bought together
 python main.py --deadstock      # dead-stock / capital release: Rupiah frozen in slow/dead/overstock + how to free it
 python main.py --momentum       # momentum + ABC focus: accelerating vs declining SKUs, what to push vs prune
@@ -191,23 +190,6 @@ Output: `output/Analisa_Cashflow_Restock.xlsx` — `00_Ringkasan` (total capital
 Rupiah matrix), and `02_Detail_per_SKU` (one row per order, with the order number per SKU).
 See `cashflow.py`.
 
-## Per-SKU channel optimizer (`--channel`)
-
-Answers: **which marketplace should I sell each SKU on?** For every SKU it compares the realized
-**net margin per unit** across the channels it actually sold on and recommends the best one. No
-template needed; it always runs in `--all`.
-
-- **Net margin/pcs** per (SKU, channel) = `(omzet + admin) / qty − HPP_WA`, where
-  `admin = tambahan + kode_unik` from `BisaJual` (stored negative). This captures both the
-  realized price on that channel and its fee.
-- The SKU's **dominant-volume** channel is compared to its best **established** channel
-  (qty ≥ `CHANNEL_MIN_QTY`). A 🔁 shift is flagged only when the best beats the dominant by
-  ≥ `CHANNEL_SHIFT_MIN_GAP × HPP` per pcs, with a potential-uplift estimate (`gap × dominant qty`).
-
-Output: `output/Analisa_Channel_per_SKU.xlsx` — `00_Ringkasan` (counts + total potential uplift +
-top shift list), `01_Rekomendasi_Channel` (per-SKU recommendation), `02_SKU_x_Channel` (the full
-SKU × channel net-margin detail). See `channel_analysis.py`.
-
 ## Bundle / cross-sell (`--bundle`)
 
 Answers: **which SKUs are bought together, so I can bundle or cross-sell them?** A market-basket
@@ -355,7 +337,6 @@ Config `data/ab_tests.xlsx` (sheet `BisaABTest`): `SKU`, `Tanggal Perubahan`, `N
 - `ab_testing.py` — A/B price-change test analysis
 - `restock_pricing.py` — restock price check & selling-price recommendation
 - `cashflow.py` — cash-flow restock plan (purchasing-budget calendar)
-- `channel_analysis.py` — per-SKU channel optimizer (best marketplace by net margin)
 - `basket_analysis.py` — bundle / cross-sell market-basket analysis
 - `deadstock_analysis.py` — dead-stock / capital-release analysis
 - `momentum_analysis.py` — sales-momentum + ABC focus analysis
