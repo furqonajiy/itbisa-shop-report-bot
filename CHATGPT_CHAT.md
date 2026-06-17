@@ -7,11 +7,11 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 
 ## Stack & files (flat layout, no `src/`)
 - Python 3.10+. Deps: `pandas`, `openpyxl`.
-- `main.py` CLI/orchestration · `config.py` all constants · `data_loader.py` loading + SKU normalization + current-workbook loaders · `analysis.py` HPP, profit, aggregation, supplier classification, reorder, `build_stock_ledger`, `compute_lead_time_months`, `compute_price_change_status` · `tables.py` table builders · `excel_writer.py` Excel output · `ab_testing.py` A/B analyzer · `restock_pricing.py` restock price evaluator · `cashflow.py` cash-flow restock plan · `basket_analysis.py` bundle/cross-sell · `deadstock_analysis.py` modal beku · `momentum_analysis.py` momentum+ABC · `trend_analysis.py` tren+musiman.
+- `main.py` CLI/orchestration · `config.py` all constants · `data_loader.py` loading + SKU normalization + current-workbook loaders · `analysis.py` HPP, profit, aggregation, supplier classification, reorder, `build_stock_ledger`, `compute_lead_time_months`, `compute_price_change_status` · `tables.py` table builders · `excel_writer.py` Excel output · `ab_testing.py` A/B analyzer · `restock_pricing.py` restock price evaluator · `cashflow.py` cash-flow restock plan · `deadstock_analysis.py` modal beku · `trend_analysis.py` tren+musiman.
 - `data/` input (gitignored), `output/` reports.
 
 ## CLI (`python main.py`)
-- (no flag) = **full suite** (`--all`, 9 steps, loads data once via `_load_shared`, reorder once) · `--sales [YEAR]` · `--trend` · `--reorder` · `--cashflow` · `--bundle` · `--deadstock` · `--momentum` · `--ab-test` · `--restock-check` · `--data-dir`/`--output-dir`. Zero-config reports (trend/cash-flow/bundle/dead-stock/momentum) always run; ab-test/restock-check run only if their template has rows.
+- (no flag) = **full suite** (`--all`, 7 steps, loads data once via `_load_shared`, reorder once) · `--sales [YEAR]` · `--trend` · `--reorder` · `--cashflow` · `--deadstock` · `--ab-test` · `--restock-check` · `--data-dir`/`--output-dir`. Zero-config reports (trend/cash-flow/dead-stock) always run; ab-test/restock-check run only if their template has rows.
 
 ## Inputs (`data/`, by glob)
 - `*BisaStok*.xlsx` (purchases, sheet `BisaStok`; latest also needs `BisaHilang`+`BisaPindahBarang`) and `*BisaJual*.xlsx` (sales, ≥ `BisaJualShopee`).
@@ -29,10 +29,8 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - **Supplier classification**: China = `Luar Negeri?=1` or `Toko`∈`CHINA_KEYWORDS`; Market = `MARKET_KEYWORDS`; else Other.
 - **Restock check (`--restock-check`)**: landed HPP from `Harga RMB` (calibrated factor ≈Rp`RMB_TO_IDR_FALLBACK`/RMB) or given HPP IDR; verdict vs `hpp_wa`. Per-marketplace sell price = HPP×(1+`RESTOCK_TARGET_NET_MARKUP`)/(1−fee); decision vs competitor range 🟢/🟡/🔴. Input `restock_check.xlsx` → `Analisa_Restock_Check.xlsx`.
 - **Cash-flow (`--cashflow`)**: reorder metrics → purchasing-budget calendar; inv-position sim plans **every** cycle in `CASHFLOW_HORIZON_MONTHS` (cost qty×`hpp_pricing`, by supplier×month). → `Analisa_Cashflow_Restock.xlsx`.
-- **Bundle (`--bundle`)**: market basket per `Invoice` — support/confidence/lift, pairs ≥ `BASKET_MIN_PAIR_SUPPORT`. → `Analisa_Bundle_CrossSell.xlsx`.
 - **Dead-stock (`--deadstock`)**: capital frozen in `🔵 Overstock`+`💤 Slow/Dead`; held = sisa×hpp_wa, freeable = max(0, sisa−`target_qty_post_reorder`)×hpp_wa; aksi 🧹 likuidasi / 🏷️ markdown / ⛔ stop-reorder. → `Analisa_Modal_Beku.xlsx`.
 - **Trend (`--trend`)**: cross-year omzet/profit trend + YoY growth + per-month seasonal index (omzet bln ÷ rata2 bulanan tahunnya, tahun penuh saja; >1 = puncak); headline YTD vs tahun lalu. → `Analisa_Tren_Musiman.xlsx`.
-- **Momentum + ABC (`--momentum`)**: momentum (recent vs prior qty: 🚀/📉 ±`MOMENTUM_GROWTH_THRESHOLD`, ➡️/🆕/💤) × ABC Pareto-by-trailing-profit (A ≤`ABC_A_SHARE`, B ≤`ABC_B_SHARE`); rek. dorong/lindungi/pangkas. → `Analisa_Momentum_ABC.xlsx`.
 - **Summary (00)** surfaces a partial/current-year flag + a data-quality block (OVERSOLD + sold-without-HPP).
 - **SKU normalization** `UPPER().strip()` everywhere. **No dedup** (only drop-Migrasi).
 

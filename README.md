@@ -23,15 +23,13 @@ for the stock ledger; all files are used for sales history & HPP.
 ## Usage
 
 ```bash
-python main.py                  # RUN EVERYTHING (= --all): sales + trend + reorder + cash-flow + bundle + dead-stock + momentum + A/B test + restock-check
+python main.py                  # RUN EVERYTHING (= --all): sales + trend + reorder + cash-flow + dead-stock + A/B test + restock-check
 python main.py --sales 2026     # sales report for a single year
 python main.py --sales          # all years present in the sales data (= --sales all)
 python main.py --trend          # sales trend & seasonality: cross-year omzet/profit trend, YoY growth, seasonal index
 python main.py --reorder        # standalone reorder analysis
 python main.py --cashflow       # cash-flow restock plan: how much capital is needed & when (per supplier)
-python main.py --bundle         # bundle / cross-sell: SKUs frequently bought together
 python main.py --deadstock      # dead-stock / capital release: Rupiah frozen in slow/dead/overstock + how to free it
-python main.py --momentum       # momentum + ABC focus: accelerating vs declining SKUs, what to push vs prune
 python main.py --ab-test        # A/B price-change test analysis (reads data/ab_tests.xlsx)
 python main.py --restock-check  # restock price check & selling-price recommendation (reads data/restock_check.xlsx)
 python main.py --all            # everything together (same as no flag)
@@ -189,21 +187,6 @@ Output: `output/Analisa_Cashflow_Restock.xlsx` — `00_Ringkasan` (total capital
 Rupiah matrix), and `02_Detail_per_SKU` (one row per order, with the order number per SKU).
 See `cashflow.py`.
 
-## Bundle / cross-sell (`--bundle`)
-
-Answers: **which SKUs are bought together, so I can bundle or cross-sell them?** A market-basket
-analysis over SKUs grouped by `Invoice`. No template needed; it always runs in `--all`.
-
-- **Support** = number of orders containing both SKUs.
-- **Confidence** = P(buy the other | buy this one), computed both directions.
-- **Lift** = `support × N_orders / (orders_A × orders_B)` — above 1 means bought together more
-  than chance.
-- Pairs with support ≥ `BASKET_MIN_PAIR_SUPPORT` are reported (top `BASKET_TOP_N` by support, then lift).
-
-Output: `output/Analisa_Bundle_CrossSell.xlsx` — `00_Ringkasan`, `01_Pasangan_SKU` (all pairs),
-`02_Cross_Sell_per_SKU` ("if they buy X, offer Y" — each SKU's best partner by confidence).
-See `basket_analysis.py`.
-
 ## Dead-stock / capital release (`--deadstock`)
 
 Answers: **how much of my capital is stuck in stock that isn't moving, and what do I do about it?**
@@ -220,24 +203,6 @@ SKUs the reorder analysis flags `🔵 Overstock` and `💤 Slow/Dead`.
 Output: `output/Analisa_Modal_Beku.xlsx` — `00_Ringkasan` (held vs freeable totals + top
 opportunities), `01_Modal_Beku_per_SKU`, and `02_Per_Supplier` (whose goods are piling up).
 See `deadstock_analysis.py`.
-
-## Momentum + ABC focus (`--momentum`)
-
-Answers: **what should I push, and what should I prune?** Two lenses, combined into one
-recommendation per SKU. No template needed; it always runs in `--all`.
-
-- **Momentum** = qty in the last `MOMENTUM_WINDOW_DAYS` vs the prior window: 🚀 Akselerasi /
-  📉 Menurun (±`MOMENTUM_GROWTH_THRESHOLD`), ➡️ Stabil, 🆕 Baru naik (no prior sales), 💤 Berhenti
-  (stopped selling). Needs ≥ `MOMENTUM_MIN_QTY` total to be classified.
-- **ABC** = Pareto by trailing profit (`omzet + admin − HPP_WA × qty` over `MOMENTUM_TRAILING_DAYS`):
-  cumulative share ≤ `ABC_A_SHARE` → A, ≤ `ABC_B_SHARE` → B, else C.
-- **Recommendation** combines them — A-class accelerating → ⭐ Dorong (protect stock & ads),
-  A-class declining → ⚠ Lindungi (investigate price/stock/competitor), C-class declining →
-  ✂ Pangkas (stop reorder / clearance), and so on.
-
-Output: `output/Analisa_Momentum_ABC.xlsx` — `00_Ringkasan` (class & momentum counts + the
-A-class-declining alert list), `01_Fokus_SKU` (the combined per-SKU view), and `02_ABC_Pareto`
-(the profit-concentration ranking). See `momentum_analysis.py`.
 
 ## Sales trend & seasonality (`--trend`)
 
@@ -317,8 +282,6 @@ Config `data/ab_tests.xlsx` (sheet `BisaABTest`): `SKU`, `Tanggal Perubahan`, `N
 - `ab_testing.py` — A/B price-change test analysis
 - `restock_pricing.py` — restock price check & selling-price recommendation
 - `cashflow.py` — cash-flow restock plan (purchasing-budget calendar)
-- `basket_analysis.py` — bundle / cross-sell market-basket analysis
 - `deadstock_analysis.py` — dead-stock / capital-release analysis
-- `momentum_analysis.py` — sales-momentum + ABC focus analysis
 - `trend_analysis.py` — sales trend & seasonality analysis
 - `main.py` — CLI entry point
