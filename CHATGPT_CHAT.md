@@ -7,11 +7,11 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 
 ## Stack & files (flat layout, no `src/`)
 - Python 3.10+. Deps: `pandas`, `openpyxl`.
-- `main.py` CLI/orchestration · `config.py` all constants · `data_loader.py` loading + SKU normalization + current-workbook loaders · `analysis.py` HPP, profit, aggregation, supplier classification, reorder, `build_stock_ledger`, `compute_lead_time_months`, `compute_price_change_status` · `tables.py` table builders · `excel_writer.py` Excel output · `ab_testing.py` A/B analyzer · `restock_pricing.py` restock price evaluator · `cashflow.py` cash-flow restock plan · `basket_analysis.py` bundle/cross-sell · `deadstock_analysis.py` modal beku · `momentum_analysis.py` momentum+ABC · `elasticity_analysis.py` elastisitas harga · `trend_analysis.py` tren+musiman.
+- `main.py` CLI/orchestration · `config.py` all constants · `data_loader.py` loading + SKU normalization + current-workbook loaders · `analysis.py` HPP, profit, aggregation, supplier classification, reorder, `build_stock_ledger`, `compute_lead_time_months`, `compute_price_change_status` · `tables.py` table builders · `excel_writer.py` Excel output · `ab_testing.py` A/B analyzer · `restock_pricing.py` restock price evaluator · `cashflow.py` cash-flow restock plan · `basket_analysis.py` bundle/cross-sell · `deadstock_analysis.py` modal beku · `momentum_analysis.py` momentum+ABC · `trend_analysis.py` tren+musiman.
 - `data/` input (gitignored), `output/` reports.
 
 ## CLI (`python main.py`)
-- (no flag) = **full suite** (`--all`, 10 steps, loads data once via `_load_shared`, reorder once) · `--sales [YEAR]` · `--trend` · `--reorder` · `--cashflow` · `--bundle` · `--deadstock` · `--momentum` · `--elasticity` · `--ab-test` · `--restock-check` · `--data-dir`/`--output-dir`. Zero-config reports (trend/cash-flow/bundle/dead-stock/momentum/elasticity) always run; ab-test/restock-check run only if their template has rows.
+- (no flag) = **full suite** (`--all`, 9 steps, loads data once via `_load_shared`, reorder once) · `--sales [YEAR]` · `--trend` · `--reorder` · `--cashflow` · `--bundle` · `--deadstock` · `--momentum` · `--ab-test` · `--restock-check` · `--data-dir`/`--output-dir`. Zero-config reports (trend/cash-flow/bundle/dead-stock/momentum) always run; ab-test/restock-check run only if their template has rows.
 
 ## Inputs (`data/`, by glob)
 - `*BisaStok*.xlsx` (purchases, sheet `BisaStok`; latest also needs `BisaHilang`+`BisaPindahBarang`) and `*BisaJual*.xlsx` (sales, ≥ `BisaJualShopee`).
@@ -32,7 +32,6 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - **Bundle (`--bundle`)**: market basket per `Invoice` — support/confidence/lift, pairs ≥ `BASKET_MIN_PAIR_SUPPORT`. → `Analisa_Bundle_CrossSell.xlsx`.
 - **Dead-stock (`--deadstock`)**: capital frozen in `🔵 Overstock`+`💤 Slow/Dead`; held = sisa×hpp_wa, freeable = max(0, sisa−`target_qty_post_reorder`)×hpp_wa; aksi 🧹 likuidasi / 🏷️ markdown / ⛔ stop-reorder. → `Analisa_Modal_Beku.xlsx`.
 - **Trend (`--trend`)**: cross-year omzet/profit trend + YoY growth + per-month seasonal index (omzet bln ÷ rata2 bulanan tahunnya, tahun penuh saja; >1 = puncak); headline YTD vs tahun lalu. → `Analisa_Tren_Musiman.xlsx`.
-- **Elasticity (`--elasticity`)**: per-SKU log-log OLS `ln(qty)=a+b·ln(price)`, b=elastisitas (perlu ≥`ELASTICITY_MIN_MONTHS` bln & price CV ≥`ELASTICITY_MIN_PRICE_CV`). |b|<1 → 🔼 naikkan; |b|≥1 → 🔽 hati-hati; b≥0 ↔ tak konklusif. Confidence dari R² (Rendah tak jadi rek). → `Analisa_Elastisitas_Harga.xlsx`.
 - **Momentum + ABC (`--momentum`)**: momentum (recent vs prior qty: 🚀/📉 ±`MOMENTUM_GROWTH_THRESHOLD`, ➡️/🆕/💤) × ABC Pareto-by-trailing-profit (A ≤`ABC_A_SHARE`, B ≤`ABC_B_SHARE`); rek. dorong/lindungi/pangkas. → `Analisa_Momentum_ABC.xlsx`.
 - **Summary (00)** surfaces a partial/current-year flag + a data-quality block (OVERSOLD + sold-without-HPP).
 - **SKU normalization** `UPPER().strip()` everywhere. **No dedup** (only drop-Migrasi).
