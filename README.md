@@ -43,6 +43,8 @@ python main.py
 | `python main.py --show-files` | Log every input file discovered, then run. |
 | `python main.py --reconcile` | Write `Rekonsiliasi <Marketplace>.xlsx` (read-only audit; see below). Generates no reports. |
 | `python main.py --reconcile --bisajual-dir <dir>` | As above, but read the itbisa-shop-report-bot `*BisaJual*.xlsx` ledger from `<dir>` for the `Cek Omzet vs Fee` sheet. |
+| `python main.py --cek-bisajual --bisajual-dir <dir>` | Reconcile a list of invoices against the BisaJual ledger to find entry bugs (see below). |
+| `python main.py --cek-bisajual --invoices <file>` | Same, for the invoices listed in `<file>` (one per line). |
 | `python main.py -v` / `--verbose` | Enable debug logging. |
 
 ## Reconciliation (`--reconcile`)
@@ -84,6 +86,27 @@ silently falls out of `BisaLaporan`. Each workbook has:
   de-duplicated first.
 
 Run it for one marketplace with the usual flags, e.g. `python main.py --reconcile --shopee`.
+
+## Find BisaJual entry bugs (`--cek-bisajual`)
+
+`python main.py --cek-bisajual` reconciles a list of invoices against the
+**itbisa-shop-report-bot** `BisaJual` ledger to answer one question: *how was each
+order entered, vs the real money it made?* For each invoice it pairs the booked Omzet
+(non-void, across every `BisaJual*` sheet) with the real money in `BisaSaldo` (full
+net) and `BisaFee`, then flags the entry bugs:
+
+| Verdict | Meaning |
+| --- | --- |
+| `BUG: entry hilang` | money came in, but the order isn't in BisaJual |
+| `BUG: … -> Void` | Omzet booked, but no money — a return left un-voided |
+| `BUG: di-Void tapi ada uang` | voided in BisaJual, yet money was received |
+| `BUG: omzet != uang diterima` | booked Omzet doesn't match the money received |
+| `OK: cocok / retur / void` | the entry already matches reality |
+
+It writes `reports/shopee/Cek BisaJual Shopee.xlsx` (BUG rows red, at the top). The
+invoice list defaults to a built-in set; pass `--invoices <file>` (one invoice per
+line, `#` comments allowed) for any other — the list is meant to grow over time. Point
+`--bisajual-dir` at the bot repo's `data/` so it reads the real ledger. Read-only.
 
 ## Inputs (`data/`)
 
