@@ -265,6 +265,42 @@ def _build_fee_mismatch(fee, remit):
     return pd.DataFrame(out, columns=['Invoice', 'Total Penghasilan (Fee)', 'Nominal Remit', 'Masalah'])
 
 
+def _shopee_saldo_vs_fee(fee, remit):
+    """Per-invoice side-by-side: BisaSaldo Nominal Remit vs BisaFee Total Penghasilan.
+
+    Lists EVERY invoice (not only mismatches) so the remit can be checked against
+    both sources at a glance.
+    """
+    fee_g = (fee.groupby('Invoice', as_index=False)['Total Penghasilan'].sum()
+             if fee is not None else pd.DataFrame(columns=['Invoice', 'Total Penghasilan']))
+    m = remit.merge(fee_g, on='Invoice', how='outer', indicator=True)
+
+    status = []
+    for _, r in m.iterrows():
+        if r['_merge'] == 'left_only':
+            status.append('Hanya BisaSaldo')
+        elif r['_merge'] == 'right_only':
+            status.append('Hanya BisaFee')
+        elif abs((r['Nominal Remit'] or 0) - (r['Total Penghasilan'] or 0)) <= 0.5:
+            status.append('Cocok')
+        else:
+            status.append('Beda')
+
+    out = pd.DataFrame({
+        'Invoice': m['Invoice'],
+        'Remit dari BisaSaldo': m['Nominal Remit'],
+        'Total Penghasilan (BisaFee)': m['Total Penghasilan'],
+        'Selisih (Saldo - Fee)': m['Nominal Remit'].fillna(0) - m['Total Penghasilan'].fillna(0),
+        'Status': status,
+    })
+    for col in ['Remit dari BisaSaldo', 'Total Penghasilan (BisaFee)', 'Selisih (Saldo - Fee)']:
+        out[col] = out[col].round().astype('Int64')
+    rank = {'Beda': 0, 'Hanya BisaSaldo': 1, 'Hanya BisaFee': 2, 'Cocok': 3}
+    out['_r'] = out['Status'].map(rank)
+    return out.sort_values(['_r', 'Invoice']).drop(columns='_r').reset_index(drop=True)
+
+
+
 # --- workbook writer ---------------------------------------------------------
 
 _CATEGORY_ORDER = ['Nominal Remit', 'Potongan Pembayaran', 'Keuntungan Tambahan',
@@ -296,12 +332,14 @@ def _style_header(sheet, widths):
     sheet.freeze_panes = 'A2'
 
 
-def _write_workbook(path, summary, by_desc, detail, uncaptured, fee_mismatch):
+def _write_workbook(path, summary, by_desc, detail, uncaptured, fee_mismatch, saldo_vs_fee=None):
     with pd.ExcelWriter(path, engine='openpyxl') as writer:
         summary.to_excel(writer, sheet_name='Ringkasan', index=False)
         by_desc.to_excel(writer, sheet_name='Rincian per Deskripsi', index=False)
         detail.to_excel(writer, sheet_name='Rincian Saldo', index=False)
         uncaptured.to_excel(writer, sheet_name='Saldo Tidak Tercatat', index=False)
+        if saldo_vs_fee is not None:
+            saldo_vs_fee.to_excel(writer, sheet_name='Cek Remit Saldo vs Fee', index=False)
         if fee_mismatch is not None:
             fee_mismatch.to_excel(writer, sheet_name='BisaFee Tidak Cocok', index=False)
 
@@ -309,6 +347,13 @@ def _write_workbook(path, summary, by_desc, detail, uncaptured, fee_mismatch):
         _style_header(writer.book['Rincian per Deskripsi'], [20, 44, 18, 12, 16, 70])
         _style_header(writer.book['Rincian Saldo'], [34, 20, 64, 16, 20, 18])
         _style_header(writer.book['Saldo Tidak Tercatat'], [34, 20, 64, 16, 52])
+        if saldo_vs_fee is not None:
+            _style_header(writer.book['Cek Remit Saldo vs Fee'], [40, 20, 24, 20, 18])
+            sheet = writer.book['Cek Remit Saldo vs Fee']
+            status_col = saldo_vs_fee.columns.get_loc('Status') + 1
+            for row in range(2, len(saldo_vs_fee) + 2):
+                cell = sheet.cell(row=row, column=status_col)
+                cell.fill = _OK_FILL if cell.value == 'Cocok' else _FLAG_FILL
         if fee_mismatch is not None:
             _style_header(writer.book['BisaFee Tidak Cocok'], [40, 20, 16, 48])
 
@@ -399,14 +444,17 @@ def generate_reconciliation(marketplaces=None):
         detail = detail.sort_values(['Periode', 'Kategori']).reset_index(drop=True)
 
         fee_mismatch = None
+        saldo_vs_fee = None
         if name == 'Shopee':
-            fee_mismatch = _build_fee_mismatch(_shopee_fee_invoices(),
-                                               _shopee_remit_amounts(classified_frames))
+            fee = _shopee_fee_invoices()
+            remit = _shopee_remit_amounts(classified_frames)
+            fee_mismatch = _build_fee_mismatch(fee, remit)
+            saldo_vs_fee = _shopee_saldo_vs_fee(fee, remit)
 
         folder = os.path.join(get_reports_dir(), MARKETPLACE_FOLDERS[name])
         os.makedirs(folder, exist_ok=True)
         out_path = os.path.join(folder, 'Rekonsiliasi {0}.xlsx'.format(name))
-        _write_workbook(out_path, summary, by_desc, detail, uncaptured, fee_mismatch)
+        _write_workbook(out_path, summary, by_desc, detail, uncaptured, fee_mismatch, saldo_vs_fee)
 
         flagged = int((summary['Perlu Dicek'] == 'YA').sum())
         logging.info("Rekonsiliasi %s -> %s (%d periode, %d perlu dicek, %d baris tidak tercatat)",
