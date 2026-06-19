@@ -53,6 +53,12 @@ def parse_args(argv=None):
                         help='Folder with the itbisa-shop-report-bot *BisaJual*.xlsx ledger '
                              '(e.g. ..\\itbisa-shop-report-bot\\data); used by --reconcile for '
                              'the Cek Omzet vs Fee sheet. Falls back to re-derived Omzet if unset.')
+    parser.add_argument('--cek-bisajual', action='store_true',
+                        help='Reconcile a list of invoices against the BisaJual ledger to find '
+                             'entry bugs; writes reports/shopee/Cek BisaJual Shopee.xlsx.')
+    parser.add_argument('--invoices', default=None,
+                        help='Text file (one invoice per line) for --cek-bisajual; '
+                             'defaults to the built-in list.')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Enable debug logging.')
     return parser.parse_args(argv)
@@ -74,6 +80,13 @@ def main(argv=None):
     ignore_warning(True)
 
     chosen = selected_marketplaces(args)
+
+    if args.cek_bisajual:
+        from bisarekonsiliasi.cekbisajual import reconcile_invoices, load_invoices
+        invoices = load_invoices(args.invoices) if args.invoices else None
+        reconcile_invoices(invoices, bisajual_dir=args.bisajual_dir)
+        logging.info("Selesai cek BisaJual. Tersimpan di %s", constant.get_reports_dir())
+        return
 
     if args.reconcile:
         recon = None if chosen is None else [m.capitalize() for m in chosen]
