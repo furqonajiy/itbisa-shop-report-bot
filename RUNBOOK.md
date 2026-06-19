@@ -84,6 +84,9 @@ sheets for that period, plus a combined **`Final`** sheet (one reconciliation ro
 # audit only — writes Rekonsiliasi <Marketplace>.xlsx, generates no reports
 python main.py --reconcile
 python main.py --reconcile --shopee     # one marketplace
+
+# use the itbisa-shop-report-bot BisaJual ledger for the Cek Omzet vs Fee sheet
+python main.py --reconcile --shopee --bisajual-dir "..\itbisa-shop-report-bot\data"
 ```
 
 This **read-only** pass re-reads the raw `BisaSaldo` / `BisaFee` files and reports any

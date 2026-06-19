@@ -307,6 +307,50 @@ def _price(series):
                          .str.replace('.', '', regex=False), errors='coerce').fillna(0)
 
 
+# Columns in the itbisa-shop-report-bot BisaJual ledger (hand-kept, with a Void flag).
+_BOT_JUAL_INVOICE = 'Invoice'
+_BOT_JUAL_OMZET = 'Omzet\nBarang\n(Rp)'
+_BOT_JUAL_VOID = 'Void'
+
+
+def _bot_bisajual_omzet(sheet_suffix, extra_dir=None):
+    """Invoice -> Omzet from the itbisa-shop-report-bot BisaJual files, if present.
+
+    Reads any ``*BisaJual*.xlsx`` found in the data dir (or ``extra_dir``, e.g. the
+    bot repo's ``data/`` passed via ``--bisajual-dir``), sheet ``BisaJual<suffix>``
+    (e.g. ``BisaJualShopee``), summing ``Omzet Barang (Rp)`` for **non-void**,
+    non-``Dummy`` rows exactly as the bot does. Returns None when no such file/sheet
+    exists so the caller can fall back to Omzet re-derived from raw BisaTransaksi.
+    """
+    sheet = 'BisaJual{0}'.format(sheet_suffix)
+    files = []
+    for folder in [get_data_dir()] + ([extra_dir] if extra_dir else []):
+        files += glob.glob(os.path.join(folder, '**', '*BisaJual*.xls*'), recursive=True)
+    parts = []
+    for path in sorted(set(files)):
+        if os.path.basename(path).startswith('~'):
+            continue
+        try:
+            with pd.ExcelFile(path) as xls:
+                if sheet not in xls.sheet_names:
+                    continue
+                df = xls.parse(sheet)
+        except Exception as err:  # noqa: BLE001 - report, don't crash
+            logging.warning("Gagal baca BisaJual bot %s: %s", path, err)
+            continue
+        if _BOT_JUAL_INVOICE not in df.columns or _BOT_JUAL_OMZET not in df.columns:
+            continue
+        df = df[~df[_BOT_JUAL_INVOICE].astype(str).str.startswith('Dummy', na=False)]
+        if _BOT_JUAL_VOID in df.columns:
+            df = df[df[_BOT_JUAL_VOID] != True]  # noqa: E712 - openpyxl bool cell
+        parts.append(pd.DataFrame({
+            'Invoice': df[_BOT_JUAL_INVOICE].astype(str),
+            'Omzet': pd.to_numeric(df[_BOT_JUAL_OMZET], errors='coerce').fillna(0)}))
+    if not parts:
+        return None
+    return pd.concat(parts, ignore_index=True).groupby('Invoice', as_index=False)['Omzet'].sum()
+
+
 def _shopee_omzet():
     """Invoice -> Omzet, re-derived from raw BisaTransaksi (same status filter as BisaJual)."""
     parts = []
@@ -375,13 +419,21 @@ def _shopee_income_all(classified_frames):
     return allp.groupby('Invoice', as_index=False)['Penghasilan'].sum()
 
 
-def _build_omzet_vs_fee(classified_frames):
+def _build_omzet_vs_fee(classified_frames, bisajual_dir=None):
     """Per-invoice: Omzet (BisaJual) vs real income (BisaSaldo) vs BisaFee.
 
     Flags orders booked with Omzet that did not actually settle - including
     returns whose loss only lives in BisaFee (so it is dropped from BisaRemit).
     """
-    omz = _shopee_omzet()
+    # Prefer the itbisa-shop-report-bot BisaJual ledger (with its Void handling) when
+    # the user drops *BisaJual*.xlsx into data/; otherwise re-derive from BisaTransaksi.
+    omz = _bot_bisajual_omzet('Shopee', bisajual_dir)
+    if omz is None:
+        omz = _shopee_omzet()
+        logging.info("Cek Omzet vs Fee: Omzet di-derive dari BisaTransaksi "
+                     "(taruh *BisaJual*.xlsx dari itbisa-shop-report-bot di data/ untuk pakai ledger asli)")
+    else:
+        logging.info("Cek Omzet vs Fee: Omzet diambil dari BisaJual itbisa-shop-report-bot (non-void)")
     inc = _shopee_income_all(classified_frames)
     fee = _shopee_fee_detail()
     if fee is None:
@@ -500,7 +552,7 @@ def _write_workbook(path, summary, by_desc, detail, uncaptured, fee_mismatch,
                 cell.fill = _FLAG_FILL
 
 
-def generate_reconciliation(marketplaces=None):
+def generate_reconciliation(marketplaces=None, bisajual_dir=None):
     """Write a Rekonsiliasi <Marketplace>.xlsx for each selected marketplace."""
     names = marketplaces or list(_MARKETPLACES.keys())
     for name in names:
@@ -578,7 +630,7 @@ def generate_reconciliation(marketplaces=None):
             remit = _shopee_remit_amounts(classified_frames)
             fee_mismatch = _build_fee_mismatch(fee, remit)
             saldo_vs_fee = _shopee_saldo_vs_fee(fee, remit)
-            omzet_vs_fee = _build_omzet_vs_fee(classified_frames)
+            omzet_vs_fee = _build_omzet_vs_fee(classified_frames, bisajual_dir)
 
         folder = os.path.join(get_reports_dir(), MARKETPLACE_FOLDERS[name])
         os.makedirs(folder, exist_ok=True)

@@ -42,6 +42,7 @@ python main.py
 | `python main.py --output-dir <dir>` | Write reports under `<dir>` instead of `./reports`. |
 | `python main.py --show-files` | Log every input file discovered, then run. |
 | `python main.py --reconcile` | Write `Rekonsiliasi <Marketplace>.xlsx` (read-only audit; see below). Generates no reports. |
+| `python main.py --reconcile --bisajual-dir <dir>` | As above, but read the itbisa-shop-report-bot `*BisaJual*.xlsx` ledger from `<dir>` for the `Cek Omzet vs Fee` sheet. |
 | `python main.py -v` / `--verbose` | Enable debug logging. |
 
 ## Reconciliation (`--reconcile`)
@@ -67,9 +68,13 @@ silently falls out of `BisaLaporan`. Each workbook has:
 - **Cek Omzet vs Fee** (Shopee) — per invoice, the booked `BisaJual` Omzet vs the real
   money received (`BisaSaldo`) and `BisaFee` (`Total Penghasilan` + the refund/fee
   `Kerugian`). Flags orders whose Omzet is **not** real money: *Retur — rugi = omzet*
-  (a return whose loss only lives in `BisaFee`, so net is 0, e.g. a returned item),
+  (a return whose loss only lives in `BisaFee`, so net is 0, e.g. a returned item — and
+  in particular an order **not voided** in the ledger but with no real money),
   *Omzet tidak settle*, and *Belum ada penghasilan* (booked but not yet remitted —
-  not a loss). This is how you confirm `BisaJual` represents real money.
+  not a loss). This is how you confirm `BisaJual` represents real money. Omzet is taken
+  from the **itbisa-shop-report-bot** `*BisaJual*.xlsx` ledger (non-void `Omzet Barang`)
+  when you point `--bisajual-dir` at it (or drop the file in `data/`); otherwise it's
+  re-derived from raw `BisaTransaksi`.
 - **Cek Remit Saldo vs Fee** (Shopee) — every invoice side by side: the remit amount
   from `BisaSaldo` vs the `Total Penghasilan` from `BisaFee`, with a **Cocok**/**Beda**
   status, so you can confirm `BisaRemit` is correct against both sources at a glance.

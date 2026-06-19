@@ -49,6 +49,10 @@ def parse_args(argv=None):
     parser.add_argument('--reconcile', action='store_true',
                         help='Write Rekonsiliasi <Marketplace>.xlsx (read-only audit of '
                              'BisaSaldo/BisaFee vs what is captured); generates no reports.')
+    parser.add_argument('--bisajual-dir', default=None,
+                        help='Folder with the itbisa-shop-report-bot *BisaJual*.xlsx ledger '
+                             '(e.g. ..\\itbisa-shop-report-bot\\data); used by --reconcile for '
+                             'the Cek Omzet vs Fee sheet. Falls back to re-derived Omzet if unset.')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Enable debug logging.')
     return parser.parse_args(argv)
@@ -73,7 +77,7 @@ def main(argv=None):
 
     if args.reconcile:
         recon = None if chosen is None else [m.capitalize() for m in chosen]
-        generate_reconciliation(recon)
+        generate_reconciliation(recon, bisajual_dir=args.bisajual_dir)
         logging.info("Selesai rekonsiliasi. Tersimpan di %s", constant.get_reports_dir())
         return
 
