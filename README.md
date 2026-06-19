@@ -64,9 +64,13 @@ silently falls out of `BisaLaporan`. Each workbook has:
 - **Saldo Tidak Tercatat** — every `BisaSaldo` row not captured into `BisaRemit`/
   `BisaBonus`, with the reason (e.g. *matched a remit keyword but was excluded by the
   invoice filter* — this is where a `Pencairan SPinjam untuk Penjual` loan row lands).
-- **BisaFee Tidak Cocok** (Shopee) — fee rows with no matching remit, and remit rows
-  whose amount doesn't match the fee (so the `(Invoice, Nominal Remit)` join drops the
-  fee). Overlapping fee files are de-duplicated first.
+- **Cek Remit Saldo vs Fee** (Shopee) — every invoice side by side: the remit amount
+  from `BisaSaldo` vs the `Total Penghasilan` from `BisaFee`, with a **Cocok**/**Beda**
+  status, so you can confirm `BisaRemit` is correct against both sources at a glance.
+- **BisaFee Tidak Cocok** (Shopee) — the filtered problem list: fee rows with no
+  matching remit, and remit rows whose amount doesn't match the fee (so the
+  `(Invoice, Nominal Remit)` join drops the fee). Overlapping fee files are
+  de-duplicated first.
 
 Run it for one marketplace with the usual flags, e.g. `python main.py --reconcile --shopee`.
 
