@@ -2,6 +2,8 @@ import logging
 
 import pandas as pd
 
+from utility.generic import build_report_path
+
 from bisaremit.generic import bisaremit_to_excel
 from keywordchecker.bukalapak import VALID_NOMINAL_REMIT_KEYWORD, VALID_KERUGIAN_TAMBAHAN_KEYWORD, VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD
 
@@ -43,4 +45,5 @@ def generate_bisaremit(bl_file, df):
 
     # Export to Existing WorkBook
     path = bl_file.replace('BisaSaldo', 'BisaLaporan').replace('csv', 'xlsx')
+    path = build_report_path(path)
     bisaremit_to_excel(df, path, 'BisaRemit Bukalapak')

@@ -1,6 +1,8 @@
 import logging
 
 import pandas as pd
+
+from utility.generic import build_report_path
 from openpyxl.reader.excel import load_workbook
 
 from keywordchecker.shopee import VALID_BONUS_KEYWORD
@@ -33,6 +35,7 @@ def generate_bisabonus(tkp_file, df):
             .replace('BisaSaldo', 'BisaLaporan'))
 
     # Check if file exist
+    path = build_report_path(path)
     with pd.ExcelWriter(path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
         writer.book = load_workbook(path)
         df.to_excel(writer, sheet_name='BisaBonus Shopee')

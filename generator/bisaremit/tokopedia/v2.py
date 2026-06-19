@@ -2,6 +2,8 @@ import logging
 
 import pandas as pd
 
+from utility.generic import build_report_path
+
 from bisaremit.generic import bisaremit_to_excel
 from keywordchecker.tokopedia import VALID_NOMINAL_REMIT_KEYWORD, VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD, VALID_KERUGIAN_TAMBAHAN_KEYWORD, VALID_POTONGAN_PEMBAYARAN_KEYWORD
 
@@ -46,4 +48,5 @@ def generate_bisaremit(tkp_file, df):
             .replace(' v1', '')
             .replace(' v2', '')
             .replace('BisaSaldo', 'BisaLaporan'))
+    path = build_report_path(path)
     bisaremit_to_excel(df, path, 'BisaRemit Tokopedia')

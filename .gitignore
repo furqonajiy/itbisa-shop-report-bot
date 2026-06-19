@@ -5,3 +5,7 @@
 
 # pycache
 *.pyc
+__pycache__/
+
+# Generated reports
+/reports/

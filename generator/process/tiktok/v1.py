@@ -6,14 +6,10 @@ from bisainvoice.tiktok.v1 import generate_bisainvoice
 from bisajual.tiktok.v1 import generate_bisajual
 from bisaremit.tiktok.v1 import generate_bisaremit
 from keywordchecker.tiktok import check_status_keyword
-from utility.constant import BISALAPORAN_TIKTOK_DIR
-from utility.generic import create_directory
 
 
 def process(list_report):
     logging.info("Process Tiktok v1 File")
-
-    create_directory(BISALAPORAN_TIKTOK_DIR)
 
     for ttk_file in list_report:
         read_bisatransaksi(ttk_file)

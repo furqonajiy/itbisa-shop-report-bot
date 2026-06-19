@@ -2,6 +2,8 @@ import logging
 
 import pandas as pd
 
+from utility.generic import build_report_path
+
 from bisaremit.generic import bisaremit_to_excel
 
 
@@ -37,4 +39,5 @@ def generate_bisaremit(tkp_file, df):
             .replace(' v1', '')
             .replace(' v2', '')
             .replace('BisaFee', 'BisaLaporan'))
+    path = build_report_path(path)
     bisaremit_to_excel(df, path, 'BisaRemit Tiktok')

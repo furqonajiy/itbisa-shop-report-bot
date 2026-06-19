@@ -2,6 +2,8 @@ import logging
 
 import pandas as pd
 
+from utility.generic import build_report_path
+
 from bisainvoice.generic import bisainvoice_to_excel
 
 
@@ -25,4 +27,5 @@ def generate_bisainvoice(bl_file, df):
 
     # Export
     path = bl_file.replace('BisaTransaksi', 'BisaLaporan')
+    path = build_report_path(path)
     bisainvoice_to_excel(df, path, 'BisaInvoice Bukalapak')
