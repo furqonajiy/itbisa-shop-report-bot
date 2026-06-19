@@ -300,6 +300,124 @@ def _shopee_saldo_vs_fee(fee, remit):
     return out.sort_values(['_r', 'Invoice']).drop(columns='_r').reset_index(drop=True)
 
 
+# --- Shopee Omzet (BisaJual) vs BisaFee / BisaSaldo per invoice ---------------
+
+def _price(series):
+    return pd.to_numeric(series.astype(str).str.replace('Rp ', '', regex=False)
+                         .str.replace('.', '', regex=False), errors='coerce').fillna(0)
+
+
+def _shopee_omzet():
+    """Invoice -> Omzet, re-derived from raw BisaTransaksi (same status filter as BisaJual)."""
+    parts = []
+    for path in _saldo_files('BisaTransaksi v2 Shopee'):
+        df = pd.read_excel(path, dtype={'Harga Setelah Diskon': str, 'Alasan Pembatalan': str})
+        keep = (~df['Status Pesanan'].astype(str).str.contains('Batal|Dibatalkan')
+                | df['Alasan Pembatalan'].astype(str).str.contains('Paket hilang', na=False))
+        df = df[keep]
+        parts.append(pd.DataFrame({
+            'Invoice': df['No. Pesanan'].astype(str),
+            'Omzet': pd.to_numeric(df['Jumlah'], errors='coerce').fillna(0) * _price(df['Harga Setelah Diskon'])}))
+    for path in _saldo_files('BisaTransaksi v3 Shopee'):
+        df = pd.read_excel(path, dtype={'Harga Setelah Diskon': str, 'Alasan Pembatalan': str})
+        j = pd.to_numeric(df['Jumlah'], errors='coerce')
+        rq = pd.to_numeric(df.get('Returned quantity'), errors='coerce')
+        sv = ['Belum Bayar', 'Batal', 'Dibatalkan', 'Selesai']
+        keep = (~df['Status Pesanan'].astype(str).str.contains('|'.join(sv))
+                | df['Alasan Pembatalan'].astype(str).str.contains('Paket hilang', na=False)
+                | (df['Status Pesanan'].astype(str).str.contains('Selesai') & (j != rq)))
+        df = df[keep]
+        parts.append(pd.DataFrame({
+            'Invoice': df['No. Pesanan'].astype(str),
+            'Omzet': pd.to_numeric(df['Jumlah'], errors='coerce').fillna(0) * _price(df['Harga Setelah Diskon'])}))
+    if not parts:
+        return pd.DataFrame(columns=['Invoice', 'Omzet'])
+    return pd.concat(parts, ignore_index=True).groupby('Invoice', as_index=False)['Omzet'].sum()
+
+
+def _shopee_fee_detail():
+    """Invoice -> Total Penghasilan and the Kerugian (refund + fees) from BisaFee."""
+    rows = []
+    for token in ('BisaFee v2 Shopee', 'BisaFee v3 Shopee'):
+        for path in _saldo_files(token):
+            try:
+                fdf = pd.read_excel(path, sheet_name='Income', skiprows=5)
+            except Exception as err:  # noqa: BLE001
+                logging.debug("Skip fee file %s: %s", path, err)
+                continue
+            if 'No. Pesanan' not in fdf.columns:
+                continue
+
+            def col(name):
+                return pd.to_numeric(fdf[name], errors='coerce').fillna(0) if name in fdf.columns else 0
+            kerugian = -(col('Jumlah Pengembalian Dana ke Pembeli') + col('Biaya Transaksi')
+                         + col('Biaya Administrasi') + col('Biaya Layanan (termasuk PPN 11%)'))
+            rows.append(pd.DataFrame({
+                'Invoice': fdf['No. Pesanan'].astype(str),
+                'Total Penghasilan': col('Total Penghasilan'),
+                'Kerugian (Fee)': kerugian}))
+    if not rows:
+        return None
+    fee = pd.concat(rows, ignore_index=True).drop_duplicates(subset=['Invoice', 'Total Penghasilan'])
+    return fee.groupby('Invoice', as_index=False).agg({'Total Penghasilan': 'sum', 'Kerugian (Fee)': 'sum'})
+
+
+def _shopee_income_all(classified_frames):
+    """Invoice -> the full BisaSaldo net (every line for that invoice)."""
+    parts = []
+    for df in classified_frames:
+        inv = (df['_invoice'] if '_invoice' in df.columns
+               else df['Deskripsi'].str.extract(r'#(\S+)')[0].str.replace('.', '', regex=False))
+        parts.append(pd.DataFrame({'Invoice': inv, 'Penghasilan': df['Nominal']}))
+    if not parts:
+        return pd.DataFrame(columns=['Invoice', 'Penghasilan'])
+    allp = pd.concat(parts, ignore_index=True).dropna(subset=['Invoice'])
+    return allp.groupby('Invoice', as_index=False)['Penghasilan'].sum()
+
+
+def _build_omzet_vs_fee(classified_frames):
+    """Per-invoice: Omzet (BisaJual) vs real income (BisaSaldo) vs BisaFee.
+
+    Flags orders booked with Omzet that did not actually settle - including
+    returns whose loss only lives in BisaFee (so it is dropped from BisaRemit).
+    """
+    omz = _shopee_omzet()
+    inc = _shopee_income_all(classified_frames)
+    fee = _shopee_fee_detail()
+    if fee is None:
+        fee = pd.DataFrame(columns=['Invoice', 'Total Penghasilan', 'Kerugian (Fee)'])
+
+    fee_invoices = set(fee['Invoice']) if fee is not None and len(fee) else set()
+    m = omz.merge(inc, on='Invoice', how='outer').merge(fee, on='Invoice', how='outer')
+    for c in ['Omzet', 'Penghasilan', 'Total Penghasilan', 'Kerugian (Fee)']:
+        m[c] = pd.to_numeric(m[c], errors='coerce').fillna(0)
+
+    def status(r):
+        om, pen, ker = r['Omzet'], r['Penghasilan'], r['Kerugian (Fee)']
+        in_fee = r['Invoice'] in fee_invoices
+        if om > 0 and pen <= 0:
+            if in_fee and ker >= om * 0.99:
+                return 'Retur - rugi = omzet (dari BisaFee)'   # confirmed loss
+            if in_fee:
+                return 'Omzet tidak settle (ada fee, cek)'     # fee exists but nothing received
+            return 'Belum ada penghasilan (pending / cek)'     # no saldo & no fee yet
+        if om == 0 and pen > 0:
+            return 'Penghasilan tanpa Omzet'
+        return 'OK'
+    m['Status'] = m.apply(status, axis=1)
+
+    flagged = m[m['Status'] != 'OK'].copy()
+    for c in ['Omzet', 'Penghasilan', 'Total Penghasilan', 'Kerugian (Fee)']:
+        flagged[c] = flagged[c].round().astype('int64')
+    flagged = flagged.rename(columns={'Penghasilan': 'Penghasilan (BisaSaldo)',
+                                      'Total Penghasilan': 'Total Penghasilan (Fee)'})
+    rank = {'Retur - rugi = omzet (dari BisaFee)': 0, 'Omzet tidak settle (ada fee, cek)': 1,
+            'Belum ada penghasilan (pending / cek)': 2, 'Penghasilan tanpa Omzet': 3}
+    flagged['_r'] = flagged['Status'].map(rank).fillna(4)
+    flagged = flagged.sort_values(['_r', 'Omzet'], ascending=[True, False]).drop(columns='_r')
+    return flagged[['Invoice', 'Omzet', 'Penghasilan (BisaSaldo)',
+                    'Total Penghasilan (Fee)', 'Kerugian (Fee)', 'Status']].reset_index(drop=True)
+
 
 # --- workbook writer ---------------------------------------------------------
 
@@ -332,12 +450,15 @@ def _style_header(sheet, widths):
     sheet.freeze_panes = 'A2'
 
 
-def _write_workbook(path, summary, by_desc, detail, uncaptured, fee_mismatch, saldo_vs_fee=None):
+def _write_workbook(path, summary, by_desc, detail, uncaptured, fee_mismatch,
+                    saldo_vs_fee=None, omzet_vs_fee=None):
     with pd.ExcelWriter(path, engine='openpyxl') as writer:
         summary.to_excel(writer, sheet_name='Ringkasan', index=False)
         by_desc.to_excel(writer, sheet_name='Rincian per Deskripsi', index=False)
         detail.to_excel(writer, sheet_name='Rincian Saldo', index=False)
         uncaptured.to_excel(writer, sheet_name='Saldo Tidak Tercatat', index=False)
+        if omzet_vs_fee is not None:
+            omzet_vs_fee.to_excel(writer, sheet_name='Cek Omzet vs Fee', index=False)
         if saldo_vs_fee is not None:
             saldo_vs_fee.to_excel(writer, sheet_name='Cek Remit Saldo vs Fee', index=False)
         if fee_mismatch is not None:
@@ -347,6 +468,12 @@ def _write_workbook(path, summary, by_desc, detail, uncaptured, fee_mismatch, sa
         _style_header(writer.book['Rincian per Deskripsi'], [20, 44, 18, 12, 16, 70])
         _style_header(writer.book['Rincian Saldo'], [34, 20, 64, 16, 20, 18])
         _style_header(writer.book['Saldo Tidak Tercatat'], [34, 20, 64, 16, 52])
+        if omzet_vs_fee is not None:
+            _style_header(writer.book['Cek Omzet vs Fee'], [18, 14, 20, 20, 16, 34])
+            sheet = writer.book['Cek Omzet vs Fee']
+            status_col = omzet_vs_fee.columns.get_loc('Status') + 1
+            for row in range(2, len(omzet_vs_fee) + 2):
+                sheet.cell(row=row, column=status_col).fill = _FLAG_FILL
         if saldo_vs_fee is not None:
             _style_header(writer.book['Cek Remit Saldo vs Fee'], [40, 20, 24, 20, 18])
             sheet = writer.book['Cek Remit Saldo vs Fee']
@@ -445,16 +572,19 @@ def generate_reconciliation(marketplaces=None):
 
         fee_mismatch = None
         saldo_vs_fee = None
+        omzet_vs_fee = None
         if name == 'Shopee':
             fee = _shopee_fee_invoices()
             remit = _shopee_remit_amounts(classified_frames)
             fee_mismatch = _build_fee_mismatch(fee, remit)
             saldo_vs_fee = _shopee_saldo_vs_fee(fee, remit)
+            omzet_vs_fee = _build_omzet_vs_fee(classified_frames)
 
         folder = os.path.join(get_reports_dir(), MARKETPLACE_FOLDERS[name])
         os.makedirs(folder, exist_ok=True)
         out_path = os.path.join(folder, 'Rekonsiliasi {0}.xlsx'.format(name))
-        _write_workbook(out_path, summary, by_desc, detail, uncaptured, fee_mismatch, saldo_vs_fee)
+        _write_workbook(out_path, summary, by_desc, detail, uncaptured, fee_mismatch,
+                        saldo_vs_fee, omzet_vs_fee)
 
         flagged = int((summary['Perlu Dicek'] == 'YA').sum())
         logging.info("Rekonsiliasi %s -> %s (%d periode, %d perlu dicek, %d baris tidak tercatat)",

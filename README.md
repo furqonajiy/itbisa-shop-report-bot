@@ -64,6 +64,12 @@ silently falls out of `BisaLaporan`. Each workbook has:
 - **Saldo Tidak Tercatat** — every `BisaSaldo` row not captured into `BisaRemit`/
   `BisaBonus`, with the reason (e.g. *matched a remit keyword but was excluded by the
   invoice filter* — this is where a `Pencairan SPinjam untuk Penjual` loan row lands).
+- **Cek Omzet vs Fee** (Shopee) — per invoice, the booked `BisaJual` Omzet vs the real
+  money received (`BisaSaldo`) and `BisaFee` (`Total Penghasilan` + the refund/fee
+  `Kerugian`). Flags orders whose Omzet is **not** real money: *Retur — rugi = omzet*
+  (a return whose loss only lives in `BisaFee`, so net is 0, e.g. a returned item),
+  *Omzet tidak settle*, and *Belum ada penghasilan* (booked but not yet remitted —
+  not a loss). This is how you confirm `BisaJual` represents real money.
 - **Cek Remit Saldo vs Fee** (Shopee) — every invoice side by side: the remit amount
   from `BisaSaldo` vs the `Total Penghasilan` from `BisaFee`, with a **Cocok**/**Beda**
   status, so you can confirm `BisaRemit` is correct against both sources at a glance.
