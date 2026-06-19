@@ -12,12 +12,12 @@ from utility.generic import ignore_warning
 
 logging.basicConfig(level=logging.INFO)
 
-# Marketplace -> ordered list of processor modules.
+# Marketplace -> ordered list of processor modules (Tiktok / Shopee first).
 MARKETPLACE_PROCESSORS = {
-    'bukalapak': [bukalapak_v2],
-    'tokopedia': [tokopedia_v1, tokopedia_v2],
-    'shopee': [shopee_v2, shopee_v3],
     'tiktok': [tiktok_v1],
+    'shopee': [shopee_v2, shopee_v3],
+    'tokopedia': [tokopedia_v1, tokopedia_v2],
+    'bukalapak': [bukalapak_v2],
 }
 
 

@@ -116,3 +116,11 @@ generator/
 
 See [`RUNBOOK.md`](RUNBOOK.md) for step-by-step operating instructions and
 [`CLAUDE.md`](CLAUDE.md) for the engineering/contribution conventions.
+
+## Spreadsheet helpers
+
+VLOOKUP used to pull columns from a generated `BisaLaporan` sheet into another sheet:
+
+```
+=IFERROR(VLOOKUP($I2,$B$2:$G$1600,J$1,FALSE),"")
+```

@@ -32,7 +32,7 @@ def read_bisatransaksi(ttk_file):
         # Remove rows with invalid status
         df = df[(df['Tokopedia Invoice Number'].isna()) &
                 (df['Order ID'] != 'Platform unique order ID.')]
-        search_values = ['Dibatalkan']
+        search_values = ['Belum dibayar', 'Dibatalkan']
         df = df[~df['Order Status'].str.contains('|'.join(search_values))]
 
         if len(df) > 0:
@@ -49,8 +49,8 @@ def read_bisafee(ttk_file):
 
         df = pd.read_excel(ttk_file,
                            dtype={'Order/adjustment ID  ': str,
-                                  'Order created time(UTC)': str,
-                                  'Total revenue': int,
+                                  'Order created time': str,
+                                  'Total Revenue': int,
                                   'Total settlement amount': int,
                                   'Refund subtotal after seller discounts': int,
                                   'Shipping costs passed on to the logistics provider': int})
