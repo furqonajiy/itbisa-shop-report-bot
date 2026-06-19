@@ -2,16 +2,17 @@
 
 > **Source of truth for the Claude surfaces** — read by **Claude Code** and pasted into the **Claude Chat** project instructions. `AGENTS.md` (ChatGPT Codex) points here.
 
-Standalone, **offline** Python tool that turns raw marketplace exports (Shopee, Tokopedia, Tiktok, Bukalapak) into standardized **BisaLaporan** workbooks (`BisaInvoice` / `BisaJual` / `BisaRemit` / `BisaBonus` sheets per period). No API calls, no network, no secrets, no GitHub Actions — runs locally and is idempotent. The generated **`BisaJual`** sheet is the upstream feed consumed by the sibling repo **itbisa-shop-report-bot**.
+Standalone, **offline** Python tool that turns raw marketplace exports (Shopee, Tokopedia, Tiktok, Bukalapak) into standardized **BisaLaporan** workbooks (`BisaInvoice` / `BisaJual` / `BisaRemit` / `BisaBonus` + a combined `Final` sheet per period). No API calls, no network, no secrets, no GitHub Actions — runs locally and is idempotent. The generated **`BisaJual`** sheet is the upstream feed consumed by the sibling repo **itbisa-shop-report-bot**.
 
 ## Stack & files
 - Python 3.8–3.11. Deps: `pandas` (**1.x**, pinned `>=1.4,<2.0`), `openpyxl` (`requirements.txt`).
   - **pandas must be < 2.0**: the Excel writers use the pandas-1.x `ExcelWriter.book` setter (removed in 2.0). `utility/generic.py` imports `SettingWithCopyWarning` from `pandas.errors` (pandas ≥1.5) with a fallback to `pandas.core.common` (older).
 - `main.py` (repo root) — **CLI entry point** (`argparse`). Puts `generator/` on `sys.path`, parses flags, sets the data/report dirs, then calls `generator.run(...)`.
-- `generator/main.py` — orchestration: `MARKETPLACE_PROCESSORS` (marketplace → ordered processor modules) and `run(list_report, marketplaces=None)`.
+- `generator/main.py` — orchestration: `MARKETPLACE_PROCESSORS` (marketplace → ordered processor modules) and `run(list_report, marketplaces=None)`. After a marketplace's processors finish, `run` calls `generate_final(<Marketplace>)` so the `Final` sheet sees every period's workbook.
 - `generator/process/preprocess.py` — `generate_report_list`: **recursive** glob of `data/` (`**/*.xls*`, `**/*.csv`).
 - `generator/process/<marketplace>/<vN>.py` — per-marketplace/version readers: drop invalid-status rows, validate keywords, dispatch to the sheet generators.
 - `generator/bisainvoice|bisajual|bisaremit|bisabonus|bisafee/` — each has a `generic.py` with the shared `*_to_excel` writer plus per-marketplace/version builders.
+- `generator/bisafinal/generic.py` — `generate_final(marketplace)`: builds the per-workbook `Final` sheet by **reading back** the already-written `BisaInvoice`/`BisaJual`/`BisaRemit` sheets (marketplace-agnostic, no per-marketplace builders).
 - `generator/keywordchecker/` — validates marketplace status / saldo keywords (raises on unknown keyword).
 - `generator/utility/constant.py` — `DEFAULT_DATA_DIR` / `DEFAULT_REPORTS_DIR` (repo-relative), `set_dirs`/`get_data_dir`/`get_reports_dir`, and `MARKETPLACE_FOLDERS` (marketplace name → reports subfolder).
 - `generator/utility/generic.py` — `ignore_warning`, `create_directory`, `detect_marketplace`, **`build_report_path`**.
@@ -31,7 +32,7 @@ Standalone, **offline** Python tool that turns raw marketplace exports (Shopee, 
 
 ## Output: `reports/<marketplace>/<name> BisaLaporan <Marketplace>.xlsx`
 - `<marketplace>` ∈ `shopee`, `tiktokshop`, `tokopedia`, `bukalapak` (lowercase; Tiktok → `tiktokshop`). See `MARKETPLACE_FOLDERS`.
-- Sheets per workbook: `BisaInvoice <MP>`, `BisaJual <MP>` (from `BisaTransaksi`); `BisaRemit <MP>` (from `BisaSaldo`, or `BisaFee` for Tiktok); `BisaBonus <MP>` (from `BisaSaldo`). Coverage: Shopee v2/v3 = all four; Tokopedia v1 = invoice + jual; Tokopedia v2 = all four; Tiktok v1 = invoice + jual + remit; Bukalapak v2 = invoice + jual + remit.
+- Sheets per workbook: `BisaInvoice <MP>`, `BisaJual <MP>` (from `BisaTransaksi`); `BisaRemit <MP>` (from `BisaSaldo`, or `BisaFee` for Tiktok); `BisaBonus <MP>` (from `BisaSaldo`); plus a `Final` sheet (every workbook). Coverage: Shopee v2/v3 = all four; Tokopedia v1 = invoice + jual; Tokopedia v2 = all four; Tiktok v1 = invoice + jual + remit; Bukalapak v2 = invoice + jual + remit. `Final` is always present.
 
 ## Core logic (do not regress)
 - **Path routing (`build_report_path`)**: each sheet generator still computes its report **filename** the original way — string-replace the input basename's type token (`BisaTransaksi`/`BisaSaldo`/`BisaFee` → `BisaLaporan`), strip ` v1/ v2/ v3` (Bukalapak keeps its ` v2`), `.csv`→`.xlsx`. `build_report_path` then **re-roots that filename** into `reports/<marketplace>/` (detected from the filename) and creates the folder. The directory part of the old string-replace result is discarded; only the basename is kept.
@@ -39,6 +40,7 @@ Standalone, **offline** Python tool that turns raw marketplace exports (Shopee, 
 - **Recursive discovery**: `generate_report_list` returns `sorted(set(...))` of everything under `data/`; the per-processor `cond1 = '<token>' in file` filters select the right files. This is OS-independent (no Windows-only `H:\` paths or backslash globs).
 - **Marketplace detection** (`detect_marketplace`): substring match of the report filename against `MARKETPLACE_FOLDERS` keys (`Shopee`/`Tiktok`/`Tokopedia`/`Bukalapak`); raises if none match.
 - **Configurable dirs**: consumers call `get_data_dir()` / `get_reports_dir()` at run time (never bind the value at import) so the CLI's `set_dirs()` override (and `--data-dir`/`--output-dir`) takes effect.
+- **`Final` sheet (`bisafinal/generic.py`)**: one reconciliation row per `Invoice`, joining the order side with the remit side. `Omzet Barang` = Σ `BisaJual` `Omzet` per `Invoice`; `Nominal Invoice` = `Omzet Barang` + `Ongkir` + `Asuransi`. It is a **left join from `BisaInvoice`** (every order is a row), and the remit is looked up against the **union of every `BisaLaporan` workbook in `reports/<marketplace>/`** — so an order placed one period and remitted the next still matches (multi-remit → amounts summed, latest `Tanggal Remit` kept); when no remit is found the remit columns stay blank. `Cek Remit`/`Untung Lainnya`/`Rugi Lainnya`/`Keterangan` are always blank (manual). Because of the cross-period lookup, `generate_final` runs **after** all of a marketplace's processors (so every period's `BisaRemit` exists), reads the written sheets back (money is stored as text → coerced), and appends/replaces the `Final` sheet (`if_sheet_exists='replace'`, create-on-missing fallback). **Do not move `Final` before the remit pass or break the cross-period union.**
 
 ## Conventions
 - Constants/paths live in `utility/constant.py` — never hardcode `data/`, `reports/`, or marketplace folders in logic.
@@ -57,4 +59,4 @@ Standalone, **offline** Python tool that turns raw marketplace exports (Shopee, 
 - Keep `README.md` / `CLAUDE.md` / `RUNBOOK.md` updated in the **same PR** whenever behavior or process changes.
 
 ## Flag before changing
-The recursive `data/` discovery glob and the per-processor filename-token classification, the `build_report_path` re-rooting + the workbook **filename convergence and write→append order**, the `MARKETPLACE_FOLDERS` mapping (incl. Tiktok → `tiktokshop`), the input filename token conventions, and the **pandas < 2.0** constraint (`ExcelWriter.book` + `SettingWithCopyWarning` import).
+The recursive `data/` discovery glob and the per-processor filename-token classification, the `build_report_path` re-rooting + the workbook **filename convergence and write→append order**, the `MARKETPLACE_FOLDERS` mapping (incl. Tiktok → `tiktokshop`), the input filename token conventions, the **`Final` sheet's cross-period remit union + post-processor ordering** (and its column formulas: `Omzet Barang` = Σ `BisaJual` `Omzet`, `Nominal Invoice` = `Omzet Barang` + `Ongkir` + `Asuransi`, blank `Cek Remit`/`Lainnya`/`Keterangan`), and the **pandas < 2.0** constraint (`ExcelWriter.book` + `SettingWithCopyWarning` import).
