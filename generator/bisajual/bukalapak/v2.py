@@ -2,6 +2,8 @@ import logging
 
 import pandas as pd
 
+from utility.generic import build_report_path
+
 from bisajual.generic import bisajual_to_excel
 from utility.sku import standardize_sku
 
@@ -30,4 +32,5 @@ def generate_bisajual(bl_file, df):
 
     # Export to Existing WorkBook
     path = bl_file.replace('BisaTransaksi', 'BisaLaporan')
+    path = build_report_path(path)
     bisajual_to_excel(df, path, 'BisaJual Bukalapak')

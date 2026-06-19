@@ -8,14 +8,10 @@ from bisainvoice.shopee.v2 import generate_bisainvoice
 from bisajual.shopee.v2 import generate_bisajual
 from bisaremit.shopee.v2 import generate_bisaremit
 from keywordchecker.shopee import check_saldo_keyword, check_status_keyword
-from utility.constant import BISALAPORAN_SHOPEE_DIR
-from utility.generic import create_directory
 
 
 def process(list_report):
     logging.info("Process Shopee v2 File")
-
-    create_directory(BISALAPORAN_SHOPEE_DIR)
 
     for shp_file in list_report:
         read_bisatransaksi(shp_file)

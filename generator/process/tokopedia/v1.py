@@ -5,14 +5,10 @@ import pandas as pd
 from bisainvoice.tokopedia.v1 import generate_bisainvoice
 from bisajual.tokopedia.v1 import generate_bisajual
 from keywordchecker.tokopedia import check_status_keyword
-from utility.constant import BISALAPORAN_TOKOPEDIA_DIR
-from utility.generic import create_directory
 
 
 def process(list_report):
     logging.info("Process Tokopedia v1 File")
-
-    create_directory(BISALAPORAN_TOKOPEDIA_DIR)
 
     for tkp_file in list_report:
         read_bisatransaksi(tkp_file)
