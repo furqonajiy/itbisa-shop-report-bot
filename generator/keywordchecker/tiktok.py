@@ -4,6 +4,7 @@ from keywordchecker.generic import handle_invalid_keywords
 
 VALID_TRANSAKSI_KEYWORD = [
     # V1
+    'Belum dibayar',
     'Perlu dikirim',
     'Dikirim',
     'Selesai',
