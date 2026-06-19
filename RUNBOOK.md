@@ -89,10 +89,13 @@ python main.py --reconcile --shopee     # one marketplace
 This **read-only** pass re-reads the raw `BisaSaldo` / `BisaFee` files and reports any
 balance movement that is **not** captured into `BisaRemit`/`BisaBonus`. Open the
 `Rekonsiliasi <Marketplace>.xlsx` and check the **Ringkasan** tab for red **Perlu
-Dicek** rows; the **Saldo Tidak Tercatat** tab lists each uncaptured row and why (e.g.
-a `Pencairan SPinjam untuk Penjual` loan excluded by the invoice filter). For Shopee,
-**BisaFee Tidak Cocok** lists fee/remit amounts that don't reconcile. Nothing here
-changes your `BisaLaporan` numbers — it's a checklist of things to review.
+Dicek** rows. **Rincian per Deskripsi** is the review list — every distinct description
+(by matched keyword) with its category, bucket, count and total — so you can decide how
+each description should be treated; **Rincian Saldo** is the full row-level detail. The
+**Saldo Tidak Tercatat** tab lists each uncaptured row and why (e.g. a `Pencairan
+SPinjam untuk Penjual` loan excluded by the invoice filter), and for Shopee **BisaFee
+Tidak Cocok** lists fee/remit amounts that don't reconcile. Nothing here changes your
+`BisaLaporan` numbers — it's a checklist of things to review.
 
 ## 5. Hand the `BisaJual` to itbisa-shop-report-bot
 
