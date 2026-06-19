@@ -2,8 +2,9 @@
 
 Offline Python tool that turns raw marketplace exports (Shopee, Tokopedia, Tiktok,
 Bukalapak) into standardized **BisaLaporan** workbooks. Each generated workbook holds
-the bookkeeping sheets **BisaInvoice**, **BisaJual**, **BisaRemit**, and **BisaBonus**
-for one period. The **BisaJual** sheet is the feed consumed by the sibling project
+the bookkeeping sheets **BisaInvoice**, **BisaJual**, **BisaRemit**, **BisaBonus**,
+and a combined **Final** sheet for one period. The **BisaJual** sheet is the feed
+consumed by the sibling project
 [`itbisa-shop-report-bot`](https://github.com/furqonajiy/itbisa-shop-report-bot).
 
 It is fully offline and idempotent: no API calls, no network, no secrets. Drop the
@@ -81,9 +82,30 @@ their sheets accumulate into a single workbook:
 | `BisaJual <MP>` | `BisaTransaksi` | all *(feeds itbisa-shop-report-bot)* |
 | `BisaRemit <MP>` | `BisaSaldo` (Tiktok: `BisaFee`) | Shopee, Tokopedia v2, Tiktok, Bukalapak |
 | `BisaBonus <MP>` | `BisaSaldo` | Shopee, Tokopedia v2 |
+| `Final` | `BisaInvoice` + `BisaJual` + `BisaRemit` | all (remit columns blank where no remit) |
 
 `BisaInvoice` is written first (it creates the workbook); the other sheets are
 appended to it.
+
+### The `Final` sheet
+
+`Final` is one reconciliation row per `Invoice`, joining the order side with the
+remit side. Columns: `Tanggal Pesan`, `Marketplace`, `Invoice`, `Ongkir`,
+`Asuransi`, `Omzet Barang`, `Nominal Invoice`, `Tanggal Remit`, `Potongan
+Pembayaran`, `Nominal Remit`, `Keuntungan Tambahan`, `Kerugian Tambahan`, `Cek
+Remit`, `Untung Lainnya`, `Rugi Lainnya`, `Keterangan`.
+
+- `Omzet Barang` = sum of `BisaJual` `Omzet` for that `Invoice`; `Nominal
+  Invoice` = `Omzet Barang` + `Ongkir` + `Asuransi`.
+- Every `BisaInvoice` order is listed (left join). The remit is looked up across
+  **all** of that marketplace's `BisaLaporan` workbooks — so an order placed this
+  month but remitted next month still finds its remit; if none is found the remit
+  columns stay blank.
+- `Cek Remit`, `Untung Lainnya`, `Rugi Lainnya`, and `Keterangan` are left blank
+  for manual entry.
+
+Because the remit lookup spans periods, `Final` is built **after** all of a
+marketplace's workbooks have been generated.
 
 ## Marketplace coverage
 
@@ -94,19 +116,23 @@ appended to it.
 | Tiktok | v1 | BisaInvoice, BisaJual, BisaRemit (from `BisaFee`) |
 | Bukalapak | v2 | BisaInvoice, BisaJual, BisaRemit |
 
+Every workbook also gets a `Final` sheet (the sheets listed above plus `Final`).
+
 ## Project layout
 
 ```
 main.py                      # CLI entry point (argparse) -> generator.run(...)
 requirements.txt
 generator/
-  main.py                    # orchestration: MARKETPLACE_PROCESSORS + run()
+  main.py                    # orchestration: MARKETPLACE_PROCESSORS + run() + Final
   process/
     preprocess.py            # recursive discovery of data/ inputs
     <marketplace>/<vN>.py    # per-marketplace/version readers + filters
   bisainvoice/ bisajual/ bisaremit/ bisabonus/ bisafee/
     generic.py               # the shared *_to_excel writer for each sheet type
     <marketplace>/<vN>.py    # per-marketplace sheet builders
+  bisafinal/
+    generic.py               # builds the Final sheet (marketplace-agnostic)
   keywordchecker/            # validates marketplace status / saldo keywords
   utility/
     constant.py              # data/report dirs + marketplace->folder mapping

@@ -70,8 +70,13 @@ reports\
 ```
 
 Each workbook contains the `BisaInvoice`, `BisaJual`, `BisaRemit`, and/or `BisaBonus`
-sheets for that period (see the coverage table in `README.md`). The run is
+sheets for that period, plus a combined **`Final`** sheet (one reconciliation row per
+`Invoice`; see the coverage table and the `Final` section in `README.md`). The run is
 **idempotent** — re-running overwrites the matching sheets in place.
+
+> The `Final` sheet looks up each order's remit across **all** of that marketplace's
+> `BisaLaporan` workbooks, so process a marketplace's periods together (an order placed
+> one month and remitted the next only fills in once both periods' files are present).
 
 ## 5. Hand the `BisaJual` to itbisa-shop-report-bot
 
