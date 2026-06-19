@@ -106,6 +106,34 @@ def _not_used(kw):
     return [k for k in kw.VALID_SALDO_KEYWORD if k not in captured]
 
 
+def _keyword_categories(kw):
+    """(category label, keyword list) pairs, in the order a row is matched."""
+    return [
+        ('Nominal Remit', list(getattr(kw, 'VALID_NOMINAL_REMIT_KEYWORD', []))),
+        ('Potongan Pembayaran', list(getattr(kw, 'VALID_POTONGAN_PEMBAYARAN_KEYWORD', []))),
+        ('Keuntungan Tambahan', list(getattr(kw, 'VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD', []))),
+        ('Kerugian Tambahan', list(getattr(kw, 'VALID_KERUGIAN_TAMBAHAN_KEYWORD', []))),
+        ('Bonus', list(getattr(kw, 'VALID_BONUS_KEYWORD', []))),
+        ('Tidak Digunakan', _not_used(kw)),
+    ]
+
+
+def _annotate_keyword(df, cfg):
+    """Add the matched keyword + its category to each row (first match wins)."""
+    desc = df['Deskripsi'].fillna('')
+    keyword = pd.Series('', index=df.index)
+    kategori = pd.Series('', index=df.index)
+    for label, kws in _keyword_categories(cfg['kw']):
+        for kw in kws:
+            hit = (keyword == '') & desc.str.contains(kw, regex=True)
+            keyword[hit] = kw
+            kategori[hit] = label
+    kategori[keyword == ''] = 'Tidak Cocok Keyword'
+    df['Keyword'] = keyword
+    df['Kategori'] = kategori
+    return df
+
+
 # Each marketplace: its reports folder, the keyword module, whether a BisaBonus
 # sheet is actually generated, how it decides a row is a remit row, and the
 # (token -> reader) BisaSaldo sources.
@@ -157,7 +185,7 @@ def _classify(df, cfg):
     df = df.copy()
     df['Bucket'] = bucket
     df['Alasan'] = reason
-    return df
+    return _annotate_keyword(df, cfg)
 
 
 def _period(path):
@@ -239,6 +267,25 @@ def _build_fee_mismatch(fee, remit):
 
 # --- workbook writer ---------------------------------------------------------
 
+_CATEGORY_ORDER = ['Nominal Remit', 'Potongan Pembayaran', 'Keuntungan Tambahan',
+                   'Kerugian Tambahan', 'Bonus', 'Tidak Digunakan', 'Tidak Cocok Keyword']
+
+
+def _by_description(allrows):
+    """Roll every BisaSaldo row up to its matched keyword: count, total, example."""
+    g = (allrows.groupby(['Kategori', 'Keyword', 'Bucket'], dropna=False)
+         .agg(Baris=('Nominal', 'size'),
+              Total=('Nominal', 'sum'),
+              Contoh=('Deskripsi', 'first'))
+         .reset_index())
+    g['Total'] = g['Total'].round().astype('int64')
+    g['_ord'] = g['Kategori'].map({c: i for i, c in enumerate(_CATEGORY_ORDER)}).fillna(99)
+    g = g.sort_values(['_ord', 'Keyword']).drop(columns='_ord').reset_index(drop=True)
+    g.columns = ['Kategori', 'Keyword (Deskripsi)', 'Bucket', 'Jumlah Baris',
+                 'Total Nominal', 'Contoh Deskripsi']
+    return g
+
+
 def _style_header(sheet, widths):
     for i, w in enumerate(widths):
         sheet.column_dimensions[get_column_letter(i + 1)].width = w
@@ -249,14 +296,18 @@ def _style_header(sheet, widths):
     sheet.freeze_panes = 'A2'
 
 
-def _write_workbook(path, summary, uncaptured, fee_mismatch):
+def _write_workbook(path, summary, by_desc, detail, uncaptured, fee_mismatch):
     with pd.ExcelWriter(path, engine='openpyxl') as writer:
         summary.to_excel(writer, sheet_name='Ringkasan', index=False)
+        by_desc.to_excel(writer, sheet_name='Rincian per Deskripsi', index=False)
+        detail.to_excel(writer, sheet_name='Rincian Saldo', index=False)
         uncaptured.to_excel(writer, sheet_name='Saldo Tidak Tercatat', index=False)
         if fee_mismatch is not None:
             fee_mismatch.to_excel(writer, sheet_name='BisaFee Tidak Cocok', index=False)
 
         _style_header(writer.book['Ringkasan'], [34, 10, 16, 14, 16, 16, 14, 16, 8])
+        _style_header(writer.book['Rincian per Deskripsi'], [20, 44, 18, 12, 16, 70])
+        _style_header(writer.book['Rincian Saldo'], [34, 20, 64, 16, 20, 18])
         _style_header(writer.book['Saldo Tidak Tercatat'], [34, 20, 64, 16, 52])
         if fee_mismatch is not None:
             _style_header(writer.book['BisaFee Tidak Cocok'], [40, 20, 16, 48])
@@ -267,6 +318,14 @@ def _write_workbook(path, summary, uncaptured, fee_mismatch):
         for row in range(2, len(summary) + 2):
             cell = sheet.cell(row=row, column=flag_col)
             cell.fill = _FLAG_FILL if cell.value == 'YA' else _OK_FILL
+
+        # Highlight the uncaptured ('Tidak Tercatat') keyword groups in red.
+        sheet = writer.book['Rincian per Deskripsi']
+        bucket_col = by_desc.columns.get_loc('Bucket') + 1
+        for row in range(2, len(by_desc) + 2):
+            cell = sheet.cell(row=row, column=bucket_col)
+            if cell.value == _UNCAPTURED:
+                cell.fill = _FLAG_FILL
 
 
 def generate_reconciliation(marketplaces=None):
@@ -290,9 +349,10 @@ def generate_reconciliation(marketplaces=None):
                     continue
                 if raw.empty:
                     continue
-                cls = _classify(raw, cfg)
-                classified_frames.append(cls)
                 period = _period(path)
+                cls = _classify(raw, cfg)
+                cls['Periode'] = period
+                classified_frames.append(cls)
 
                 net = cls['Nominal'].sum()
                 by = cls.groupby('Bucket')['Nominal'].agg(['count', 'sum'])
@@ -331,6 +391,13 @@ def generate_reconciliation(marketplaces=None):
                       if uncaptured_rows else
                       pd.DataFrame(columns=['Periode', 'Tanggal', 'Deskripsi', 'Nominal', 'Alasan']))
 
+        allrows = pd.concat(classified_frames, ignore_index=True)
+        by_desc = _by_description(allrows)
+        detail = (allrows[['Periode', 'Tanggal', 'Deskripsi', 'Nominal', 'Kategori', 'Bucket']]
+                  .copy())
+        detail['Nominal'] = detail['Nominal'].round().astype('int64')
+        detail = detail.sort_values(['Periode', 'Kategori']).reset_index(drop=True)
+
         fee_mismatch = None
         if name == 'Shopee':
             fee_mismatch = _build_fee_mismatch(_shopee_fee_invoices(),
@@ -339,7 +406,7 @@ def generate_reconciliation(marketplaces=None):
         folder = os.path.join(get_reports_dir(), MARKETPLACE_FOLDERS[name])
         os.makedirs(folder, exist_ok=True)
         out_path = os.path.join(folder, 'Rekonsiliasi {0}.xlsx'.format(name))
-        _write_workbook(out_path, summary, uncaptured, fee_mismatch)
+        _write_workbook(out_path, summary, by_desc, detail, uncaptured, fee_mismatch)
 
         flagged = int((summary['Perlu Dicek'] == 'YA').sum())
         logging.info("Rekonsiliasi %s -> %s (%d periode, %d perlu dicek, %d baris tidak tercatat)",

@@ -55,6 +55,12 @@ silently falls out of `BisaLaporan`. Each workbook has:
 - **Ringkasan** — per period: net balance change split into Remit / Bonus /
   Penarikan-Transfer / **Tidak Tercatat** (uncaptured), with a red **Perlu Dicek**
   flag when anything is uncaptured.
+- **Rincian per Deskripsi** — every distinct `BisaSaldo` description (rolled up to its
+  matched keyword) with its category, bucket, row count, total, and an example raw
+  description. The review list: it shows exactly how each description is currently
+  treated; uncaptured groups are highlighted red.
+- **Rincian Saldo** — the full row-level detail (period, date, description, amount,
+  category, bucket) to drill into any period.
 - **Saldo Tidak Tercatat** — every `BisaSaldo` row not captured into `BisaRemit`/
   `BisaBonus`, with the reason (e.g. *matched a remit keyword but was excluded by the
   invoice filter* — this is where a `Pencairan SPinjam untuk Penjual` loan row lands).
