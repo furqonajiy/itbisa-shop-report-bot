@@ -25,6 +25,7 @@ if GENERATOR_DIR not in sys.path:
 from utility import constant  # noqa: E402  (path setup must run first)
 from utility.generic import ignore_warning  # noqa: E402
 from process.preprocess import generate_report_list  # noqa: E402
+from bisarekonsiliasi.generic import generate_reconciliation  # noqa: E402
 import main as generator  # noqa: E402  (generator/main.py orchestration)
 
 MARKETPLACES = list(generator.MARKETPLACE_PROCESSORS.keys())
@@ -45,6 +46,9 @@ def parse_args(argv=None):
                         help='Output folder (default: ./reports).')
     parser.add_argument('--show-files', action='store_true',
                         help='Log the discovered input files.')
+    parser.add_argument('--reconcile', action='store_true',
+                        help='Write Rekonsiliasi <Marketplace>.xlsx (read-only audit of '
+                             'BisaSaldo/BisaFee vs what is captured); generates no reports.')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Enable debug logging.')
     return parser.parse_args(argv)
@@ -63,14 +67,22 @@ def main(argv=None):
     logging.info("Start Application")
 
     constant.set_dirs(data_dir=args.data_dir, reports_dir=args.output_dir)
-
     ignore_warning(True)
+
+    chosen = selected_marketplaces(args)
+
+    if args.reconcile:
+        recon = None if chosen is None else [m.capitalize() for m in chosen]
+        generate_reconciliation(recon)
+        logging.info("Selesai rekonsiliasi. Tersimpan di %s", constant.get_reports_dir())
+        return
+
     list_report = generate_report_list(args.show_files)
     if not list_report:
         logging.warning("Tidak ada file ditemukan di %s", constant.get_data_dir())
         return
 
-    generator.run(list_report, selected_marketplaces(args))
+    generator.run(list_report, chosen)
     logging.info("Selesai. Laporan tersimpan di %s", constant.get_reports_dir())
 
 
