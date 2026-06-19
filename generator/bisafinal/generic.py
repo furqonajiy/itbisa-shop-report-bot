@@ -4,7 +4,8 @@ import os
 
 import pandas as pd
 from openpyxl.reader.excel import load_workbook
-from openpyxl.styles import Alignment
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 from utility.constant import MARKETPLACE_FOLDERS, get_reports_dir
 
@@ -19,14 +20,36 @@ _MONEY_COLUMNS = [
 # Remit amount columns summed when an order has several remit entries.
 _REMIT_AMOUNT_COLUMNS = ['Potongan Pembayaran', 'Nominal Remit', 'Keuntungan Tambahan', 'Kerugian Tambahan']
 
-# (header, width) for each Final column, in order.
+# Column groups, colored to show their source: 1 = order side (BisaInvoice/BisaJual),
+# 2 = remit side (BisaRemit), 3 = manual columns.
+_GROUP_ORDER = 1
+_GROUP_REMIT = 2
+_GROUP_MANUAL = 3
+
+# (header, width, group) for each Final column, in order.
 _COLUMN_LAYOUT = [
-    ('Tanggal\nPesan', 20), ('Marketplace', 14), ('Invoice', 40), ('Ongkir', 12),
-    ('Asuransi', 12), ('Omzet\nBarang', 15), ('Nominal\nInvoice', 16), ('Tanggal\nRemit', 18),
-    ('Potongan Pembayaran', 20), ('Nominal Remit', 15), ('Keuntungan\nTambahan', 14),
-    ('Kerugian Tambahan', 18), ('Cek\nRemit', 12), ('Untung Lainnya', 16),
-    ('Rugi Lainnya', 14), ('Keterangan', 30),
+    ('Tanggal\nPesan', 20, _GROUP_ORDER), ('Marketplace', 14, _GROUP_ORDER),
+    ('Invoice', 40, _GROUP_ORDER), ('Ongkir', 12, _GROUP_ORDER),
+    ('Asuransi', 12, _GROUP_ORDER), ('Omzet\nBarang', 15, _GROUP_ORDER),
+    ('Nominal\nInvoice', 16, _GROUP_ORDER),
+    ('Tanggal\nRemit', 18, _GROUP_REMIT), ('Potongan Pembayaran', 20, _GROUP_REMIT),
+    ('Nominal Remit', 15, _GROUP_REMIT), ('Keuntungan\nTambahan', 14, _GROUP_REMIT),
+    ('Kerugian Tambahan', 18, _GROUP_REMIT), ('Cek\nRemit', 12, _GROUP_REMIT),
+    ('Untung Lainnya', 16, _GROUP_MANUAL), ('Rugi Lainnya', 14, _GROUP_MANUAL),
+    ('Keterangan', 30, _GROUP_MANUAL),
 ]
+
+# Per-group colors: (header fill, data fill). Header gets a strong fill + white
+# bold font; the data rows get a light tint of the same hue.
+_GROUP_STYLE = {
+    _GROUP_ORDER: ('4472C4', 'D9E1F2'),   # blue
+    _GROUP_REMIT: ('548235', 'E2EFDA'),   # green
+    _GROUP_MANUAL: ('BF8F00', 'FFF2CC'),  # amber
+}
+_HEADER_FONT_COLOR = 'FFFFFF'
+_MONEY_FORMAT = '#,##0'
+_GRID = Side(style='thin', color='D9D9D9')
+_BORDER = Border(left=_GRID, right=_GRID, top=_GRID, bottom=_GRID)
 
 
 def _to_number(series):
@@ -127,28 +150,60 @@ def _build_final(invoice_df, jual_df, remit_idx):
     })
 
     # Render money as integers; unmatched remit cells stay blank (Int64 <NA>).
+    # to_numeric first so an all-blank remit column (object NA) still rounds cleanly.
     for col in _MONEY_COLUMNS:
-        out[col] = out[col].round().astype('Int64')
+        out[col] = pd.to_numeric(out[col], errors='coerce').round().astype('Int64')
 
     return out.sort_values('Invoice').reset_index(drop=True)
 
 
+def _style_final(sheet, n_rows):
+    """Style the Final sheet to match BisaInvoice and color the column groups."""
+    last_row = n_rows + 1  # +1 for the header row
+
+    # Index/row-number gutter (column A), like BisaInvoice.
+    sheet.column_dimensions['A'].width = 6
+    sheet.cell(row=1, column=1).alignment = Alignment(horizontal='center', vertical='center')
+    for row in range(1, last_row + 1):
+        sheet.cell(row=row, column=1).border = _BORDER
+
+    for offset, (header, width, group) in enumerate(_COLUMN_LAYOUT):
+        col = offset + 2  # data starts at column B (column A is the index)
+        sheet.column_dimensions[get_column_letter(col)].width = width
+        header_fill, data_fill = _GROUP_STYLE[group]
+
+        head = sheet.cell(row=1, column=col)
+        head.fill = PatternFill('solid', fgColor=header_fill)
+        head.font = Font(bold=True, color=_HEADER_FONT_COLOR)
+        head.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        head.border = _BORDER
+
+        number_format = _MONEY_FORMAT if header in _MONEY_COLUMNS else None
+        for row in range(2, last_row + 1):
+            cell = sheet.cell(row=row, column=col)
+            cell.fill = PatternFill('solid', fgColor=data_fill)
+            cell.border = _BORDER
+            if number_format:
+                cell.number_format = number_format
+
+    sheet.row_dimensions[1].height = 30  # room for the two-line headers
+    sheet.freeze_panes = 'B2'  # keep the header row and the row-number gutter in view
+
+
 def _write_final(out, path, sheet_name=FINAL_SHEET):
     """Append (or replace) the Final sheet in an existing BisaLaporan workbook."""
+    out = out.copy()
+    out.index = range(1, len(out) + 1)  # 1-based row numbers, like BisaInvoice
+
     try:
         writer = pd.ExcelWriter(path, mode='a', engine='openpyxl', if_sheet_exists='replace')
         writer.book = load_workbook(path)
     except (FileNotFoundError, ValueError):
         writer = pd.ExcelWriter(path, engine='openpyxl')
 
-    out.to_excel(writer, sheet_name=sheet_name, index=False)
+    out.to_excel(writer, sheet_name=sheet_name)  # include the row-number index column
 
-    sheet = writer.book[sheet_name]
-    for offset, (_, width) in enumerate(_COLUMN_LAYOUT):
-        sheet.column_dimensions[chr(ord('A') + offset)].width = width
-    for cell in sheet[1]:  # wrap the two-line header labels
-        cell.alignment = Alignment(wrap_text=True, vertical='center')
-    sheet.freeze_panes = 'A2'
+    _style_final(writer.book[sheet_name], n_rows=len(out))
 
     writer.close()
 
