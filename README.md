@@ -41,7 +41,28 @@ python main.py
 | `python main.py --data-dir <dir>` | Read inputs from `<dir>` instead of `./data`. |
 | `python main.py --output-dir <dir>` | Write reports under `<dir>` instead of `./reports`. |
 | `python main.py --show-files` | Log every input file discovered, then run. |
+| `python main.py --reconcile` | Write `Rekonsiliasi <Marketplace>.xlsx` (read-only audit; see below). Generates no reports. |
 | `python main.py -v` / `--verbose` | Enable debug logging. |
+
+## Reconciliation (`--reconcile`)
+
+`python main.py --reconcile` writes a **read-only** `reports/<marketplace>/Rekonsiliasi
+<Marketplace>.xlsx` for each marketplace that has a `BisaSaldo` (Shopee, Tokopedia,
+Bukalapak). It **changes no generated numbers** — it re-reads the raw `BisaSaldo` /
+`BisaFee` inputs and audits what the generator captures, so you can spot money that
+silently falls out of `BisaLaporan`. Each workbook has:
+
+- **Ringkasan** — per period: net balance change split into Remit / Bonus /
+  Penarikan-Transfer / **Tidak Tercatat** (uncaptured), with a red **Perlu Dicek**
+  flag when anything is uncaptured.
+- **Saldo Tidak Tercatat** — every `BisaSaldo` row not captured into `BisaRemit`/
+  `BisaBonus`, with the reason (e.g. *matched a remit keyword but was excluded by the
+  invoice filter* — this is where a `Pencairan SPinjam untuk Penjual` loan row lands).
+- **BisaFee Tidak Cocok** (Shopee) — fee rows with no matching remit, and remit rows
+  whose amount doesn't match the fee (so the `(Invoice, Nominal Remit)` join drops the
+  fee). Overlapping fee files are de-duplicated first.
+
+Run it for one marketplace with the usual flags, e.g. `python main.py --reconcile --shopee`.
 
 ## Inputs (`data/`)
 
@@ -139,6 +160,8 @@ generator/
     <marketplace>/<vN>.py    # per-marketplace sheet builders
   bisafinal/
     generic.py               # builds the Final sheet (marketplace-agnostic)
+  bisarekonsiliasi/
+    generic.py               # --reconcile audit (BisaSaldo/BisaFee vs captured)
   keywordchecker/            # validates marketplace status / saldo keywords
   utility/
     constant.py              # data/report dirs + marketplace->folder mapping
