@@ -104,6 +104,12 @@ Remit`, `Untung Lainnya`, `Rugi Lainnya`, `Keterangan`.
 - `Cek Remit`, `Untung Lainnya`, `Rugi Lainnya`, and `Keterangan` are left blank
   for manual entry.
 
+The sheet mirrors the `BisaInvoice` styling (row-number gutter, bold centered
+headers) and **color-codes the three column groups** by source: the order side
+(`Tanggal Pesan` → `Nominal Invoice`) is blue, the remit side (`Tanggal Remit` →
+`Cek Remit`) is green, and the manual columns (`Untung Lainnya` → `Keterangan`)
+are amber. Money columns use a thousands separator.
+
 Because the remit lookup spans periods, `Final` is built **after** all of a
 marketplace's workbooks have been generated.
 
