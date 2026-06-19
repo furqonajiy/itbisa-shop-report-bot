@@ -5,3 +5,8 @@
 
 # pycache
 *.pyc
+__pycache__/
+
+# Data inputs and generated reports
+/data/
+/reports/

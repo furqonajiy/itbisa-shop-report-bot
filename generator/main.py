@@ -12,6 +12,27 @@ from utility.generic import ignore_warning
 
 logging.basicConfig(level=logging.INFO)
 
+# Marketplace -> ordered list of processor modules.
+MARKETPLACE_PROCESSORS = {
+    'bukalapak': [bukalapak_v2],
+    'tokopedia': [tokopedia_v1, tokopedia_v2],
+    'shopee': [shopee_v2, shopee_v3],
+    'tiktok': [tiktok_v1],
+}
+
+
+def run(list_report, marketplaces=None):
+    """Run the selected marketplace processors over the given report list.
+
+    marketplaces: iterable of keys from MARKETPLACE_PROCESSORS, or None for all.
+    """
+    if marketplaces is None:
+        marketplaces = list(MARKETPLACE_PROCESSORS.keys())
+
+    for marketplace in marketplaces:
+        for processor in MARKETPLACE_PROCESSORS[marketplace]:
+            processor.process(list_report)
+
 
 def main():
     logging.debug("Start Main Process")
@@ -21,12 +42,7 @@ def main():
     list_report = generate_report_list(False)
 
     # Process Marketplace
-    bukalapak_v2.process(list_report)
-    tokopedia_v1.process(list_report)
-    tokopedia_v2.process(list_report)
-    shopee_v2.process(list_report)
-    shopee_v3.process(list_report)
-    tiktok_v1.process(list_report)
+    run(list_report)
 
 
 if __name__ == "__main__":

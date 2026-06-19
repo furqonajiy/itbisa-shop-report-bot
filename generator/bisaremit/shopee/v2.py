@@ -2,6 +2,8 @@ import logging
 
 import pandas as pd
 
+from utility.generic import build_report_path
+
 from bisaremit.generic import bisaremit_to_excel
 from keywordchecker.shopee import VALID_NOMINAL_REMIT_KEYWORD, VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD, VALID_KERUGIAN_TAMBAHAN_KEYWORD
 
@@ -60,4 +62,5 @@ def generate_bisaremit(shp_file, df, df_fee):
             .replace(' v2', '')
             .replace('BisaSaldo', 'BisaLaporan')
             .replace('.csv', '.xlsx'))
+    path = build_report_path(path)
     bisaremit_to_excel(df, path, 'BisaRemit Shopee')

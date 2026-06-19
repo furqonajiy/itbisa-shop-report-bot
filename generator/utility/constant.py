@@ -1,37 +1,39 @@
-BASE_DIR = "H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace"
+import os
 
-BISATRANSAKSI_DIR = [
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Bukalapak - BisaTransaksi v2',
+# Repo root = three levels up from generator/utility/constant.py
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Shopee - BisaTransaksi v2',
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Shopee - BisaTransaksi v3',
+# Default input/output folders (repo-relative, OS-independent).
+# Inputs (marketplace exports) live under data/; generated reports under reports/.
+DEFAULT_DATA_DIR = os.path.join(_REPO_ROOT, 'data')
+DEFAULT_REPORTS_DIR = os.path.join(_REPO_ROOT, 'reports')
 
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tokopedia - BisaTransaksi v1',
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tokopedia - BisaTransaksi v2',
+# Marketplace name (as it appears in the report filename) -> reports/<subfolder>
+MARKETPLACE_FOLDERS = {
+    'Shopee': 'shopee',
+    'Tiktok': 'tiktokshop',
+    'Tokopedia': 'tokopedia',
+    'Bukalapak': 'bukalapak',
+}
 
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tiktok - BisaTransaksi v1'
-]
+_data_dir = DEFAULT_DATA_DIR
+_reports_dir = DEFAULT_REPORTS_DIR
 
-BISASALDO_DIR = [
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Bukalapak - BisaSaldo v2',
 
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Shopee - BisaSaldo v2',
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Shopee - BisaSaldo v3',
+def set_dirs(data_dir=None, reports_dir=None):
+    """Override the default input/output folders (used by the CLI)."""
+    global _data_dir, _reports_dir
+    if data_dir:
+        _data_dir = os.path.abspath(data_dir)
+    if reports_dir:
+        _reports_dir = os.path.abspath(reports_dir)
 
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tokopedia - BisaSaldo v1',
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tokopedia - BisaSaldo v2',
 
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tiktok - BisaSaldo v1',
-]
+def get_data_dir():
+    """Return the folder that input marketplace exports are read from."""
+    return _data_dir
 
-BISAFEE_DIR = [
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Shopee - BisaFee v2',
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Shopee - BisaFee v3',
 
-    'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tiktok - BisaFee v1'
-]
-
-BISALAPORAN_BUKALAPAK_DIR = 'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Bukalapak - BisaLaporan v2'
-BISALAPORAN_TOKOPEDIA_DIR = 'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tokopedia - BisaLaporan'
-BISALAPORAN_TIKTOK_DIR = 'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Tiktok - BisaLaporan'
-BISALAPORAN_SHOPEE_DIR = 'H:\My Drive\ITBisa - 2\CBDO - Chief Business Development Officer\BisaLaporan - Marketplace\Shopee - BisaLaporan'
+def get_reports_dir():
+    """Return the folder that generated reports are written under."""
+    return _reports_dir
