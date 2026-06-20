@@ -25,7 +25,7 @@ def generate_bisainvoice(ttk_file, df):
     df.columns = ['Tanggal', 'Marketplace', 'Invoice', 'Ongkir', 'Asuransi']
 
     # Convert Data Type
-    df['Tanggal'] = pd.to_datetime(df['Tanggal'], format='%d/%m/%Y %H:%M:%S').dt.strftime('%Y-%m-%d %H:%M:%S')  # Datetime
+    df['Tanggal'] = pd.to_datetime(df['Tanggal'], format='mixed', dayfirst=True).dt.strftime('%Y-%m-%d %H:%M:%S')  # Datetime
     df['Ongkir'] = df['Ongkir'].astype(str)
     df['Asuransi'] = df['Asuransi'].astype(str)
 

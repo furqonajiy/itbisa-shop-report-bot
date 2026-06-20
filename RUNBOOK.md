@@ -13,9 +13,9 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-> Use a Python **3.8–3.11** interpreter. `requirements.txt` pins `pandas>=1.4,<2.0`
-> (the Excel writers rely on the pandas-1.x `ExcelWriter.book` API); pandas 1.x does
-> not support Python 3.12+.
+> Use a Python **3.8–3.11** interpreter. `requirements.txt` pins `pandas>=2.0,<3.0`
+> (pandas **3.0** is not yet supported — its new `str` dtype + Copy-on-Write default
+> need a separate port).
 
 ## 2. Drop the marketplace exports into `data/`
 
@@ -113,8 +113,8 @@ the relevant workbook(s) into that project's `data\` per its own README.
 | `Tidak ada file ditemukan di …` | No `*.xls*` / `*.csv` under the data dir. Check `--data-dir` and that files actually landed in `data\`. Run `python main.py --show-files` to list what was discovered. |
 | A file is ignored | Its filename is missing the marketplace/version/type token (e.g. `BisaTransaksi v2 Shopee`). Rename to the exporter's convention. |
 | `ValueError: Tidak dapat menentukan marketplace dari file: …` | The report filename has no `Shopee`/`Tiktok`/`Tokopedia`/`Bukalapak` substring — fix the source filename. |
-| `ImportError` / `numpy.dtype size changed` on `import pandas` | pandas/numpy mismatch. Reinstall the pinned set: `pip install -r requirements.txt` (pandas 1.x ↔ numpy 1.x). |
-| `AttributeError: property 'book' … has no setter` | pandas ≥ 2.0 is installed. Downgrade: `pip install "pandas>=1.4,<2.0"`. |
+| `ImportError` / `numpy.dtype size changed` on `import pandas` | pandas/numpy mismatch. Reinstall the pinned set: `pip install -r requirements.txt`. |
+| `TypeError: Invalid value '0' for dtype 'str'` / `fillna() got an unexpected keyword 'method'` | pandas **3.0** is installed (unsupported). Pin to 2.x: `pip install "pandas>=2.0,<3.0"`. |
 | `ValueError: Check … Keyword failed in …` | The export contains a status/saldo keyword the validator doesn't know (`keywordchecker/`). A new marketplace wording appeared — add it to the relevant `VALID_*` list. |
 
 ## Verifying a change before committing

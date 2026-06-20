@@ -1,7 +1,6 @@
 import logging
 
 import pandas as pd
-from openpyxl.reader.excel import load_workbook
 
 
 def bisaremit_to_excel(df, path, sheet_name):
@@ -18,7 +17,6 @@ def bisaremit_to_excel(df, path, sheet_name):
     # Export to Excel
     try:
         writer = pd.ExcelWriter(path, mode='a', engine='openpyxl', if_sheet_exists='replace')
-        writer.book = load_workbook(path)
         df.to_excel(writer, sheet_name=sheet_name)  # Export
     except FileNotFoundError:
         writer = pd.ExcelWriter(path, engine='openpyxl')

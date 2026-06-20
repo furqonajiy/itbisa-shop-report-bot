@@ -29,7 +29,7 @@ def generate_bisaremit(tkp_file, df):
                   'Keuntungan Tambahan', 'Kerugian Tambahan']
 
     # Convert Data Type
-    df['Tanggal Remit'] = pd.to_datetime(df['Tanggal Remit'], format='%Y-%m-%d %H:%M').dt.strftime('%Y-%m-%d %H:%M')  # Datetime
+    df['Tanggal Remit'] = pd.to_datetime(df['Tanggal Remit'], format='mixed', dayfirst=False).dt.strftime('%Y-%m-%d %H:%M')  # Datetime
 
     # Aggregate
     df = df.groupby(['Invoice', 'Tanggal Remit']).sum().sort_values('Invoice')

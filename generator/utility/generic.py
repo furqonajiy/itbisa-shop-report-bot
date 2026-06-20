@@ -2,10 +2,13 @@ import logging
 import os
 import warnings
 
-try:  # pandas >= 1.5 exposes it here; older pandas under pandas.core.common
+try:  # pandas 1.5-2.x: pandas.errors; older: pandas.core.common; pandas 3.0 removed it (CoW default)
     from pandas.errors import SettingWithCopyWarning
 except ImportError:  # pragma: no cover
-    from pandas.core.common import SettingWithCopyWarning
+    try:
+        from pandas.core.common import SettingWithCopyWarning
+    except ImportError:
+        SettingWithCopyWarning = None
 
 from utility.constant import MARKETPLACE_FOLDERS, get_reports_dir
 
@@ -14,7 +17,8 @@ def ignore_warning(ignore):
     logging.debug("Ignore Warning")
 
     if ignore:
-        warnings.simplefilter(action='ignore', category=SettingWithCopyWarning)
+        if SettingWithCopyWarning is not None:
+            warnings.simplefilter(action='ignore', category=SettingWithCopyWarning)
         warnings.simplefilter(action='ignore', category=FutureWarning)
         warnings.simplefilter(action='ignore', category=UserWarning)
 

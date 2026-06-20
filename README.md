@@ -26,10 +26,9 @@ python main.py
 # reports land in .\reports\shopee\ , .\reports\tiktokshop\ , etc.
 ```
 
-> **Python / pandas:** this tool targets **pandas 1.x** (`requirements.txt` pins
-> `pandas>=1.4,<2.0`), because the Excel writers use the pandas-1.x
-> `ExcelWriter.book` API. pandas 1.5 supports Python **3.8–3.11**, so use one of
-> those interpreters.
+> **Python / pandas:** this tool targets **pandas 2.x** (`requirements.txt` pins
+> `pandas>=2.0,<3.0`). pandas **3.0** is not yet supported (its new `str` dtype and
+> Copy-on-Write default need a separate port). Use Python **3.8–3.11**.
 
 ## CLI (`python main.py`)
 

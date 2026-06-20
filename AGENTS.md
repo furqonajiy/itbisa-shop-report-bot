@@ -11,7 +11,7 @@ Instructions for **ChatGPT Codex** (and any other coding agent).
 - **Workflow**: branch `feature/<short-desc>` off `main`; doc updates ride in the same PR as the code; PR → **merge commit (`--no-ff`)** with a representative title ending in the PR number.
 - **CLI handed to the user**: PowerShell syntax (the user is on Windows).
 - **Docs language**: all Markdown (`*.md`) is written in **English prose**, keeping special Indonesian/domain terms verbatim — input type tokens (`BisaTransaksi`, `BisaSaldo`, `BisaFee`), sheet names (`BisaInvoice`, `BisaJual`, `BisaRemit`, `BisaBonus`), domain terms (`omzet`, `Toko`), and any quoted console string. The console strings emitted by the code stay Bahasa Indonesia.
-- **pandas < 2.0** is a hard constraint (the Excel writers use the pandas-1.x `ExcelWriter.book` API).
+- **pandas `>=2.0,<3.0`** is a hard constraint (pandas 3.0's new `str` dtype + Copy-on-Write need a separate port).
 - Keep changes minimal and targeted; respect the **flag-before-changing** items in `CLAUDE.md`.
 
 ## AI-instruction file map
