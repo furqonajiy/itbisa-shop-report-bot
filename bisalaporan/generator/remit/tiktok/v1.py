@@ -11,7 +11,7 @@ def generate_remit(tkp_file, df):
     logging.info("Generate Remit Tiktok from {0} ({1} rows)".format(tkp_file, len(df)))
 
     # Generate Invoice from Order/adjustment ID
-    df = df[['Order/adjustment ID  ', 'Order created time', 'Total settlement amount', 'Total Revenue',
+    df = df[['Order/adjustment ID', 'Order created time', 'Total settlement amount', 'Total Revenue',
              'Shipping costs passed on to the logistics provider', 'Refund subtotal after seller discounts']]
 
     # Initialize Biaya Layanan and Remit
@@ -21,7 +21,7 @@ def generate_remit(tkp_file, df):
     df['Kerugian Tambahan'] = df['Total Revenue'] - df['Total settlement amount'] - df['Refund subtotal after seller discounts']
 
     # Select Needed Column
-    df = df[['Order/adjustment ID  ', 'Order created time', 'Potongan Pembayaran', 'Nominal Remit',
+    df = df[['Order/adjustment ID', 'Order created time', 'Potongan Pembayaran', 'Nominal Remit',
              'Keuntungan Tambahan', 'Kerugian Tambahan']]
 
     # Change Column Name

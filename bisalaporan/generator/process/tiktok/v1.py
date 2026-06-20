@@ -49,11 +49,17 @@ def read_fee(ttk_file):
 
         df = pd.read_excel(ttk_file,
                            dtype={'Order/adjustment ID  ': str,
+                                  'Order/Adjustment ID': str,
                                   'Order created time': str,
                                   'Total Revenue': int,
                                   'Total settlement amount': int,
                                   'Refund subtotal after seller discounts': int,
                                   'Shipping costs passed on to the logistics provider': int})
+
+        # TikTok renamed 'Order/adjustment ID  ' (trailing spaces, lowercase) ->
+        # 'Order/Adjustment ID'; normalize either header to one canonical name.
+        df = df.rename(columns=lambda c: 'Order/adjustment ID'
+                       if str(c).strip().lower() == 'order/adjustment id' else c)
 
         if len(df) > 0:
             generate_remit(ttk_file, df)

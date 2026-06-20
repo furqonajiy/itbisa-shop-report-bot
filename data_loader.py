@@ -1,7 +1,6 @@
 """Load and clean stok and jual data."""
 from __future__ import annotations
 from pathlib import Path
-from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -140,7 +139,7 @@ def load_jual_files(file_paths: list[Path]) -> pd.DataFrame:
     return df
 
 
-def clean_jual(df: pd.DataFrame, year: int | None = None) -> Tuple[pd.DataFrame, dict]:
+def clean_jual(df: pd.DataFrame, year: int | None = None) -> tuple[pd.DataFrame, dict]:
     """Clean jual; if year provided, filter to that year by tanggal_pesan."""
     stats = {"total_raw": len(df)}
 

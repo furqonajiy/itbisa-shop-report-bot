@@ -5,7 +5,7 @@
 Standalone, **offline** Python tool that turns raw marketplace exports (Shopee, Tokopedia, Tiktok, Bukalapak) into standardized **Laporan** workbooks (`Invoice` / `Jual` / `Remit` / `Bonus` + a combined `Final` sheet per period). No API calls, no network, no secrets, no GitHub Actions — runs locally and is idempotent. The generated **`Jual`** sheet is the upstream feed consumed by the sibling repo **itbisa-shop-report-bot**.
 
 ## Stack & files
-- Python 3.8–3.11. Deps: `pandas` (**2.x**, pinned `>=2.0,<3.0`), `openpyxl` (`requirements.txt`).
+- Python 3.13. Deps: `pandas` (**2.x**, pinned `>=2.0,<3.0`), `openpyxl` (`requirements.txt`).
   - **pandas 2.x** (not 3.0): the Excel append writers let pandas auto-load the workbook (no more `ExcelWriter.book` setter — removed in 2.0); date parsing uses `to_datetime(..., format='mixed', dayfirst=...)` because 2.0 raises on a strict-format mismatch (1.x silently fell back); forward-fills use `.ffill()` (the `fillna(method=...)` keyword is gone). `utility/generic.py` imports `SettingWithCopyWarning` from `pandas.errors` with fallbacks (it was removed entirely in pandas 3.0, where the new `str` dtype + Copy-on-Write would need a separate port).
 - `main.py` (repo root) — **CLI entry point** (`argparse`). Puts `generator/` on `sys.path`, parses flags, sets the data/report dirs, then calls `generator.run(...)`.
 - `generator/main.py` — orchestration: `MARKETPLACE_PROCESSORS` (marketplace → ordered processor modules) and `run(list_report, marketplaces=None)`. After a marketplace's processors finish, `run` calls `generate_final(<Marketplace>)` so the `Final` sheet sees every period's workbook.
