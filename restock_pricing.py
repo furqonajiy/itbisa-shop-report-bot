@@ -31,6 +31,7 @@ from config import (
     RESTOCK_TARGET_NET_MARKUP, RMB_SPOT_FX_IDR, RMB_TO_IDR_FALLBACK, STOK_SHEET,
     TITLE_COLOR, YELLOW_FILL_COLOR,
 )
+from data_loader import resolve_sheet
 
 HEADER_FONT = Font(name=FONT_NAME, bold=True, color=HEADER_TEXT_COLOR, size=11)
 HEADER_FILL = PatternFill("solid", start_color=HEADER_BG_COLOR)
@@ -84,7 +85,7 @@ def create_restock_template(filepath: Path) -> None:
     guide.column_dimensions["A"].width = 100
     lines = [
         "Cara isi sheet 'RestockCheck' (satu baris = satu SKU yang mau di-restock):",
-        f"• {COL_RC_SKU}: persis sama dengan SKU di BisaStok/BisaJual.",
+        f"• {COL_RC_SKU}: persis sama dengan SKU di Stok/Jual.",
         f"• {COL_RC_TOKO}: calon supplier (Ocistok/Martkita, AliExpress, Shopee, Tokopedia, dst).",
         f"• {COL_RC_RMB}: harga supplier per pcs dalam RMB (Yuan) — untuk impor; HPP IDR diprediksi otomatis.",
         f"• {COL_RC_HPP}: HPP per pcs dalam Rupiah (sudah termasuk ongkir/impor) — isi kalau sudah tahu; menimpa prediksi RMB.",
@@ -127,11 +128,11 @@ def load_restock_check(filepath: Path) -> pd.DataFrame:
 # Calibration from history
 # ---------------------------------------------------------------------------
 def load_rmb_hpp_history(stok_files: list[Path]) -> pd.DataFrame:
-    """Per-lot (SKU, rmb_unit, hpp_idr_pc) from BisaStok: rmb from the
+    """Per-lot (SKU, rmb_unit, hpp_idr_pc) from Stok: rmb from the
     Keterangan "(x RMB)" note, landed HPP/pc = Total HPP (Rp) ÷ qty."""
     rows = []
     for fp in stok_files:
-        df = pd.read_excel(fp, sheet_name=STOK_SHEET, header=1)
+        df = pd.read_excel(fp, sheet_name=resolve_sheet(fp, STOK_SHEET), header=1)
         ket_cols = [c for c in df.columns if str(c).strip().startswith("Keterangan")]
         ket = ket_cols[0] if ket_cols else None
         tok_cols = [c for c in df.columns if str(c).strip().lower().startswith("toko")]
@@ -168,7 +169,7 @@ def compute_rmb_factor(hist: pd.DataFrame) -> tuple[pd.Series, float]:
 
 
 def compute_platform_fees(jual: pd.DataFrame) -> dict[str, float]:
-    """Per-platform fee = |admin| / omzet from all-time BisaJual (admin = tambahan +
+    """Per-platform fee = |admin| / omzet from all-time Jual (admin = tambahan +
     kode_unik, stored negative). Fallback to PLATFORM_FEE_FALLBACK for thin platforms."""
     fees = {}
     if jual is not None and len(jual):

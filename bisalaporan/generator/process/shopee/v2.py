@@ -2,11 +2,11 @@ import logging
 
 import pandas as pd
 
-from bisabonus.shopee.v2 import generate_bisabonus
-from bisafee.shopee.v2 import generate_bisafee
-from bisainvoice.shopee.v2 import generate_bisainvoice
-from bisajual.shopee.v2 import generate_bisajual
-from bisaremit.shopee.v2 import generate_bisaremit
+from bonus.shopee.v2 import generate_bonus
+from fee.shopee.v2 import generate_fee
+from invoice.shopee.v2 import generate_invoice
+from jual.shopee.v2 import generate_jual
+from remit.shopee.v2 import generate_remit
 from keywordchecker.shopee import check_saldo_keyword, check_status_keyword
 
 
@@ -14,21 +14,21 @@ def process(list_report):
     logging.info("Process Shopee v2 File")
 
     for shp_file in list_report:
-        read_bisatransaksi(shp_file)
+        read_transaksi(shp_file)
 
     df_fee = pd.DataFrame(columns=['Invoice', 'Potongan Pembayaran (Fee)', 'Nominal Remit (Fee)', 'Keuntungan Tambahan (Fee)', 'Kerugian Tambahan (Fee)'])
     for shp_file in list_report:
-        df_fee = read_bisafee(shp_file, df_fee)
+        df_fee = read_fee(shp_file, df_fee)
 
     for shp_file in list_report:
-        read_bisasaldo(shp_file, df_fee)
+        read_saldo(shp_file, df_fee)
 
 
-def read_bisatransaksi(shp_file):
-    cond1 = 'BisaTransaksi v2 Shopee' in shp_file
+def read_transaksi(shp_file):
+    cond1 = 'Transaksi v2 Shopee' in shp_file
     cond2 = '~' not in shp_file
     if cond1 and cond2:
-        logging.debug("Read BisaTransaksi Shopee {0}".format(shp_file))
+        logging.debug("Read Transaksi Shopee {0}".format(shp_file))
 
         df = pd.read_excel(shp_file, dtype={'Harga Setelah Diskon': str, 'Ongkir': str, 'Alasan Pembatalan': str})
 
@@ -38,12 +38,12 @@ def read_bisatransaksi(shp_file):
 
         if len(df) > 0:
             check_status_keyword("2", shp_file, df)
-            generate_bisainvoice(shp_file, df)
-            generate_bisajual(shp_file, df)
+            generate_invoice(shp_file, df)
+            generate_jual(shp_file, df)
 
 
-def read_bisasaldo(shp_file, df_fee):
-    cond1 = 'BisaSaldo v2 Shopee' in shp_file
+def read_saldo(shp_file, df_fee):
+    cond1 = 'Saldo v2 Shopee' in shp_file
     cond2 = '~' not in shp_file
     if cond1 and cond2:
         logging.debug("Read {0}".format(shp_file))
@@ -52,12 +52,12 @@ def read_bisasaldo(shp_file, df_fee):
 
         if len(df) > 0:
             check_saldo_keyword(shp_file, df)
-            generate_bisaremit(shp_file, df, df_fee)
-            generate_bisabonus(shp_file, df)
+            generate_remit(shp_file, df, df_fee)
+            generate_bonus(shp_file, df)
 
 
-def read_bisafee(shp_file, df_fee):
-    cond1 = 'BisaFee v2 Shopee' in shp_file
+def read_fee(shp_file, df_fee):
+    cond1 = 'Fee v2 Shopee' in shp_file
     cond2 = '~' not in shp_file
     if cond1 and cond2:
         logging.debug("Read {0}".format(shp_file))
@@ -75,7 +75,7 @@ def read_bisafee(shp_file, df_fee):
             logging.debug(error)
 
         if len(df_raw) > 0:
-            clean_df_fee = generate_bisafee(shp_file, df_raw, df_adjust)
+            clean_df_fee = generate_fee(shp_file, df_raw, df_adjust)
             df_fee = pd.concat([df_fee, clean_df_fee])
 
     return df_fee

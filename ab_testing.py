@@ -8,6 +8,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from data_loader import resolve_sheet
 from config import (
     AB_BULK_CONCENTRATION, AB_MIN_DAYS_POST, AB_MIN_TRANS_POST, AB_MIN_TRANS_PRE,
     AB_PRE_WINDOW_DAYS, AB_TESTS_SHEET, ALERT_TEXT_COLOR, COL_AB_CATATAN,
@@ -35,7 +36,7 @@ def load_ab_tests(filepath: Path) -> pd.DataFrame:
         print(f"  ⚠ File {filepath.name} tidak ditemukan, A/B test skipped")
         return pd.DataFrame()
 
-    df = pd.read_excel(filepath, sheet_name=AB_TESTS_SHEET)
+    df = pd.read_excel(filepath, sheet_name=resolve_sheet(filepath, AB_TESTS_SHEET))
     df = df.rename(columns={
         COL_AB_SKU: "sku",
         COL_AB_TANGGAL: "tanggal_perubahan",

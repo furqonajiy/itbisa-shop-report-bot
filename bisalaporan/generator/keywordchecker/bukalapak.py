@@ -26,7 +26,7 @@ VALID_KERUGIAN_TAMBAHAN_KEYWORD = [
 ]
 
 VALID_BONUS_KEYWORD = [
-    # BisaBonus
+    # Bonus
     'Injection Promo Cashback Sicepat',
 ]
 
@@ -42,16 +42,16 @@ VALID_SALDO_KEYWORD = [
 ] + VALID_NOMINAL_REMIT_KEYWORD + VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD + VALID_KERUGIAN_TAMBAHAN_KEYWORD + VALID_BONUS_KEYWORD
 
 def check_saldo_keyword(bl_file, df):
-    logging.debug("Check BisaSaldo Keyword in {0}".format(bl_file))
+    logging.debug("Check Saldo Keyword in {0}".format(bl_file))
 
     invalid_rows = df[~df['Keterangan'].str.contains('|'.join(VALID_SALDO_KEYWORD))]
 
-    handle_invalid_keywords('BisaSaldo', bl_file, invalid_rows)
+    handle_invalid_keywords('Saldo', bl_file, invalid_rows)
 
 
 def check_status_keyword(bl_file, df):
-    logging.debug("Check BisaTransaksi Keyword in {0}".format(bl_file))
+    logging.debug("Check Transaksi Keyword in {0}".format(bl_file))
 
     invalid_rows = df[~df['Status'].isin(VALID_TRANSAKSI_KEYWORD)]
 
-    handle_invalid_keywords('BisaTransaksi', bl_file, invalid_rows)
+    handle_invalid_keywords('Transaksi', bl_file, invalid_rows)
