@@ -1,6 +1,7 @@
 """Main orchestrator for ITBisa sales analysis."""
 from __future__ import annotations
 import argparse
+import subprocess
 import sys
 from collections import namedtuple
 from datetime import datetime
@@ -482,6 +483,28 @@ def run_everything(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> 
     print(f"{'#'*60}\n")
 
 
+LAPORAN_DIR = Path(__file__).resolve().parent / "bisalaporan"
+
+
+def run_laporan(marketplaces=None) -> int:
+    """Run the BisaLaporan generator (bisalaporan/main.py) as its own process.
+
+    It reads bisalaporan/data and writes bisalaporan/reports. Invoked as a
+    subprocess so the generator stays fully self-contained (its own flat imports
+    and sys.path), independent of this tool. `marketplaces` (e.g. ["shopee"]) maps
+    to the generator's --shopee/--tiktok/... flags; empty = every marketplace.
+
+    Note: BisaLaporan feeds the bot's BisaJual ledger via a manual Google Sheets
+    step (copy BisaLaporan -> BisaJual Sheets -> export BisaJual*.xlsx into data/),
+    so this stage and the analysis stage are run separately, not auto-chained."""
+    script = LAPORAN_DIR / "main.py"
+    cmd = [sys.executable, str(script)] + [f"--{mp}" for mp in (marketplaces or [])]
+    print(f"\n{'#'*60}")
+    print(f"# BISALAPORAN — generate BisaInvoice/BisaJual/BisaRemit/BisaBonus")
+    print(f"{'#'*60}")
+    return subprocess.run(cmd).returncode
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate ITBisa sales analysis Excel report.")
     parser.add_argument("--sales", nargs="?", const="all", default=None, metavar="YEAR",
@@ -503,11 +526,17 @@ def main() -> int:
     parser.add_argument("--all", action="store_true",
                         help="Run SEMUANYA: sales all years + reorder + ab-test + restock-check "
                              "(ab-test & restock-check jalan kalau template-nya ada isinya).")
+    parser.add_argument("--laporan", nargs="*", default=None, metavar="MARKETPLACE",
+                        help="Jalankan generator BisaLaporan di bisalaporan/ (BisaInvoice/BisaJual/"
+                             "BisaRemit/BisaBonus dari export mentah). Tanpa argumen = semua "
+                             "marketplace; atau sebutkan, mis. --laporan shopee tiktok.")
     parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
     parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     args = parser.parse_args()
 
     try:
+        if args.laporan is not None:
+            return run_laporan(args.laporan)
         if args.all:
             run_everything(args.data_dir, args.output_dir)
         elif args.restock_check:

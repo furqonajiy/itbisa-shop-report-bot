@@ -7,7 +7,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 > Unlike the sibling ITBisa repos, this one is **not** a GitHub-Actions bot. It does not call Shopee/TikTok Shop APIs, has no `bot-state` branch, no workflows, no Telegram, and no secrets.
 
 ## Stack & files (flat layout, no `src/`)
-- Python 3.10+. Deps: `pandas`, `openpyxl` (`requirements.txt`).
+- Python 3.10+. Deps: `pandas` (pinned `>=2.0,<3.0`), `openpyxl` (`requirements.txt`). The pin caps below pandas 3.0 because the co-located `bisalaporan/` generator isn't ported to 3.0 yet (its new `str` dtype + Copy-on-Write default need separate work).
 - `main.py` — CLI entry point / orchestration.
 - `config.py` — all constants: globs, sheet/column names, thresholds, colors, supplier keywords, reorder + A/B params.
 - `data_loader.py` — multi-file glob loading, SKU normalization, current-workbook loaders (arrived beli / jual / hilang / pindah).
@@ -20,6 +20,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - `deadstock_analysis.py` — dead-stock / capital-release: Rupiah frozen in Overstock + Slow/Dead SKUs and how to free it.
 - `trend_analysis.py` — sales trend & seasonality: cross-year omzet/profit trend, YoY growth, per-month seasonal index.
 - `data/` — input Excel (gitignored). `output/` — generated reports.
+- `bisalaporan/` — the **co-located BisaLaporan generator** (a self-contained subproject with its own `generator/` package + sample `data/`), merged in with full history. Turns raw marketplace exports (`BisaTransaksi`/`BisaSaldo`/`BisaFee`) into `BisaLaporan` workbooks (`BisaInvoice`/`BisaJual`/`BisaRemit`/`BisaBonus`). Run it via `python main.py --laporan` — invoked as a **subprocess** so its flat imports / own `sys.path` stay isolated (no module collision; the generator is byte-for-byte the standalone tool). Its `BisaJual` sheet feeds this bot's `BisaJual` ledger through a **manual Google Sheets step** (copy BisaLaporan → BisaJual Sheets → export `BisaJual*.xlsx` into `data/`), so the **generate and analyze stages are run separately, not auto-chained**.
 
 ## CLI (`python main.py`)
 - (no flag) → **runs the full suite (same as `--all`)**: all years sales + trend + reorder + cash-flow + dead-stock + ab-test + restock-check.
@@ -32,6 +33,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - `--restock-check` → `Analisa_Restock_Check.xlsx` (auto-creates `data/restock_check.xlsx` template if missing).
 - `--all` → all years + trend + reorder + cash-flow + dead-stock + ab-test + restock-check (7 steps). **Loads the workbooks once (`_load_shared`) and computes reorder once**, sharing them across every step (the standalone flags still load on their own). Sales, trend, cash-flow, and dead-stock need no template, so they always run; the ab-test and restock-check steps run **only when their template exists with rows** — otherwise they're skipped silently (no template is auto-created, so the full run never halts). Use the dedicated `--ab-test` / `--restock-check` flag to bootstrap a template.
 - `--data-dir` / `--output-dir` override the defaults.
+- `--laporan` → run the **BisaLaporan generator** in `bisalaporan/` (BisaInvoice/BisaJual/BisaRemit/BisaBonus from raw exports). No arg = every marketplace; scope it: `--laporan shopee tiktok`. Reads `bisalaporan/data`, writes `bisalaporan/reports`. Runs as a subprocess (returns its exit code); a terminal action — does not also run the analysis suite (the BisaJual Sheets refresh is a manual step in between).
 
 ## Inputs (`data/`, matched by glob)
 - `STOK_GLOB = "*BisaStok*.xlsx"` (purchases) and `JUAL_GLOB = "*BisaJual*.xlsx"` (sales). Filenames must contain `BisaStok` / `BisaJual`.

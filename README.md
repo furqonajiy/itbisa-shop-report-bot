@@ -33,6 +33,7 @@ python main.py --deadstock      # dead-stock / capital release: Rupiah frozen in
 python main.py --ab-test        # A/B price-change test analysis (reads data/ab_tests.xlsx)
 python main.py --restock-check  # restock price check & selling-price recommendation (reads data/restock_check.xlsx)
 python main.py --all            # everything together (same as no flag)
+python main.py --laporan        # generate BisaLaporan in bisalaporan/ (every marketplace); scope: --laporan shopee tiktok
 ```
 
 > With no flag, `python main.py` runs the full suite (same as `--all`). The A/B test and
@@ -42,6 +43,13 @@ python main.py --all            # everything together (same as no flag)
 > first time.
 
 Results are written to the `output/` folder.
+
+> **BisaLaporan generator (`bisalaporan/`)** — `python main.py --laporan` runs the co-located
+> generator that turns raw marketplace exports (`BisaTransaksi`/`BisaSaldo`/`BisaFee`) into
+> `BisaLaporan` workbooks. Its `BisaJual` feeds this bot's `BisaJual` ledger through a **manual
+> Google Sheets step** (copy BisaLaporan → BisaJual Sheets → export `BisaJual*.xlsx` into `data/`),
+> so the generate and analyze stages are run separately. Reads `bisalaporan/data`, writes
+> `bisalaporan/reports`.
 
 ## Key concepts
 
