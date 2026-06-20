@@ -1,21 +1,23 @@
-# RUNBOOK — itbisa-bisalaporan
+# RUNBOOK — laporan (Laporan generator)
 
 Operating procedure for generating the **Laporan** workbooks. Commands are in
 **Windows PowerShell** (the supported environment). See [`README.md`](README.md) for
-the conceptual overview.
+the conceptual overview. This generator lives at `laporan/` inside
+**itbisa-shop-report-bot**; run it from the repo root via `python main.py --laporan`,
+or directly from `laporan/` with `python main.py`.
 
 ## 1. One-time setup
 
 ```powershell
-cd <path-to>\itbisa-bisalaporan
+cd <path-to>\itbisa-shop-report-bot
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-> Use a Python **3.13** interpreter. `requirements.txt` pins `pandas>=2.0,<3.0`
-> (pandas **3.0** is not yet supported — its new `str` dtype + Copy-on-Write default
-> need a separate port).
+> Use a Python **3.13** interpreter. The repo-root `requirements.txt` pins
+> `pandas>=2.0,<3.0` (pandas **3.0** is not yet supported — its new `str` dtype +
+> Copy-on-Write default need a separate port).
 
 ## 2. Drop the marketplace exports into `data/`
 
@@ -42,7 +44,13 @@ data\
 
 ## 3. Generate the reports
 
+The generator's own CLI (`--shopee`, `--reconcile`, …) lives in `laporan/main.py`, so
+run these from the `laporan/` folder. (From the repo root you can instead run every
+marketplace in one shot with the bot's `python main.py --laporan`.)
+
 ```powershell
+cd laporan
+
 # everything
 python main.py
 

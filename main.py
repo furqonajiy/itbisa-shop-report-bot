@@ -483,13 +483,13 @@ def run_everything(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> 
     print(f"{'#'*60}\n")
 
 
-LAPORAN_DIR = Path(__file__).resolve().parent / "bisalaporan"
+LAPORAN_DIR = Path(__file__).resolve().parent / "laporan"
 
 
 def run_laporan(marketplaces=None) -> int:
-    """Run the Laporan generator (bisalaporan/main.py) as its own process.
+    """Run the Laporan generator (laporan/main.py) as its own process.
 
-    It reads bisalaporan/data and writes bisalaporan/reports. Invoked as a
+    It reads laporan/data and writes laporan/reports. Invoked as a
     subprocess so the generator stays fully self-contained (its own flat imports
     and sys.path), independent of this tool. `marketplaces` (e.g. ["shopee"]) maps
     to the generator's --shopee/--tiktok/... flags; empty = every marketplace.
@@ -500,7 +500,7 @@ def run_laporan(marketplaces=None) -> int:
     script = LAPORAN_DIR / "main.py"
     cmd = [sys.executable, str(script)] + [f"--{mp}" for mp in (marketplaces or [])]
     print(f"\n{'#'*60}")
-    print(f"# BISALAPORAN — generate Invoice/Jual/Remit/Bonus")
+    print(f"# LAPORAN — generate Invoice/Jual/Remit/Bonus")
     print(f"{'#'*60}")
     return subprocess.run(cmd).returncode
 
@@ -527,7 +527,7 @@ def main() -> int:
                         help="Run SEMUANYA: sales all years + reorder + ab-test + restock-check "
                              "(ab-test & restock-check jalan kalau template-nya ada isinya).")
     parser.add_argument("--laporan", nargs="*", default=None, metavar="MARKETPLACE",
-                        help="Jalankan generator Laporan di bisalaporan/ (Invoice/Jual/"
+                        help="Jalankan generator Laporan di laporan/ (Invoice/Jual/"
                              "Remit/Bonus dari export mentah). Tanpa argumen = semua "
                              "marketplace; atau sebutkan, mis. --laporan shopee tiktok.")
     parser.add_argument("--data-dir", type=Path, default=DATA_DIR)

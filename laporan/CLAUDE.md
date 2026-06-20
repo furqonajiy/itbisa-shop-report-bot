@@ -1,24 +1,23 @@
-# CLAUDE.md — itbisa-bisalaporan
+# CLAUDE.md — laporan (Laporan generator)
 
-> **Source of truth for the Claude surfaces** — read by **Claude Code** and pasted into the **Claude Chat** project instructions. `AGENTS.md` (ChatGPT Codex) points here.
+> **Generator-specific deep-dive** for the `laporan/` subproject of **itbisa-shop-report-bot**. The repo-wide source of truth is the **root `CLAUDE.md`**; this file documents the generator internals. Read by **Claude Code** and **Claude Chat**.
 
-Standalone, **offline** Python tool that turns raw marketplace exports (Shopee, Tokopedia, Tiktok, Bukalapak) into standardized **Laporan** workbooks (`Invoice` / `Jual` / `Remit` / `Bonus` + a combined `Final` sheet per period). No API calls, no network, no secrets, no GitHub Actions — runs locally and is idempotent. The generated **`Jual`** sheet is the upstream feed consumed by the sibling repo **itbisa-shop-report-bot**.
+Standalone, **offline** Python tool that turns raw marketplace exports (Shopee, Tokopedia, Tiktok, Bukalapak) into standardized **Laporan** workbooks (`Invoice` / `Jual` / `Remit` / `Bonus` + a combined `Final` sheet per period). No API calls, no network, no secrets, no GitHub Actions — runs locally and is idempotent. The generated **`Jual`** sheet is the upstream feed consumed by the parent bot. It lives at `laporan/` inside the repo and is run as an isolated subprocess via the bot's `python main.py --laporan`; it can also be run directly from `laporan/` with `python main.py`.
 
 ## Stack & files
 - Python 3.13. Deps: `pandas` (**2.x**, pinned `>=2.0,<3.0`), `openpyxl` (`requirements.txt`).
   - **pandas 2.x** (not 3.0): the Excel append writers let pandas auto-load the workbook (no more `ExcelWriter.book` setter — removed in 2.0); date parsing uses `to_datetime(..., format='mixed', dayfirst=...)` because 2.0 raises on a strict-format mismatch (1.x silently fell back); forward-fills use `.ffill()` (the `fillna(method=...)` keyword is gone). `utility/generic.py` imports `SettingWithCopyWarning` from `pandas.errors` with fallbacks (it was removed entirely in pandas 3.0, where the new `str` dtype + Copy-on-Write would need a separate port).
-- `main.py` (repo root) — **CLI entry point** (`argparse`). Puts `generator/` on `sys.path`, parses flags, sets the data/report dirs, then calls `generator.run(...)`.
-- `generator/main.py` — orchestration: `MARKETPLACE_PROCESSORS` (marketplace → ordered processor modules) and `run(list_report, marketplaces=None)`. After a marketplace's processors finish, `run` calls `generate_final(<Marketplace>)` so the `Final` sheet sees every period's workbook.
-- `generator/process/preprocess.py` — `generate_report_list`: **recursive** glob of `data/` (`**/*.xls*`, `**/*.csv`).
-- `generator/process/<marketplace>/<vN>.py` — per-marketplace/version readers: drop invalid-status rows, validate keywords, dispatch to the sheet generators.
-- `generator/invoice|jual|remit|bonus|fee/` — each has a `generic.py` with the shared `*_to_excel` writer plus per-marketplace/version builders.
-- `generator/final/generic.py` — `generate_final(marketplace)`: builds the per-workbook `Final` sheet by **reading back** the already-written `Invoice`/`Jual`/`Remit` sheets (marketplace-agnostic, no per-marketplace builders).
-- `generator/rekonsiliasi/cekjual.py` — `reconcile_invoices(invoices, jual_dir)`: **read-only** `--cek-jual` tool. Reconciles a list of invoices (built-in default or `--invoices <file>`) against the itbisa-shop-report-bot `Jual` ledger (non-void Omzet across every `Jual*` sheet) + `Saldo` net + `Fee`, classifying Jual **entry bugs** (entry hilang / harusnya Void / salah Void / omzet≠uang). Writes `reports/shopee/Cek Jual Shopee.xlsx`.
-- `generator/rekonsiliasi/generic.py` — `generate_reconciliation(marketplaces)`: **read-only** `--reconcile` audit. Re-reads the raw `Saldo`/`Fee` inputs, classifies every saldo row into Remit/Bonus/Penarikan/**Tidak Tercatat** using the `keywordchecker/` lists (single source of truth), and writes `reports/<marketplace>/Rekonsiliasi <Marketplace>.xlsx`. **Never changes any generated number.**
-- `generator/keywordchecker/` — validates marketplace status / saldo keywords (raises on unknown keyword).
-- `generator/utility/constant.py` — `DEFAULT_DATA_DIR` / `DEFAULT_REPORTS_DIR` (repo-relative), `set_dirs`/`get_data_dir`/`get_reports_dir`, and `MARKETPLACE_FOLDERS` (marketplace name → reports subfolder).
-- `generator/utility/generic.py` — `ignore_warning`, `create_directory`, `detect_marketplace`, **`build_report_path`**.
-- `generator/utility/sku.py` — `standardize_sku` (canonical SKU rewrites).
+- `main.py` — **CLI entry point + orchestration** in one file (lives at `laporan/main.py`, alongside the flat packages below). Inserts its own folder on `sys.path`, parses flags (`argparse`), sets the data/report dirs, and defines `MARKETPLACE_PROCESSORS` (marketplace → ordered processor modules) + `run(list_report, marketplaces=None)`. After a marketplace's processors finish, `run` calls `generate_final(<Marketplace>)` so the `Final` sheet sees every period's workbook.
+- `process/preprocess.py` — `generate_report_list`: **recursive** glob of `data/` (`**/*.xls*`, `**/*.csv`).
+- `process/<marketplace>/<vN>.py` — per-marketplace/version readers: drop invalid-status rows, validate keywords, dispatch to the sheet generators.
+- `invoice|jual|remit|bonus|fee/` — each has a `generic.py` with the shared `*_to_excel` writer plus per-marketplace/version builders.
+- `final/generic.py` — `generate_final(marketplace)`: builds the per-workbook `Final` sheet by **reading back** the already-written `Invoice`/`Jual`/`Remit` sheets (marketplace-agnostic, no per-marketplace builders).
+- `rekonsiliasi/cekjual.py` — `reconcile_invoices(invoices, jual_dir)`: **read-only** `--cek-jual` tool. Reconciles a list of invoices (built-in default or `--invoices <file>`) against the itbisa-shop-report-bot `Jual` ledger (non-void Omzet across every `Jual*` sheet) + `Saldo` net + `Fee`, classifying Jual **entry bugs** (entry hilang / harusnya Void / salah Void / omzet≠uang). Writes `reports/shopee/Cek Jual Shopee.xlsx`.
+- `rekonsiliasi/generic.py` — `generate_reconciliation(marketplaces)`: **read-only** `--reconcile` audit. Re-reads the raw `Saldo`/`Fee` inputs, classifies every saldo row into Remit/Bonus/Penarikan/**Tidak Tercatat** using the `keywordchecker/` lists (single source of truth), and writes `reports/<marketplace>/Rekonsiliasi <Marketplace>.xlsx`. **Never changes any generated number.**
+- `keywordchecker/` — validates marketplace status / saldo keywords (raises on unknown keyword).
+- `utility/constant.py` — `DEFAULT_DATA_DIR` / `DEFAULT_REPORTS_DIR` (rooted at `laporan/`), `set_dirs`/`get_data_dir`/`get_reports_dir`, and `MARKETPLACE_FOLDERS` (marketplace name → reports subfolder).
+- `utility/generic.py` — `ignore_warning`, `create_directory`, `detect_marketplace`, **`build_report_path`**.
+- `utility/sku.py` — `standardize_sku` (canonical SKU rewrites).
 - `data/` — input exports (gitignored). `reports/` — generated output (gitignored).
 
 ## CLI (`python main.py`)

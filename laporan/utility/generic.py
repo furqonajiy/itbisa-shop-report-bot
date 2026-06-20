@@ -37,14 +37,14 @@ def detect_marketplace(filename):
     raise ValueError("Tidak dapat menentukan marketplace dari file: {0}".format(filename))
 
 
-def build_report_path(bisalaporan_path):
+def build_report_path(laporan_path):
     """Route a computed Laporan filename into reports/<marketplace>/.
 
     The per-marketplace generators still compute the report filename themselves
     (Transaksi/Saldo/Fee -> Laporan); this only re-roots that
     filename's directory to reports/<marketplace>/ and creates the folder.
     """
-    filename = os.path.basename(bisalaporan_path)
+    filename = os.path.basename(laporan_path)
     folder = os.path.join(get_reports_dir(), detect_marketplace(filename))
     create_directory(folder)
     return os.path.join(folder, filename)

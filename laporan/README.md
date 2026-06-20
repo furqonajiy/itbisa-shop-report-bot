@@ -1,4 +1,8 @@
-# itbisa-bisalaporan
+# Laporan generator (`laporan/`)
+
+> Co-located subproject of **itbisa-shop-report-bot**. Run it from the repo root with
+> `python main.py --laporan` (subprocess), or directly from this folder with `python main.py`.
+> Dependencies are the repo's root `requirements.txt` (`pandas>=2.0,<3.0`, `openpyxl`).
 
 Offline Python tool that turns raw marketplace exports (Shopee, Tokopedia, Tiktok,
 Bukalapak) into standardized **Laporan** workbooks. Each generated workbook holds
@@ -14,20 +18,25 @@ marketplace exports into `data/`, run `python main.py`, and collect the reports 
 ## Quick start
 
 ```powershell
-# Windows PowerShell
+# Windows PowerShell — from the repo root
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r requirements.txt          # repo-root deps cover this generator too
 
+# preferred: run the generator via the bot (subprocess)
+python main.py --laporan                 # every marketplace; scope: --laporan shopee tiktok
+
+# or run it directly from this folder
+cd laporan
 # 1) put the marketplace exports under .\data\  (see "Inputs" below)
 # 2) generate every report
 python main.py
 
-# reports land in .\reports\shopee\ , .\reports\tiktokshop\ , etc.
+# reports land in laporan\reports\shopee\ , laporan\reports\tiktokshop\ , etc.
 ```
 
-> **Python / pandas:** this tool targets **pandas 2.x** (`requirements.txt` pins
-> `pandas>=2.0,<3.0`). pandas **3.0** is not yet supported (its new `str` dtype and
+> **Python / pandas:** this tool targets **pandas 2.x** (the repo-root `requirements.txt`
+> pins `pandas>=2.0,<3.0`). pandas **3.0** is not yet supported (its new `str` dtype and
 > Copy-on-Write default need a separate port). Use Python **3.13**.
 
 ## CLI (`python main.py`)
@@ -191,10 +200,8 @@ Every workbook also gets a `Final` sheet (the sheets listed above plus `Final`).
 ## Project layout
 
 ```
-main.py                      # CLI entry point (argparse) -> generator.run(...)
-requirements.txt
-generator/
-  main.py                    # orchestration: MARKETPLACE_PROCESSORS + run() + Final
+laporan/                     # this folder (a flat package on sys.path)
+  main.py                    # CLI entry point (argparse) + orchestration: MARKETPLACE_PROCESSORS + run() + Final
   process/
     preprocess.py            # recursive discovery of data/ inputs
     <marketplace>/<vN>.py    # per-marketplace/version readers + filters
@@ -210,6 +217,8 @@ generator/
     constant.py              # data/report dirs + marketplace->folder mapping
     generic.py               # warnings, create_directory, build_report_path
     sku.py                   # SKU standardization
+  data/                      # raw marketplace exports (sample set committed)
+  reports/                   # generated Laporan workbooks (gitignored)
 ```
 
 See [`RUNBOOK.md`](RUNBOOK.md) for step-by-step operating instructions and

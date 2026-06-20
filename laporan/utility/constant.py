@@ -1,7 +1,7 @@
 import os
 
-# Repo root = three levels up from generator/utility/constant.py
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Project root = two levels up from laporan/utility/constant.py (the laporan/ dir)
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Default input/output folders (repo-relative, OS-independent).
 # Inputs (marketplace exports) live under data/; generated reports under reports/.
