@@ -182,13 +182,13 @@ def build_supplier_analysis(stok: pd.DataFrame, sku_agg: pd.DataFrame) -> dict:
     has_market = df["hpp_market"].notna()
     has_both = has_china & has_market
 
-    comparison = df[has_both].sort_values("qty_terjual", ascending=False).reset_index(drop=True)
+    comparison = df[has_both].sort_values(["qty_terjual", "SKU"], ascending=[False, True]).reset_index(drop=True)
     volatile = df[has_china & ~has_market & (df["cv_china"] > HPP_VARIANCE_THRESHOLD)].sort_values(
-        "cv_china", ascending=False).reset_index(drop=True)
+        ["cv_china", "SKU"], ascending=[False, True]).reset_index(drop=True)
     china_only = df[has_china & ~has_market].sort_values(
-        "qty_terjual", ascending=False).head(SUPPLIER_TOP_N_SINGLE_SOURCE).reset_index(drop=True)
+        ["qty_terjual", "SKU"], ascending=[False, True]).head(SUPPLIER_TOP_N_SINGLE_SOURCE).reset_index(drop=True)
     market_only = df[has_market & ~has_china].sort_values(
-        "qty_terjual", ascending=False).head(SUPPLIER_TOP_N_SINGLE_SOURCE).reset_index(drop=True)
+        ["qty_terjual", "SKU"], ascending=[False, True]).head(SUPPLIER_TOP_N_SINGLE_SOURCE).reset_index(drop=True)
 
     return {
         "comparison": comparison,
@@ -221,7 +221,7 @@ def _saran_supplier(r) -> str:
 def build_reorder_tables(reorder_df: pd.DataFrame) -> dict:
     """Split reorder DataFrame by status into actionable buckets for Excel sheet."""
     by_status = lambda s: reorder_df[reorder_df["status"] == s].sort_values(
-        "urgency_score", ascending=False).reset_index(drop=True)
+        ["urgency_score", "SKU"], ascending=[False, True]).reset_index(drop=True)
 
     return {
         "stockout": by_status("🔴 STOCKOUT"),
@@ -230,8 +230,8 @@ def build_reorder_tables(reorder_df: pd.DataFrame) -> dict:
         "soon": by_status("🟡 Reorder Soon"),
         "healthy": by_status("🟢 Healthy"),
         "overstock": reorder_df[reorder_df["status"] == "🔵 Overstock"].sort_values(
-            "months_cover", ascending=False).reset_index(drop=True),
+            ["months_cover", "SKU"], ascending=[False, True]).reset_index(drop=True),
         "slow_dead": reorder_df[reorder_df["status"] == "💤 Slow/Dead"].sort_values(
-            "sisa_stok", ascending=False).reset_index(drop=True),
-        "full": reorder_df.sort_values("urgency_score", ascending=False).reset_index(drop=True),
+            ["sisa_stok", "SKU"], ascending=[False, True]).reset_index(drop=True),
+        "full": reorder_df.sort_values(["urgency_score", "SKU"], ascending=[False, True]).reset_index(drop=True),
     }

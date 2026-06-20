@@ -6,7 +6,7 @@
 Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports into analysis workbooks (sales performance, pricing, supplier, reorder + operational & pricing-strategy reports). No API/network/tokens/GitHub Actions — runs locally, idempotent.
 
 ## Stack & files (flat layout, no `src/`)
-- Python 3.10+. Deps: `pandas`, `openpyxl`.
+- Python 3.13. Deps: `pandas`, `openpyxl`.
 - `main.py` CLI/orchestration · `config.py` all constants · `data_loader.py` loading + SKU normalization + current-workbook loaders · `analysis.py` HPP, profit, aggregation, supplier classification, reorder, `build_stock_ledger`, `compute_lead_time_months`, `compute_price_change_status` · `tables.py` table builders · `excel_writer.py` Excel output · `ab_testing.py` A/B analyzer · `restock_pricing.py` restock price evaluator · `cashflow.py` cash-flow restock plan · `deadstock_analysis.py` modal beku · `trend_analysis.py` tren+musiman.
 - `data/` input (gitignored), `output/` reports.
 

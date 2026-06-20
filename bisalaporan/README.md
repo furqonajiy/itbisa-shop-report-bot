@@ -28,7 +28,7 @@ python main.py
 
 > **Python / pandas:** this tool targets **pandas 2.x** (`requirements.txt` pins
 > `pandas>=2.0,<3.0`). pandas **3.0** is not yet supported (its new `str` dtype and
-> Copy-on-Write default need a separate port). Use Python **3.8–3.11**.
+> Copy-on-Write default need a separate port). Use Python **3.13**.
 
 ## CLI (`python main.py`)
 

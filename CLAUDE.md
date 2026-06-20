@@ -7,7 +7,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 > Unlike the sibling ITBisa repos, this one is **not** a GitHub-Actions bot. It does not call Shopee/TikTok Shop APIs, has no `bot-state` branch, no workflows, no Telegram, and no secrets.
 
 ## Stack & files (flat layout, no `src/`)
-- Python 3.10+. Deps: `pandas` (pinned `>=2.0,<3.0`), `openpyxl` (`requirements.txt`). The pin caps below pandas 3.0 because the co-located `bisalaporan/` generator isn't ported to 3.0 yet (its new `str` dtype + Copy-on-Write default need separate work).
+- Python 3.13. Deps: `pandas` (pinned `>=2.0,<3.0`), `openpyxl` (`requirements.txt`). The pin caps below pandas 3.0 because the co-located `bisalaporan/` generator isn't ported to 3.0 yet (its new `str` dtype + Copy-on-Write default need separate work).
 - `main.py` — CLI entry point / orchestration.
 - `config.py` — all constants: globs, sheet/column names, thresholds, colors, supplier keywords, reorder + A/B params.
 - `data_loader.py` — multi-file glob loading, SKU normalization, current-workbook loaders (arrived beli / jual / hilang / pindah).

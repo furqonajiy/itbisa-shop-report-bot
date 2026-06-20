@@ -13,7 +13,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-> Use a Python **3.8–3.11** interpreter. `requirements.txt` pins `pandas>=2.0,<3.0`
+> Use a Python **3.13** interpreter. `requirements.txt` pins `pandas>=2.0,<3.0`
 > (pandas **3.0** is not yet supported — its new `str` dtype + Copy-on-Write default
 > need a separate port).
 
