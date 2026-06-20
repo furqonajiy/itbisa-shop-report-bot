@@ -30,7 +30,7 @@ def create_directory(folder_path):
 
 
 def detect_marketplace(filename):
-    """Return the reports/ subfolder for a report filename (e.g. '... BisaLaporan Shopee.xlsx')."""
+    """Return the reports/ subfolder for a report filename (e.g. '... Laporan Shopee.xlsx')."""
     for name, folder in MARKETPLACE_FOLDERS.items():
         if name in filename:
             return folder
@@ -38,10 +38,10 @@ def detect_marketplace(filename):
 
 
 def build_report_path(bisalaporan_path):
-    """Route a computed BisaLaporan filename into reports/<marketplace>/.
+    """Route a computed Laporan filename into reports/<marketplace>/.
 
     The per-marketplace generators still compute the report filename themselves
-    (BisaTransaksi/BisaSaldo/BisaFee -> BisaLaporan); this only re-roots that
+    (Transaksi/Saldo/Fee -> Laporan); this only re-roots that
     filename's directory to reports/<marketplace>/ and creates the folder.
     """
     filename = os.path.basename(bisalaporan_path)

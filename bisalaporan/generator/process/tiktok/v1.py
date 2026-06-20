@@ -2,9 +2,9 @@ import logging
 
 import pandas as pd
 
-from bisainvoice.tiktok.v1 import generate_bisainvoice
-from bisajual.tiktok.v1 import generate_bisajual
-from bisaremit.tiktok.v1 import generate_bisaremit
+from invoice.tiktok.v1 import generate_invoice
+from jual.tiktok.v1 import generate_jual
+from remit.tiktok.v1 import generate_remit
 from keywordchecker.tiktok import check_status_keyword
 
 
@@ -12,14 +12,14 @@ def process(list_report):
     logging.info("Process Tiktok v1 File")
 
     for ttk_file in list_report:
-        read_bisatransaksi(ttk_file)
+        read_transaksi(ttk_file)
 
     for ttk_file in list_report:
-        read_bisafee(ttk_file)
+        read_fee(ttk_file)
 
 
-def read_bisatransaksi(ttk_file):
-    cond1 = 'BisaTransaksi v1 Tiktok' in ttk_file
+def read_transaksi(ttk_file):
+    cond1 = 'Transaksi v1 Tiktok' in ttk_file
     cond2 = '~' not in ttk_file
     if cond1 and cond2:
         logging.debug("Read {0}".format(ttk_file))
@@ -37,12 +37,12 @@ def read_bisatransaksi(ttk_file):
 
         if len(df) > 0:
             check_status_keyword("1", ttk_file, df)
-            generate_bisainvoice(ttk_file, df)
-            generate_bisajual(ttk_file, df)
+            generate_invoice(ttk_file, df)
+            generate_jual(ttk_file, df)
 
 
-def read_bisafee(ttk_file):
-    cond1 = 'BisaFee v1 Tiktok' in ttk_file
+def read_fee(ttk_file):
+    cond1 = 'Fee v1 Tiktok' in ttk_file
     cond2 = '~' not in ttk_file
     if cond1 and cond2:
         logging.debug("Read {0}".format(ttk_file))
@@ -56,4 +56,4 @@ def read_bisafee(ttk_file):
                                   'Shipping costs passed on to the logistics provider': int})
 
         if len(df) > 0:
-            generate_bisaremit(ttk_file, df)
+            generate_remit(ttk_file, df)

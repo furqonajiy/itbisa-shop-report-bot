@@ -7,7 +7,7 @@ import process.shopee.v3 as shopee_v3
 import process.tokopedia.v1 as tokopedia_v1
 import process.tiktok.v1 as tiktok_v1
 import process.tokopedia.v2 as tokopedia_v2
-from bisafinal.generic import generate_final
+from final.generic import generate_final
 from process.preprocess import generate_report_list
 from utility.generic import ignore_warning
 
@@ -34,7 +34,7 @@ def run(list_report, marketplaces=None):
         for processor in MARKETPLACE_PROCESSORS[marketplace]:
             processor.process(list_report)
         # All of this marketplace's workbooks now exist; build the Final sheet
-        # (joins BisaInvoice + BisaJual + a cross-period BisaRemit lookup).
+        # (joins Invoice + Jual + a cross-period Remit lookup).
         generate_final(marketplace.capitalize())
 
 

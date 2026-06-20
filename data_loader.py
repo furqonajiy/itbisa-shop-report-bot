@@ -17,6 +17,18 @@ from config import (
 )
 
 
+def resolve_sheet(fp, want: str) -> str:
+    """Dual-name: return the present variant of sheet `want`, accepting both the
+    de-branded name ('Stok', 'JualShopee', ...) and the legacy 'Bisa'-prefixed name
+    ('BisaStok', 'BisaJualShopee', ...). Returns `want` if neither is present so the
+    read raises a clear error."""
+    names = fp.sheet_names if isinstance(fp, pd.ExcelFile) else pd.ExcelFile(fp).sheet_names
+    if want in names:
+        return want
+    alt = want[4:] if want.startswith("Bisa") else "Bisa" + want
+    return alt if alt in names else want
+
+
 def _normalize_sku(s: pd.Series) -> pd.Series:
     """Case/space-normalize SKU so case-only variants (e.g. PCB-5X7 vs 5x7) merge,
     matching the case-insensitive SUMIF in the Google Sheets rekap."""
@@ -50,7 +62,7 @@ def load_stok_files(file_paths: list[Path]) -> pd.DataFrame:
     parts = []
     for fp in file_paths:
         print(f"✓ Membaca stok: {fp.name}")
-        df = pd.read_excel(fp, sheet_name=STOK_SHEET, header=1)
+        df = pd.read_excel(fp, sheet_name=resolve_sheet(fp, STOK_SHEET), header=1)
         # Backward-compat: pre-standardization exports name the supplier column
         # "Toko[spasi]Akun Pemesan"; the standardized export uses "Toko".
         if COL_STOK_TOKO_LEGACY in df.columns and COL_STOK_TOKO not in df.columns:
@@ -102,16 +114,17 @@ def load_jual_files(file_paths: list[Path]) -> pd.DataFrame:
     parts = []
     for fp in file_paths:
         xl = pd.ExcelFile(fp)
-        if REQUIRED_JUAL_SHEET not in xl.sheet_names:
+        if resolve_sheet(xl, REQUIRED_JUAL_SHEET) not in xl.sheet_names:
             print(f"  ⚠ {fp.name} tidak punya sheet wajib '{REQUIRED_JUAL_SHEET}', dilewati")
             continue
         print(f"✓ Membaca jual: {fp.name}")
         for sheet in JUAL_SHEETS:
-            if sheet in xl.sheet_names:
-                df = pd.read_excel(fp, sheet_name=sheet)
-                df["_sheet_source"] = sheet
+            actual = resolve_sheet(xl, sheet)
+            if actual in xl.sheet_names:
+                df = pd.read_excel(fp, sheet_name=actual)
+                df["_sheet_source"] = sheet   # canonical (new) name, so downstream filters match
                 parts.append(df)
-                print(f"  → {sheet}: {len(df):,} baris")
+                print(f"  → {actual}: {len(df):,} baris")
 
     df = pd.concat(parts, ignore_index=True)
     df = df.rename(columns={
@@ -179,7 +192,7 @@ def clean_jual(df: pd.DataFrame, year: int | None = None) -> Tuple[pd.DataFrame,
 
 
 # ============================================================================
-# Current-workbook loaders for the stock ledger (reconcile to BisaRekapBarang).
+# Current-workbook loaders for the stock ledger (reconcile to RekapBarang).
 # These read the LATEST stok+jual file by filename and reproduce the rekap formula.
 # ============================================================================
 
@@ -193,7 +206,7 @@ def latest_file(file_paths: list[Path]) -> Path:
 def load_current_stok_arrived(stok_file: Path) -> pd.DataFrame:
     """Arrived purchases (Tanggal Sampai filled) from the current stok workbook.
     Keeps Migrasi rows (opening balance). Returns columns: SKU, gudang, qty."""
-    df = pd.read_excel(stok_file, sheet_name=STOK_SHEET, header=1)
+    df = pd.read_excel(stok_file, sheet_name=resolve_sheet(stok_file, STOK_SHEET), header=1)
     df = df[df["SKU"].notna()].copy()
     df["SKU"] = _normalize_sku(df["SKU"])
     df["qty"] = pd.to_numeric(df[COL_STOK_QTY], errors="coerce").fillna(0)
@@ -204,10 +217,11 @@ def load_current_stok_arrived(stok_file: Path) -> pd.DataFrame:
 
 
 def load_current_jual_nonvoid(jual_file: Path) -> pd.DataFrame:
-    """Non-void sales from the current jual workbook, all BisaJual* sheets (matches
+    """Non-void sales from the current jual workbook, all Jual* sheets (matches
     rekap scope incl. Blibli/Investasi). Returns columns: SKU, gudang, qty."""
     xl = pd.ExcelFile(jual_file)
-    sheets = [s for s in xl.sheet_names if s.startswith(LEDGER_JUAL_PREFIX)]
+    sheets = [s for s in xl.sheet_names
+              if s.startswith(LEDGER_JUAL_PREFIX) or s.startswith("Bisa" + LEDGER_JUAL_PREFIX)]
     parts = []
     for sh in sheets:
         d = pd.read_excel(jual_file, sheet_name=sh)
@@ -226,9 +240,9 @@ def load_current_jual_nonvoid(jual_file: Path) -> pd.DataFrame:
 
 
 def load_hilang(stok_file: Path) -> pd.DataFrame:
-    """BisaHilang from the current stok workbook. Returns: SKU, gudang, ketemu, hilang."""
+    """Hilang from the current stok workbook. Returns: SKU, gudang, ketemu, hilang."""
     try:
-        df = pd.read_excel(stok_file, sheet_name=HILANG_SHEET, header=0)
+        df = pd.read_excel(stok_file, sheet_name=resolve_sheet(stok_file, HILANG_SHEET), header=0)
     except ValueError:
         return pd.DataFrame(columns=["SKU", "gudang", "ketemu", "hilang"])
     df = df[df[COL_HILANG_SKU].notna()].copy()
@@ -240,10 +254,10 @@ def load_hilang(stok_file: Path) -> pd.DataFrame:
 
 
 def load_pindah(stok_file: Path) -> pd.DataFrame:
-    """BisaPindahBarang from the current stok workbook (inter-warehouse transfers).
+    """PindahBarang from the current stok workbook (inter-warehouse transfers).
     Returns: SKU, gudang_in (receives +qty), gudang_out (loses −qty), qty."""
     try:
-        df = pd.read_excel(stok_file, sheet_name=PINDAH_SHEET, header=0)
+        df = pd.read_excel(stok_file, sheet_name=resolve_sheet(stok_file, PINDAH_SHEET), header=0)
     except ValueError:
         return pd.DataFrame(columns=["SKU", "gudang_in", "gudang_out", "qty"])
     if COL_PINDAH_SKU not in df.columns:

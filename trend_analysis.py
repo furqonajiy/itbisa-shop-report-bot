@@ -11,7 +11,7 @@ A cross-year view that the per-year files can't give on their own:
 
 `profit = omzet + admin − HPP_WA × qty` (admin = `tambahan + kode_unik`, negative;
 SKUs without HPP contribute omzet but not profit). Output:
-output/Analisa_Tren_Musiman.xlsx. Zero-config (built from BisaJual + HPP).
+output/Analisa_Tren_Musiman.xlsx. Zero-config (built from Jual + HPP).
 """
 from __future__ import annotations
 from pathlib import Path

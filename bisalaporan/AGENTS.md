@@ -10,7 +10,7 @@ Instructions for **ChatGPT Codex** (and any other coding agent).
 - **No AI/assistant references anywhere** — branch names, commit messages, PR titles/bodies, code/comments. No "Claude"/"Anthropic"/"Codex"/"OpenAI", no `Co-Authored-By` trailer, no "Generated with …" line, no model ids, no session links. History must read as human-authored. After opening a PR, strip any auto-appended footer.
 - **Workflow**: branch `feature/<short-desc>` off `main`; doc updates ride in the same PR as the code; PR → **merge commit (`--no-ff`)** with a representative title ending in the PR number.
 - **CLI handed to the user**: PowerShell syntax (the user is on Windows).
-- **Docs language**: all Markdown (`*.md`) is written in **English prose**, keeping special Indonesian/domain terms verbatim — input type tokens (`BisaTransaksi`, `BisaSaldo`, `BisaFee`), sheet names (`BisaInvoice`, `BisaJual`, `BisaRemit`, `BisaBonus`), domain terms (`omzet`, `Toko`), and any quoted console string. The console strings emitted by the code stay Bahasa Indonesia.
+- **Docs language**: all Markdown (`*.md`) is written in **English prose**, keeping special Indonesian/domain terms verbatim — input type tokens (`Transaksi`, `Saldo`, `Fee`), sheet names (`Invoice`, `Jual`, `Remit`, `Bonus`), domain terms (`omzet`, `Toko`), and any quoted console string. The console strings emitted by the code stay Bahasa Indonesia.
 - **pandas `>=2.0,<3.0`** is a hard constraint (pandas 3.0's new `str` dtype + Copy-on-Write need a separate port).
 - Keep changes minimal and targeted; respect the **flag-before-changing** items in `CLAUDE.md`.
 

@@ -11,7 +11,7 @@ Instructions for **ChatGPT Codex** (and any other coding agent).
 - **Workflow**: branch `feature/<short-desc>` off `main`; doc/marker updates ride in the same PR as the code; PR → **merge commit (`--no-ff`)** with a representative title ending in the PR number.
 - **Sync marker**: rename the root `YYYY-MM-DD_HHMM.txt` (WIB) to the current timestamp on every update.
 - **CLI handed to the user**: PowerShell syntax (the user is on Windows).
-- **Docs language**: all Markdown (`*.md`) is written in **English prose**, keeping special Indonesian terms verbatim — Excel sheet/column names (`01_Paling_Diminati`, `BisaStok`, `Toko`, `Luar Negeri?`, `Harga RMB`, …), domain terms (`HPP`, `Migrasi`, `omzet`), supplier/forwarder names (`Ocistok/Martkita`, `Jasa Impor Tiongkok`), and any quoted console string. The console strings emitted by the code stay Bahasa Indonesia.
+- **Docs language**: all Markdown (`*.md`) is written in **English prose**, keeping special Indonesian terms verbatim — Excel sheet/column names (`01_Paling_Diminati`, `Stok`, `Toko`, `Luar Negeri?`, `Harga RMB`, …), domain terms (`HPP`, `Migrasi`, `omzet`), supplier/forwarder names (`Ocistok/Martkita`, `Jasa Impor Tiongkok`), and any quoted console string. The console strings emitted by the code stay Bahasa Indonesia.
 - Keep changes minimal and targeted; respect the **flag-before-changing** items in `CLAUDE.md`.
 
 ## AI-instruction file map

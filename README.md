@@ -13,9 +13,9 @@ pip install -r requirements.txt   # pandas, openpyxl
 
 Put the export files in the `data/` folder (any filename, matched by glob):
 
-- Stock : `*BisaStok*.xlsx`   (sheet `BisaStok`)
-- Sales : `*BisaJual*.xlsx`   (sheets `BisaJualShopee`, `BisaJualTiktok`, `BisaJualTokopedia`,
-  `BisaJualBukalapak`, `BisaJualCoD` — missing sheets are skipped automatically)
+- Stock : `*Stok*.xlsx`   (sheet `Stok`)
+- Sales : `*Jual*.xlsx`   (sheets `JualShopee`, `JualTiktok`, `JualTokopedia`,
+  `JualBukalapak`, `JualCoD` — missing sheets are skipped automatically)
 
 When several files match, the **latest file** (by name) is used as the "current workbook"
 for the stock ledger; all files are used for sales history & HPP.
@@ -33,7 +33,7 @@ python main.py --deadstock      # dead-stock / capital release: Rupiah frozen in
 python main.py --ab-test        # A/B price-change test analysis (reads data/ab_tests.xlsx)
 python main.py --restock-check  # restock price check & selling-price recommendation (reads data/restock_check.xlsx)
 python main.py --all            # everything together (same as no flag)
-python main.py --laporan        # generate BisaLaporan in bisalaporan/ (every marketplace); scope: --laporan shopee tiktok
+python main.py --laporan        # generate Laporan in bisalaporan/ (every marketplace); scope: --laporan shopee tiktok
 ```
 
 > With no flag, `python main.py` runs the full suite (same as `--all`). The A/B test and
@@ -44,10 +44,10 @@ python main.py --laporan        # generate BisaLaporan in bisalaporan/ (every ma
 
 Results are written to the `output/` folder.
 
-> **BisaLaporan generator (`bisalaporan/`)** — `python main.py --laporan` runs the co-located
-> generator that turns raw marketplace exports (`BisaTransaksi`/`BisaSaldo`/`BisaFee`) into
-> `BisaLaporan` workbooks. Its `BisaJual` feeds this bot's `BisaJual` ledger through a **manual
-> Google Sheets step** (copy BisaLaporan → BisaJual Sheets → export `BisaJual*.xlsx` into `data/`),
+> **Laporan generator (`bisalaporan/`)** — `python main.py --laporan` runs the co-located
+> generator that turns raw marketplace exports (`Transaksi`/`Saldo`/`Fee`) into
+> `Laporan` workbooks. Its `Jual` feeds this bot's `Jual` ledger through a **manual
+> Google Sheets step** (copy Laporan → Jual Sheets → export `Jual*.xlsx` into `data/`),
 > so the generate and analyze stages are run separately. Reads `bisalaporan/data`, writes
 > `bisalaporan/reports`.
 
@@ -246,7 +246,7 @@ Input `data/restock_check.xlsx` (SKU, Toko, `Harga RMB` and/or `HPP IDR`, `Kompe
 - **Cost verdict**: landed HPP vs the SKU's historical `hpp_wa` (±`RESTOCK_COST_TOL`) →
   cheaper / fair / more expensive.
 - **Selling price per marketplace**: `HPP × (1 + RESTOCK_TARGET_NET_MARKUP) / (1 − fee)` so net
-  ≥ target **after the fee**. Each marketplace fee is **derived from the** `BisaJual` **data**
+  ≥ target **after the fee**. Each marketplace fee is **derived from the** `Jual` **data**
   (`|admin|/omzet`, fallback `PLATFORM_FEE_FALLBACK`).
 - **Decision** vs the competitor range: 🟢 restock & sell (target met within the market range),
   🟡 thin (profitable but below target), 🔴 don't sell (loss even at the highest market price).
@@ -277,7 +277,7 @@ profit moves for many reasons (trend, seasonality, stockouts). What is compared:
 
 Not yet including Difference-in-Differences (control SKUs) & bootstrap CI — a later step.
 
-Config `data/ab_tests.xlsx` (sheet `BisaABTest`): `SKU`, `Tanggal Perubahan`, `Nama Test`,
+Config `data/ab_tests.xlsx` (sheet `ABTest`): `SKU`, `Tanggal Perubahan`, `Nama Test`,
 `Catatan`. Output `output/Analisa_AB_Test.xlsx` (sheets `00_Summary`, `01_Test_Results`).
 
 ## Code structure

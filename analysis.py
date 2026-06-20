@@ -101,7 +101,7 @@ def compute_lead_time_months(stok: pd.DataFrame) -> tuple[pd.Series, float]:
 def build_stock_ledger(stok_arrived: pd.DataFrame, jual_nonvoid: pd.DataFrame,
                        hilang: pd.DataFrame, pindah: pd.DataFrame
                        ) -> tuple[pd.DataFrame, pd.Series]:
-    """Reproduce BisaRekapBarang from the current workbook, per (SKU, gudang):
+    """Reproduce RekapBarang from the current workbook, per (SKU, gudang):
 
         stok = Σ beli(arrived) − Σ jual(non-void) + Σ ketemu − Σ hilang
                + Σ pindah_masuk − Σ pindah_keluar
@@ -137,7 +137,7 @@ def build_stock_ledger(stok_arrived: pd.DataFrame, jual_nonvoid: pd.DataFrame,
     flat = flat[flat["gudang"].astype(str).str.strip().ne("")]
     # The rekap only tracks SKUs that exist in the stock master (have ≥1 purchase row,
     # incl. Migrasi opening). A SKU with only stray sales and no purchase (e.g. a
-    # mis-keyed SKU) is not on-hand stock and is excluded — matching BisaRekapBarang.
+    # mis-keyed SKU) is not on-hand stock and is excluded — matching RekapBarang.
     valid_skus = set(stok_arrived["SKU"].unique()) if len(stok_arrived) else set()
     flat = flat[flat["SKU"].isin(valid_skus)]
     ledger = flat.pivot_table(index="SKU", columns="gudang", values="qty",
@@ -149,7 +149,7 @@ def build_stock_ledger(stok_arrived: pd.DataFrame, jual_nonvoid: pd.DataFrame,
     # A negative per-gudang balance is physically impossible — it means a sale or
     # transfer was tagged to a gudang that didn't hold the stock. The Sheets rekap
     # collapses this: floor the negative to 0 and keep the SKU total intact (the
-    # stock physically sits in the other gudang). This reproduces BisaRekapBarang's
+    # stock physically sits in the other gudang). This reproduces RekapBarang's
     # per-gudang columns exactly while leaving the (authoritative) Total unchanged.
     flagged = []
     oversold = []
@@ -306,7 +306,7 @@ def compute_harga_sekarang(jual_full_clean: pd.DataFrame) -> pd.Series:
     SKUs with no non-CoD sale are absent (caller falls back to harga_jual_avg)."""
     d = jual_full_clean
     if "_sheet_source" in d.columns:
-        d = d[d["_sheet_source"] != "BisaJualCoD"]
+        d = d[d["_sheet_source"] != "JualCoD"]
     d = d[(d["qty_jual"] > 0) & (d["omzet"] > 0) & d["tanggal_pesan"].notna()].copy()
     if len(d) == 0:
         return pd.Series(dtype=float)
@@ -346,7 +346,7 @@ def compute_price_change_status(jual_full_clean: pd.DataFrame,
     SKUs with no recent change are absent (caller treats them as not flagged)."""
     d = jual_full_clean
     if "_sheet_source" in d.columns:
-        d = d[d["_sheet_source"] != "BisaJualCoD"]
+        d = d[d["_sheet_source"] != "JualCoD"]
     d = d[(d["qty_jual"] > 0) & (d["omzet"] > 0) & d["tanggal_pesan"].notna()].copy()
     if len(d) == 0:
         return pd.DataFrame()
@@ -418,7 +418,7 @@ def aggregate_by_sku(jual: pd.DataFrame, hpp_agg: pd.DataFrame, year: int,
     """Per-SKU aggregation joined with stock info.
     qty_jual_all_time: per-SKU total qty sold across all years (for fallback sisa).
     sisa_by_sku: authoritative on-hand from the current-workbook ledger
-    (BisaRekapBarang). When provided, sisa_stok comes from it (SKUs not in the
+    (RekapBarang). When provided, sisa_stok comes from it (SKUs not in the
     current workbook → 0). When None, falls back to all-time beli − jual."""
     sku_agg = jual.groupby("SKU").agg(
         qty_terjual=("qty_jual", "sum"),
@@ -469,7 +469,7 @@ def aggregate_by_sku(jual: pd.DataFrame, hpp_agg: pd.DataFrame, year: int,
         sku_agg["qty_terjual_all_time"] = sku_agg["qty_terjual"]
 
     if sisa_by_sku is not None:
-        # On-hand stock per BisaRekapBarang (current workbook). SKUs absent from the
+        # On-hand stock per RekapBarang (current workbook). SKUs absent from the
         # current workbook are not in stock → 0.
         sku_agg["sisa_stok"] = sku_agg["SKU"].map(sisa_by_sku).fillna(0)
     else:
@@ -610,7 +610,7 @@ def compute_reorder_metrics(stok: pd.DataFrame, jual: pd.DataFrame,
         qty_b = float(qty_beli_total.get(sku, 0))
         qty_s = float(qty_jual_total.get(sku, 0))
         if sisa_by_sku is not None:
-            sisa = float(sisa_by_sku.get(sku, 0.0))   # on-hand per BisaRekapBarang
+            sisa = float(sisa_by_sku.get(sku, 0.0))   # on-hand per RekapBarang
         else:
             sisa = qty_b - qty_s
 

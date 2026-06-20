@@ -5,21 +5,22 @@ PROJECT_ROOT = Path(__file__).parent
 DATA_DIR = PROJECT_ROOT / "data"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 
-STOK_GLOB = "*BisaStok*.xlsx"
-JUAL_GLOB = "*BisaJual*.xlsx"
+STOK_GLOB = "*Stok*.xlsx"   # matches Stok (new) and BisaStok (legacy)
+JUAL_GLOB = "*Jual*.xlsx"   # matches Jual (new) and BisaJual (legacy)
 OUTPUT_FILENAME = "Analisa_Penjualan_ITBisa_{year}.xlsx"
 
-STOK_SHEET = "BisaStok"
+STOK_SHEET = "Stok"         # legacy "BisaStok" still read via resolve_sheet()
 
 # All supported jual sheets. Sheets not present in a file are skipped.
+# Legacy "BisaJual*" names are accepted transparently via resolve_sheet().
 JUAL_SHEETS = [
-    "BisaJualShopee",
-    "BisaJualTiktok",
-    "BisaJualTokopedia",
-    "BisaJualBukalapak",
-    "BisaJualCoD",
+    "JualShopee",
+    "JualTiktok",
+    "JualTokopedia",
+    "JualBukalapak",
+    "JualCoD",
 ]
-REQUIRED_JUAL_SHEET = "BisaJualShopee"
+REQUIRED_JUAL_SHEET = "JualShopee"
 
 EXCLUDED_SKUS = {"ITBISA-BUBBLE-WRAP"}
 
@@ -101,7 +102,7 @@ FMT_DEC = "#,##0.0"
 
 # A/B Testing config
 AB_TESTS_FILENAME = "ab_tests.xlsx"
-AB_TESTS_SHEET = "BisaABTest"
+AB_TESTS_SHEET = "ABTest"
 AB_TESTS_OUTPUT_FILENAME = "Analisa_AB_Test.xlsx"
 COL_AB_SKU = "SKU"
 COL_AB_TANGGAL = "Tanggal Perubahan"
@@ -122,7 +123,7 @@ AB_MIN_TRANS_POST = 3
 REORDER_OUTPUT_FILENAME = "Analisa_Reorder.xlsx"
 LEAD_TIME_CHINA_MONTHS = 2.0
 LEAD_TIME_MARKET_MONTHS = 0.25
-# Observed lead time: derive each SKU's China shipping time from BisaStok
+# Observed lead time: derive each SKU's China shipping time from Stok
 # (Tanggal Sampai − Tanggal Bayar) at this percentile so the reorder point
 # survives typical delays (not just the median). Per-SKU when it has ≥ MIN_LOTS
 # dated China lots, else the global-China percentile, else the constants above.
@@ -168,7 +169,7 @@ RMB_TO_IDR_FALLBACK = 2832
 RMB_SPOT_FX_IDR = 2250            # ≈ raw RMB→IDR spot, reference only (for the breakdown note)
 RESTOCK_RMB_MIN_LOTS = 2
 # Marketplace fee fallback (used only when sales history for a platform is too thin);
-# the real fee = |admin| / omzet derived from BisaJual is preferred.
+# the real fee = |admin| / omzet derived from Jual is preferred.
 PLATFORM_FEE_FALLBACK = {"Shopee": 0.11, "Tokopedia": 0.10, "Tiktok": 0.25}
 # restock_check.xlsx input columns
 COL_RC_SKU = "SKU"
@@ -212,7 +213,7 @@ COL_STOK_TOKO = "Toko"                         # standardized supplier/forwarder
 COL_STOK_TOKO_LEGACY = "Toko[spasi]Akun Pemesan"   # pre-standardization header (auto-renamed on load)
 COL_STOK_LUAR_NEGERI = "Luar\nNegeri?"
 
-# --- Current-workbook stock ledger (reconcile to BisaRekapBarang) ---
+# --- Current-workbook stock ledger (reconcile to RekapBarang) ---
 # sisa_stok is computed from the latest stok+jual workbook (by filename), using the
 # same formula as the Google Sheets rekap: arrived beli − nonvoid jual + ketemu
 # − hilang ± pindah, per (SKU, gudang). Migrasi rows are KEPT (they are the opening
@@ -221,21 +222,21 @@ COL_STOK_TANGGAL_SAMPAI = "Tanggal\nSampai"   # filled = "sudah sampai" (arrived
 COL_STOK_ALAMAT = "Alamat Pengiriman"          # destination gudang for a purchase
 COL_JUAL_GUDANG = "Lokasi Gudang"              # gudang a sale is deducted from
 
-HILANG_SHEET = "BisaHilang"
+HILANG_SHEET = "Hilang"
 COL_HILANG_SKU = "SKU"
 COL_HILANG_KETEMU = "Banyak\nKetemu"           # found (+)
 COL_HILANG_HILANG = "Banyak\nHilang"           # lost (−)
 COL_HILANG_GUDANG = "Lokasi Gudang"
 
-PINDAH_SHEET = "BisaPindahBarang"
+PINDAH_SHEET = "PindahBarang"
 COL_PINDAH_SKU = "Unnamed: 1"                  # SKU is col B; header is blank
 COL_PINDAH_TAMBAH = "Lokasi\nPenambahan\nBarang"   # gudang receiving (+)
 COL_PINDAH_KURANG = "Lokasi\nPengurangan\nBarang"  # gudang losing (−)
 COL_PINDAH_QTY = "Banyak Barang"
 
 # Ledger jual scope: all sheets starting with this prefix in the current jual file
-# (matches BisaRekapBarang, which includes Blibli/Investasi beyond JUAL_SHEETS).
-LEDGER_JUAL_PREFIX = "BisaJual"
+# (matches RekapBarang, which includes Blibli/Investasi beyond JUAL_SHEETS).
+LEDGER_JUAL_PREFIX = "Jual"
 LEDGER_SHEET_NAME = "11_Rekap_Stok_per_Gudang"
 
 COL_JUAL_INVOICE = "Invoice"

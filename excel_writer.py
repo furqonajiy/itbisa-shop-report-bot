@@ -739,10 +739,10 @@ def _write_reorder_full(ws, reorder_full):
 
 
 def _write_stock_ledger(ws, ledger_df, today=None) -> None:
-    """Per-(SKU, gudang) on-hand stock — the bot's reproduction of BisaRekapBarang,
+    """Per-(SKU, gudang) on-hand stock — the bot's reproduction of RekapBarang,
     computed from the current workbook (arrived beli - non-void jual + ketemu
     - hilang +/- pindah). This is the source of sisa_stok used elsewhere."""
-    ws["A1"] = "REKAP STOK PER GUDANG (rekonsiliasi BisaRekapBarang)"
+    ws["A1"] = "REKAP STOK PER GUDANG (rekonsiliasi RekapBarang)"
     ws["A1"].font = TITLE_FONT
     n_cols = len(ledger_df.columns)
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max(3, n_cols))

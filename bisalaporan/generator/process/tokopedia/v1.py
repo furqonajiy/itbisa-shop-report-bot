@@ -2,8 +2,8 @@ import logging
 
 import pandas as pd
 
-from bisainvoice.tokopedia.v1 import generate_bisainvoice
-from bisajual.tokopedia.v1 import generate_bisajual
+from invoice.tokopedia.v1 import generate_invoice
+from jual.tokopedia.v1 import generate_jual
 from keywordchecker.tokopedia import check_status_keyword
 
 
@@ -11,11 +11,11 @@ def process(list_report):
     logging.info("Process Tokopedia v1 File")
 
     for tkp_file in list_report:
-        read_bisatransaksi(tkp_file)
+        read_transaksi(tkp_file)
 
 
-def read_bisatransaksi(tkp_file):
-    cond1 = 'BisaTransaksi v1 Tokopedia' in tkp_file
+def read_transaksi(tkp_file):
+    cond1 = 'Transaksi v1 Tokopedia' in tkp_file
     cond2 = '~' not in tkp_file
     if cond1 and cond2:
         logging.debug("Read {0}".format(tkp_file))
@@ -30,5 +30,5 @@ def read_bisatransaksi(tkp_file):
 
         if len(df) > 0:
             check_status_keyword("1", tkp_file, df)
-            generate_bisainvoice(tkp_file, df)
-            generate_bisajual(tkp_file, df)
+            generate_invoice(tkp_file, df)
+            generate_jual(tkp_file, df)

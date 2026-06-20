@@ -1,6 +1,6 @@
 # RUNBOOK — itbisa-bisalaporan
 
-Operating procedure for generating the **BisaLaporan** workbooks. Commands are in
+Operating procedure for generating the **Laporan** workbooks. Commands are in
 **Windows PowerShell** (the supported environment). See [`README.md`](README.md) for
 the conceptual overview.
 
@@ -25,17 +25,17 @@ exporter's naming, e.g.:
 
 ```
 data\
-  ... BisaTransaksi v2 Shopee.xlsx
-  ... BisaSaldo v2 Shopee.csv
-  ... BisaFee v2 Shopee.xlsx
-  ... BisaTransaksi v3 Shopee.xlsx
-  ... BisaTransaksi v1 Tokopedia.xlsx
-  ... BisaTransaksi v2 Tokopedia.xlsx
-  ... BisaSaldo v2 Tokopedia.xlsx
-  ... BisaTransaksi v1 Tiktok.xlsx
-  ... BisaFee v1 Tiktok.xlsx
-  ... BisaTransaksi v2 Bukalapak.xlsx
-  ... BisaSaldo v2 Bukalapak.csv
+  ... Transaksi v2 Shopee.xlsx
+  ... Saldo v2 Shopee.csv
+  ... Fee v2 Shopee.xlsx
+  ... Transaksi v3 Shopee.xlsx
+  ... Transaksi v1 Tokopedia.xlsx
+  ... Transaksi v2 Tokopedia.xlsx
+  ... Saldo v2 Tokopedia.xlsx
+  ... Transaksi v1 Tiktok.xlsx
+  ... Fee v1 Tiktok.xlsx
+  ... Transaksi v2 Bukalapak.xlsx
+  ... Saldo v2 Bukalapak.csv
 ```
 
 `data\` is git-ignored — your exports are never committed.
@@ -63,46 +63,46 @@ Reports are written to `reports\<marketplace>\`:
 
 ```
 reports\
-  shopee\      ... BisaLaporan Shopee.xlsx
-  tiktokshop\  ... BisaLaporan Tiktok.xlsx
-  tokopedia\   ... BisaLaporan Tokopedia.xlsx
-  bukalapak\   ... BisaLaporan v2 Bukalapak.xlsx
+  shopee\      ... Laporan Shopee.xlsx
+  tiktokshop\  ... Laporan Tiktok.xlsx
+  tokopedia\   ... Laporan Tokopedia.xlsx
+  bukalapak\   ... Laporan v2 Bukalapak.xlsx
 ```
 
-Each workbook contains the `BisaInvoice`, `BisaJual`, `BisaRemit`, and/or `BisaBonus`
+Each workbook contains the `Invoice`, `Jual`, `Remit`, and/or `Bonus`
 sheets for that period, plus a combined **`Final`** sheet (one reconciliation row per
 `Invoice`; see the coverage table and the `Final` section in `README.md`). The run is
 **idempotent** — re-running overwrites the matching sheets in place.
 
 > The `Final` sheet looks up each order's remit across **all** of that marketplace's
-> `BisaLaporan` workbooks, so process a marketplace's periods together (an order placed
+> `Laporan` workbooks, so process a marketplace's periods together (an order placed
 > one month and remitted the next only fills in once both periods' files are present).
 
-## 4b. (Optional) Reconcile BisaSaldo / BisaFee
+## 4b. (Optional) Reconcile Saldo / Fee
 
 ```powershell
 # audit only — writes Rekonsiliasi <Marketplace>.xlsx, generates no reports
 python main.py --reconcile
 python main.py --reconcile --shopee     # one marketplace
 
-# use the itbisa-shop-report-bot BisaJual ledger for the Cek Omzet vs Fee sheet
+# use the itbisa-shop-report-bot Jual ledger for the Cek Omzet vs Fee sheet
 python main.py --reconcile --shopee --bisajual-dir "..\itbisa-shop-report-bot\data"
 ```
 
-This **read-only** pass re-reads the raw `BisaSaldo` / `BisaFee` files and reports any
-balance movement that is **not** captured into `BisaRemit`/`BisaBonus`. Open the
+This **read-only** pass re-reads the raw `Saldo` / `Fee` files and reports any
+balance movement that is **not** captured into `Remit`/`Bonus`. Open the
 `Rekonsiliasi <Marketplace>.xlsx` and check the **Ringkasan** tab for red **Perlu
 Dicek** rows. **Rincian per Deskripsi** is the review list — every distinct description
 (by matched keyword) with its category, bucket, count and total — so you can decide how
 each description should be treated; **Rincian Saldo** is the full row-level detail. The
 **Saldo Tidak Tercatat** tab lists each uncaptured row and why (e.g. a `Pencairan
-SPinjam untuk Penjual` loan excluded by the invoice filter), and for Shopee **BisaFee
+SPinjam untuk Penjual` loan excluded by the invoice filter), and for Shopee **Fee
 Tidak Cocok** lists fee/remit amounts that don't reconcile. Nothing here changes your
-`BisaLaporan` numbers — it's a checklist of things to review.
+`Laporan` numbers — it's a checklist of things to review.
 
-## 5. Hand the `BisaJual` to itbisa-shop-report-bot
+## 5. Hand the `Jual` to itbisa-shop-report-bot
 
-The **`BisaJual <Marketplace>`** sheet is the upstream feed for the sibling project
+The **`Jual <Marketplace>`** sheet is the upstream feed for the sibling project
 [`itbisa-shop-report-bot`](https://github.com/furqonajiy/itbisa-shop-report-bot). Copy
 the relevant workbook(s) into that project's `data\` per its own README.
 
@@ -111,7 +111,7 @@ the relevant workbook(s) into that project's `data\` per its own README.
 | Symptom | Cause / fix |
 | --- | --- |
 | `Tidak ada file ditemukan di …` | No `*.xls*` / `*.csv` under the data dir. Check `--data-dir` and that files actually landed in `data\`. Run `python main.py --show-files` to list what was discovered. |
-| A file is ignored | Its filename is missing the marketplace/version/type token (e.g. `BisaTransaksi v2 Shopee`). Rename to the exporter's convention. |
+| A file is ignored | Its filename is missing the marketplace/version/type token (e.g. `Transaksi v2 Shopee`). Rename to the exporter's convention. |
 | `ValueError: Tidak dapat menentukan marketplace dari file: …` | The report filename has no `Shopee`/`Tiktok`/`Tokopedia`/`Bukalapak` substring — fix the source filename. |
 | `ImportError` / `numpy.dtype size changed` on `import pandas` | pandas/numpy mismatch. Reinstall the pinned set: `pip install -r requirements.txt`. |
 | `TypeError: Invalid value '0' for dtype 'str'` / `fillna() got an unexpected keyword 'method'` | pandas **3.0** is installed (unsupported). Pin to 2.x: `pip install "pandas>=2.0,<3.0"`. |

@@ -2,10 +2,10 @@ import logging
 
 import pandas as pd
 
-from bisabonus.tokopedia.v2 import generate_bisabonus
-from bisainvoice.tokopedia.v2 import generate_bisainvoice
-from bisajual.tokopedia.v2 import generate_bisajual
-from bisaremit.tokopedia.v2 import generate_bisaremit
+from bonus.tokopedia.v2 import generate_bonus
+from invoice.tokopedia.v2 import generate_invoice
+from jual.tokopedia.v2 import generate_jual
+from remit.tokopedia.v2 import generate_remit
 from keywordchecker.tokopedia import check_saldo_keyword, check_status_keyword
 
 
@@ -13,14 +13,14 @@ def process(list_report):
     logging.info("Process Tokopedia v2 File")
 
     for tkp_file in list_report:
-        read_bisatransaksi(tkp_file)
+        read_transaksi(tkp_file)
 
     for tkp_file in list_report:
-        read_bisasaldo(tkp_file)
+        read_saldo(tkp_file)
 
 
-def read_bisatransaksi(tkp_file):
-    cond1 = 'BisaTransaksi v2 Tokopedia' in tkp_file
+def read_transaksi(tkp_file):
+    cond1 = 'Transaksi v2 Tokopedia' in tkp_file
     cond2 = '~' not in tkp_file
     if cond1 and cond2:
         logging.debug("Read {0}".format(tkp_file))
@@ -33,12 +33,12 @@ def read_bisatransaksi(tkp_file):
 
         if len(df) > 0:
             check_status_keyword("2", tkp_file, df)
-            generate_bisainvoice(tkp_file, df)
-            generate_bisajual(tkp_file, df)
+            generate_invoice(tkp_file, df)
+            generate_jual(tkp_file, df)
 
 
-def read_bisasaldo(tkp_file):
-    cond1 = 'BisaSaldo v2 Tokopedia' in tkp_file
+def read_saldo(tkp_file):
+    cond1 = 'Saldo v2 Tokopedia' in tkp_file
     cond2 = '~' not in tkp_file
     if cond1 and cond2:
         logging.debug("Read {0}".format(tkp_file))
@@ -47,5 +47,5 @@ def read_bisasaldo(tkp_file):
 
         if len(df) > 0:
             check_saldo_keyword(tkp_file, df)
-            generate_bisaremit(tkp_file, df)
-            generate_bisabonus(tkp_file, df)
+            generate_remit(tkp_file, df)
+            generate_bonus(tkp_file, df)
