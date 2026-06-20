@@ -1,8 +1,9 @@
 # Laporan generator (`laporan/`)
 
-> Co-located subproject of **itbisa-shop-report-bot**. Run it from the repo root with
-> `python main.py --laporan` (subprocess), or directly from this folder with `python main.py`.
-> Dependencies are the repo's root `requirements.txt` (`pandas>=2.0,<3.0`, `openpyxl`).
+> Co-located subproject of **itbisa-shop-report-bot** — an importable `laporan` package.
+> Run it from the repo root with `python main.py --laporan` (called in-process), or
+> standalone with `python -m laporan`. Dependencies are the repo's root
+> `requirements.txt` (`pandas>=2.0,<3.0`, `openpyxl`).
 
 Offline Python tool that turns raw marketplace exports (Shopee, Tokopedia, Tiktok,
 Bukalapak) into standardized **Laporan** workbooks. Each generated workbook holds
@@ -12,7 +13,7 @@ consumed by the sibling project
 [`itbisa-shop-report-bot`](https://github.com/furqonajiy/itbisa-shop-report-bot).
 
 It is fully offline and idempotent: no API calls, no network, no secrets. Drop the
-marketplace exports into `data/`, run `python main.py`, and collect the reports from
+marketplace exports into `data/`, run `python -m laporan`, and collect the reports from
 `reports/<marketplace>/`.
 
 ## Quick start
@@ -23,14 +24,13 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt          # repo-root deps cover this generator too
 
-# preferred: run the generator via the bot (subprocess)
+# 1) put the marketplace exports under .\laporan\data\  (see "Inputs" below)
+
+# 2a) run the generator via the bot (called in-process)
 python main.py --laporan                 # every marketplace; scope: --laporan shopee tiktok
 
-# or run it directly from this folder
-cd laporan
-# 1) put the marketplace exports under .\data\  (see "Inputs" below)
-# 2) generate every report
-python main.py
+# 2b) or run it standalone as a module (same output)
+python -m laporan
 
 # reports land in laporan\reports\shopee\ , laporan\reports\tiktokshop\ , etc.
 ```
@@ -39,25 +39,25 @@ python main.py
 > pins `pandas>=2.0,<3.0`). pandas **3.0** is not yet supported (its new `str` dtype and
 > Copy-on-Write default need a separate port). Use Python **3.13**.
 
-## CLI (`python main.py`)
+## CLI (`python -m laporan`)
 
 | Command | Effect |
 | --- | --- |
-| `python main.py` | Process **every** marketplace (Bukalapak, Tokopedia, Shopee, Tiktok). |
-| `python main.py --shopee` | Process Shopee only. (`--tokopedia`, `--tiktok`, `--bukalapak` likewise; flags combine.) |
-| `python main.py --shopee --tiktok` | Process the selected subset. |
-| `python main.py --data-dir <dir>` | Read inputs from `<dir>` instead of `./data`. |
-| `python main.py --output-dir <dir>` | Write reports under `<dir>` instead of `./reports`. |
-| `python main.py --show-files` | Log every input file discovered, then run. |
-| `python main.py --reconcile` | Write `Rekonsiliasi <Marketplace>.xlsx` (read-only audit; see below). Generates no reports. |
-| `python main.py --reconcile --jual-dir <dir>` | As above, but read the itbisa-shop-report-bot `*Jual*.xlsx` ledger from `<dir>` for the `Cek Omzet vs Fee` sheet. |
-| `python main.py --cek-jual --jual-dir <dir>` | Reconcile a list of invoices against the Jual ledger to find entry bugs (see below). |
-| `python main.py --cek-jual --invoices <file>` | Same, for the invoices listed in `<file>` (one per line). |
-| `python main.py -v` / `--verbose` | Enable debug logging. |
+| `python -m laporan` | Process **every** marketplace (Bukalapak, Tokopedia, Shopee, Tiktok). |
+| `python -m laporan --shopee` | Process Shopee only. (`--tokopedia`, `--tiktok`, `--bukalapak` likewise; flags combine.) |
+| `python -m laporan --shopee --tiktok` | Process the selected subset. |
+| `python -m laporan --data-dir <dir>` | Read inputs from `<dir>` instead of `./data`. |
+| `python -m laporan --output-dir <dir>` | Write reports under `<dir>` instead of `./reports`. |
+| `python -m laporan --show-files` | Log every input file discovered, then run. |
+| `python -m laporan --reconcile` | Write `Rekonsiliasi <Marketplace>.xlsx` (read-only audit; see below). Generates no reports. |
+| `python -m laporan --reconcile --jual-dir <dir>` | As above, but read the itbisa-shop-report-bot `*Jual*.xlsx` ledger from `<dir>` for the `Cek Omzet vs Fee` sheet. |
+| `python -m laporan --cek-jual --jual-dir <dir>` | Reconcile a list of invoices against the Jual ledger to find entry bugs (see below). |
+| `python -m laporan --cek-jual --invoices <file>` | Same, for the invoices listed in `<file>` (one per line). |
+| `python -m laporan -v` / `--verbose` | Enable debug logging. |
 
 ## Reconciliation (`--reconcile`)
 
-`python main.py --reconcile` writes a **read-only** `reports/<marketplace>/Rekonsiliasi
+`python -m laporan --reconcile` writes a **read-only** `reports/<marketplace>/Rekonsiliasi
 <Marketplace>.xlsx` for each marketplace that has a `Saldo` (Shopee, Tokopedia,
 Bukalapak). It **changes no generated numbers** — it re-reads the raw `Saldo` /
 `Fee` inputs and audits what the generator captures, so you can spot money that
@@ -93,11 +93,11 @@ silently falls out of `Laporan`. Each workbook has:
   `(Invoice, Nominal Remit)` join drops the fee). Overlapping fee files are
   de-duplicated first.
 
-Run it for one marketplace with the usual flags, e.g. `python main.py --reconcile --shopee`.
+Run it for one marketplace with the usual flags, e.g. `python -m laporan --reconcile --shopee`.
 
 ## Find Jual entry bugs (`--cek-jual`)
 
-`python main.py --cek-jual` reconciles a list of invoices against the
+`python -m laporan --cek-jual` reconciles a list of invoices against the
 **itbisa-shop-report-bot** `Jual` ledger to answer one question: *how was each
 order entered, vs the real money it made?* For each invoice it pairs the booked Omzet
 (non-void, across every `Jual*` sheet) with the real money in `Saldo` (full
@@ -200,8 +200,9 @@ Every workbook also gets a `Final` sheet (the sheets listed above plus `Final`).
 ## Project layout
 
 ```
-laporan/                     # this folder (a flat package on sys.path)
-  main.py                    # CLI entry point (argparse) + orchestration: MARKETPLACE_PROCESSORS + run() + Final
+laporan/                     # this folder — the importable `laporan` package
+  __init__.py  __main__.py   # package marker + `python -m laporan` entry point
+  main.py                    # CLI (argparse) + orchestration: MARKETPLACE_PROCESSORS + run() + Final
   process/
     preprocess.py            # recursive discovery of data/ inputs
     <marketplace>/<vN>.py    # per-marketplace/version readers + filters

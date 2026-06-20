@@ -2,10 +2,10 @@ import logging
 
 import pandas as pd
 
-from utility.generic import build_report_path
+from laporan.utility.generic import build_report_path
 
-from remit.generic import remit_to_excel
-from keywordchecker.tokopedia import VALID_NOMINAL_REMIT_KEYWORD, VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD, VALID_KERUGIAN_TAMBAHAN_KEYWORD, VALID_POTONGAN_PEMBAYARAN_KEYWORD
+from laporan.remit.generic import remit_to_excel
+from laporan.keywordchecker.tokopedia import VALID_NOMINAL_REMIT_KEYWORD, VALID_KEUNTUNGAN_TAMBAHAN_KEYWORD, VALID_KERUGIAN_TAMBAHAN_KEYWORD, VALID_POTONGAN_PEMBAYARAN_KEYWORD
 
 
 def generate_remit(tkp_file, df):

@@ -2,9 +2,9 @@ import logging
 
 import pandas as pd
 
-from utility.generic import build_report_path
+from laporan.utility.generic import build_report_path
 
-from keywordchecker.tokopedia import VALID_BONUS_KEYWORD
+from laporan.keywordchecker.tokopedia import VALID_BONUS_KEYWORD
 
 
 def generate_bonus(tkp_file, df):

@@ -6,7 +6,7 @@ import pandas as pd
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from utility.constant import MARKETPLACE_FOLDERS, get_reports_dir
+from laporan.utility.constant import MARKETPLACE_FOLDERS, get_reports_dir
 
 FINAL_SHEET = 'Final'
 

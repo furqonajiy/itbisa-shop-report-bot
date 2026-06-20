@@ -2,9 +2,9 @@ import logging
 
 import pandas as pd
 
-from invoice.tokopedia.v1 import generate_invoice
-from jual.tokopedia.v1 import generate_jual
-from keywordchecker.tokopedia import check_status_keyword
+from laporan.invoice.tokopedia.v1 import generate_invoice
+from laporan.jual.tokopedia.v1 import generate_jual
+from laporan.keywordchecker.tokopedia import check_status_keyword
 
 
 def process(list_report):

@@ -5,35 +5,30 @@ Reads marketplace exports from data/ and writes Laporan workbooks
 (Invoice / Jual / Remit / Bonus sheets) into reports/<marketplace>/
 (reports/shopee, reports/tiktokshop, reports/tokopedia, reports/bukalapak).
 
-Examples (PowerShell):
-    python main.py                       # process every marketplace
-    python main.py --shopee --tiktok     # only Shopee and Tiktok
-    python main.py --data-dir .\\data --output-dir .\\reports
-    python main.py --show-files -v       # list discovered inputs, debug logs
+This is the `laporan` package's orchestration module. Invoke it from the repo
+root as a module (`python -m laporan`), or in-process via the bot's
+`python main.py --laporan` (which calls main() directly).
+
+Examples (PowerShell, from the repo root):
+    python -m laporan                       # process every marketplace
+    python -m laporan --shopee --tiktok     # only Shopee and Tiktok
+    python -m laporan --data-dir .\\laporan\\data --output-dir .\\laporan\\reports
+    python -m laporan --show-files -v       # list discovered inputs, debug logs
 """
 import argparse
 import logging
-import os
-import sys
 
-# This file lives alongside the generator's flat packages (invoice/, process/,
-# utility/, ...). Make that folder importable regardless of the current dir so
-# the flat imports below resolve no matter how main.py is invoked.
-_HERE = os.path.dirname(os.path.abspath(__file__))
-if _HERE not in sys.path:
-    sys.path.insert(0, _HERE)
-
-import process.bukalapak.v2 as bukalapak_v2  # noqa: E402  (path setup must run first)
-import process.shopee.v2 as shopee_v2  # noqa: E402
-import process.shopee.v3 as shopee_v3  # noqa: E402
-import process.tokopedia.v1 as tokopedia_v1  # noqa: E402
-import process.tiktok.v1 as tiktok_v1  # noqa: E402
-import process.tokopedia.v2 as tokopedia_v2  # noqa: E402
-from final.generic import generate_final  # noqa: E402
-from process.preprocess import generate_report_list  # noqa: E402
-from rekonsiliasi.generic import generate_reconciliation  # noqa: E402
-from utility import constant  # noqa: E402
-from utility.generic import ignore_warning  # noqa: E402
+import laporan.process.bukalapak.v2 as bukalapak_v2
+import laporan.process.shopee.v2 as shopee_v2
+import laporan.process.shopee.v3 as shopee_v3
+import laporan.process.tokopedia.v1 as tokopedia_v1
+import laporan.process.tiktok.v1 as tiktok_v1
+import laporan.process.tokopedia.v2 as tokopedia_v2
+from laporan.final.generic import generate_final
+from laporan.process.preprocess import generate_report_list
+from laporan.rekonsiliasi.generic import generate_reconciliation
+from laporan.utility import constant
+from laporan.utility.generic import ignore_warning
 
 # Marketplace -> ordered list of processor modules (Tiktok / Shopee first).
 MARKETPLACE_PROCESSORS = {
@@ -113,7 +108,7 @@ def main(argv=None):
     chosen = selected_marketplaces(args)
 
     if args.cek_jual:
-        from rekonsiliasi.cekjual import reconcile_invoices, load_invoices
+        from laporan.rekonsiliasi.cekjual import reconcile_invoices, load_invoices
         invoices = load_invoices(args.invoices) if args.invoices else None
         reconcile_invoices(invoices, jual_dir=args.jual_dir)
         logging.info("Selesai cek Jual. Tersimpan di %s", constant.get_reports_dir())

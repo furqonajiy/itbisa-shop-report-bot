@@ -2,11 +2,11 @@ import logging
 
 import pandas as pd
 
-from bonus.tokopedia.v2 import generate_bonus
-from invoice.tokopedia.v2 import generate_invoice
-from jual.tokopedia.v2 import generate_jual
-from remit.tokopedia.v2 import generate_remit
-from keywordchecker.tokopedia import check_saldo_keyword, check_status_keyword
+from laporan.bonus.tokopedia.v2 import generate_bonus
+from laporan.invoice.tokopedia.v2 import generate_invoice
+from laporan.jual.tokopedia.v2 import generate_jual
+from laporan.remit.tokopedia.v2 import generate_remit
+from laporan.keywordchecker.tokopedia import check_saldo_keyword, check_status_keyword
 
 
 def process(list_report):

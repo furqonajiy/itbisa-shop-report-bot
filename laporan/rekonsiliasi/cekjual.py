@@ -34,8 +34,8 @@ import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from utility.constant import MARKETPLACE_FOLDERS, get_data_dir, get_reports_dir
-from rekonsiliasi.generic import _saldo_files
+from laporan.utility.constant import MARKETPLACE_FOLDERS, get_data_dir, get_reports_dir
+from laporan.rekonsiliasi.generic import _saldo_files
 
 # Bot Jual ledger column (hand-kept, with a Void flag).
 _OMZET = 'Omzet\nBarang\n(Rp)'

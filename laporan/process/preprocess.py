@@ -2,7 +2,7 @@ import glob
 import logging
 import os
 
-from utility.constant import get_data_dir
+from laporan.utility.constant import get_data_dir
 
 
 def generate_report_list(show):

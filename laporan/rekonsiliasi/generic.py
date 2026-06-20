@@ -23,10 +23,10 @@ import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from keywordchecker import bukalapak as kw_bukalapak
-from keywordchecker import shopee as kw_shopee
-from keywordchecker import tokopedia as kw_tokopedia
-from utility.constant import MARKETPLACE_FOLDERS, get_data_dir, get_reports_dir
+from laporan.keywordchecker import bukalapak as kw_bukalapak
+from laporan.keywordchecker import shopee as kw_shopee
+from laporan.keywordchecker import tokopedia as kw_tokopedia
+from laporan.utility.constant import MARKETPLACE_FOLDERS, get_data_dir, get_reports_dir
 
 # Bucket labels (Bahasa Indonesia, user-facing).
 _REMIT = 'Remit'

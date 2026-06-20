@@ -1,6 +1,6 @@
 import logging
 
-from keywordchecker.generic import handle_invalid_keywords
+from laporan.keywordchecker.generic import handle_invalid_keywords
 
 VALID_TRANSAKSI_KEYWORD = [
     # V1

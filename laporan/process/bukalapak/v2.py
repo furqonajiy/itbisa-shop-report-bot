@@ -2,10 +2,10 @@ import logging
 
 import pandas as pd
 
-from invoice.bukalapak.v2 import generate_invoice
-from jual.bukalapak.v2 import generate_jual
-from remit.bukalapak.v2 import generate_remit
-from keywordchecker.bukalapak import check_saldo_keyword, check_status_keyword
+from laporan.invoice.bukalapak.v2 import generate_invoice
+from laporan.jual.bukalapak.v2 import generate_jual
+from laporan.remit.bukalapak.v2 import generate_remit
+from laporan.keywordchecker.bukalapak import check_saldo_keyword, check_status_keyword
 
 
 def process(list_report):

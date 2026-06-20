@@ -10,7 +10,7 @@ except ImportError:  # pragma: no cover
     except ImportError:
         SettingWithCopyWarning = None
 
-from utility.constant import MARKETPLACE_FOLDERS, get_reports_dir
+from laporan.utility.constant import MARKETPLACE_FOLDERS, get_reports_dir
 
 
 def ignore_warning(ignore):

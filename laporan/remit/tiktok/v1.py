@@ -2,9 +2,9 @@ import logging
 
 import pandas as pd
 
-from utility.generic import build_report_path
+from laporan.utility.generic import build_report_path
 
-from remit.generic import remit_to_excel
+from laporan.remit.generic import remit_to_excel
 
 
 def generate_remit(tkp_file, df):

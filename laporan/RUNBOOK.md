@@ -2,9 +2,9 @@
 
 Operating procedure for generating the **Laporan** workbooks. Commands are in
 **Windows PowerShell** (the supported environment). See [`README.md`](README.md) for
-the conceptual overview. This generator lives at `laporan/` inside
-**itbisa-shop-report-bot**; run it from the repo root via `python main.py --laporan`,
-or directly from `laporan/` with `python main.py`.
+the conceptual overview. This generator is the importable `laporan` package inside
+**itbisa-shop-report-bot**; run it from the repo root via `python main.py --laporan`
+(called in-process), or standalone with `python -m laporan`.
 
 ## 1. One-time setup
 
@@ -44,25 +44,23 @@ data\
 
 ## 3. Generate the reports
 
-The generator's own CLI (`--shopee`, `--reconcile`, …) lives in `laporan/main.py`, so
-run these from the `laporan/` folder. (From the repo root you can instead run every
-marketplace in one shot with the bot's `python main.py --laporan`.)
+Run these from the **repo root** (the `laporan` package is invoked as a module). The
+generator's own CLI (`--shopee`, `--reconcile`, …) is the same whether you call
+`python -m laporan` or the bot's `python main.py --laporan`.
 
 ```powershell
-cd laporan
-
 # everything
-python main.py
+python -m laporan
 
 # a single marketplace (flags combine)
-python main.py --shopee
-python main.py --shopee --tiktok
+python -m laporan --shopee
+python -m laporan --shopee --tiktok
 
 # preview which input files were found, with debug logs
-python main.py --show-files -v
+python -m laporan --show-files -v
 
 # custom folders
-python main.py --data-dir D:\exports --output-dir D:\reports
+python -m laporan --data-dir D:\exports --output-dir D:\reports
 ```
 
 ## 4. Collect the output
@@ -90,11 +88,11 @@ sheets for that period, plus a combined **`Final`** sheet (one reconciliation ro
 
 ```powershell
 # audit only — writes Rekonsiliasi <Marketplace>.xlsx, generates no reports
-python main.py --reconcile
-python main.py --reconcile --shopee     # one marketplace
+python -m laporan --reconcile
+python -m laporan --reconcile --shopee     # one marketplace
 
 # use the itbisa-shop-report-bot Jual ledger for the Cek Omzet vs Fee sheet
-python main.py --reconcile --shopee --jual-dir "..\itbisa-shop-report-bot\data"
+python -m laporan --reconcile --shopee --jual-dir "..\itbisa-shop-report-bot\data"
 ```
 
 This **read-only** pass re-reads the raw `Saldo` / `Fee` files and reports any
@@ -118,7 +116,7 @@ the relevant workbook(s) into that project's `data\` per its own README.
 
 | Symptom | Cause / fix |
 | --- | --- |
-| `Tidak ada file ditemukan di …` | No `*.xls*` / `*.csv` under the data dir. Check `--data-dir` and that files actually landed in `data\`. Run `python main.py --show-files` to list what was discovered. |
+| `Tidak ada file ditemukan di …` | No `*.xls*` / `*.csv` under the data dir. Check `--data-dir` and that files actually landed in `data\`. Run `python -m laporan --show-files` to list what was discovered. |
 | A file is ignored | Its filename is missing the marketplace/version/type token (e.g. `Transaksi v2 Shopee`). Rename to the exporter's convention. |
 | `ValueError: Tidak dapat menentukan marketplace dari file: …` | The report filename has no `Shopee`/`Tiktok`/`Tokopedia`/`Bukalapak` substring — fix the source filename. |
 | `ImportError` / `numpy.dtype size changed` on `import pandas` | pandas/numpy mismatch. Reinstall the pinned set: `pip install -r requirements.txt`. |
@@ -128,9 +126,9 @@ the relevant workbook(s) into that project's `data\` per its own README.
 ## Verifying a change before committing
 
 ```powershell
-# compile-check every module
-python -m py_compile main.py (Get-ChildItem -Recurse generator\*.py | % FullName)
+# compile-check every module in the package
+python -m py_compile (Get-ChildItem -Recurse laporan\*.py | % FullName)
 
 # smoke-run against a scratch folder (should report "Tidak ada file ditemukan")
-python main.py --data-dir .\_empty --output-dir .\_out
+python -m laporan --data-dir .\_empty --output-dir .\_out
 ```

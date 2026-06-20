@@ -2,9 +2,9 @@ import logging
 
 import pandas as pd
 
-from utility.generic import build_report_path
+from laporan.utility.generic import build_report_path
 
-from invoice.generic import invoice_to_excel
+from laporan.invoice.generic import invoice_to_excel
 
 
 def generate_invoice(tkp_file, df):

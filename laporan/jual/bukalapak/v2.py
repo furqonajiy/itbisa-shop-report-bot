@@ -2,10 +2,10 @@ import logging
 
 import pandas as pd
 
-from utility.generic import build_report_path
+from laporan.utility.generic import build_report_path
 
-from jual.generic import jual_to_excel
-from utility.sku import standardize_sku
+from laporan.jual.generic import jual_to_excel
+from laporan.utility.sku import standardize_sku
 
 
 def generate_jual(bl_file, df):

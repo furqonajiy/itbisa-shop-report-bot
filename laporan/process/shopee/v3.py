@@ -2,12 +2,12 @@ import logging
 
 import pandas as pd
 
-from bonus.shopee.v3 import generate_bonus
-from fee.shopee.v3 import generate_fee
-from invoice.shopee.v3 import generate_invoice
-from jual.shopee.v3 import generate_jual
-from remit.shopee.v3 import generate_remit
-from keywordchecker.shopee import check_saldo_keyword, check_status_keyword
+from laporan.bonus.shopee.v3 import generate_bonus
+from laporan.fee.shopee.v3 import generate_fee
+from laporan.invoice.shopee.v3 import generate_invoice
+from laporan.jual.shopee.v3 import generate_jual
+from laporan.remit.shopee.v3 import generate_remit
+from laporan.keywordchecker.shopee import check_saldo_keyword, check_status_keyword
 
 
 def process(list_report):

@@ -2,10 +2,10 @@ import logging
 
 import pandas as pd
 
-from invoice.tiktok.v1 import generate_invoice
-from jual.tiktok.v1 import generate_jual
-from remit.tiktok.v1 import generate_remit
-from keywordchecker.tiktok import check_status_keyword
+from laporan.invoice.tiktok.v1 import generate_invoice
+from laporan.jual.tiktok.v1 import generate_jual
+from laporan.remit.tiktok.v1 import generate_remit
+from laporan.keywordchecker.tiktok import check_status_keyword
 
 
 def process(list_report):

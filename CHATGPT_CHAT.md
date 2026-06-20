@@ -12,7 +12,7 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - `laporan/` — co-located **Laporan generator** subproject (raw marketplace exports → `Laporan` workbooks: `Invoice`/`Jual`/`Remit`/`Bonus`); run via `python main.py --laporan`. Its `Jual` feeds this bot's `Jual` ledger through a **manual Google Sheets step** — separate stages, not auto-chained.
 
 ## CLI (`python main.py`)
-- (no flag) = **full suite** (`--all`, 7 steps, loads data once via `_load_shared`, reorder once) · `--sales [YEAR]` · `--trend` · `--reorder` · `--cashflow` · `--deadstock` · `--ab-test` · `--restock-check` · `--data-dir`/`--output-dir`. Zero-config reports (trend/cash-flow/dead-stock) always run; ab-test/restock-check run only if their template has rows. · `--laporan [shopee tiktok …]` runs the `laporan/` generator (subprocess; reads `laporan/data`, writes `laporan/reports`).
+- (no flag) = **full suite** (`--all`, 7 steps, loads data once via `_load_shared`, reorder once) · `--sales [YEAR]` · `--trend` · `--reorder` · `--cashflow` · `--deadstock` · `--ab-test` · `--restock-check` · `--data-dir`/`--output-dir`. Zero-config reports (trend/cash-flow/dead-stock) always run; ab-test/restock-check run only if their template has rows. · `--laporan [shopee tiktok …]` runs the importable `laporan` package in-process (also `python -m laporan`; reads `laporan/data`, writes `laporan/reports`).
 
 ## Inputs (`data/`, by glob)
 - `*Stok*.xlsx` (purchases, sheet `Stok`; latest also needs `Hilang`+`PindahBarang`) and `*Jual*.xlsx` (sales, ≥ `JualShopee`). Legacy `Bisa*` file/sheet names (`BisaStok`/`BisaJualShopee`…) are still read transparently via `resolve_sheet()` — the `Bisa`-prefix de-branding kept full backward-compat; the `ITBisa` brand is unchanged.
