@@ -9,12 +9,13 @@ Standalone, **offline** Python tool that turns ITBisa sales/stock Excel exports 
 - Python 3.13. Deps: `pandas`, `openpyxl`.
 - `main.py` CLI/orchestration · `config.py` all constants · `data_loader.py` loading + SKU normalization + current-workbook loaders · `analysis.py` HPP, profit, aggregation, supplier classification, reorder, `build_stock_ledger`, `compute_lead_time_months`, `compute_price_change_status` · `tables.py` table builders · `excel_writer.py` Excel output · `ab_testing.py` A/B analyzer · `restock_pricing.py` restock price evaluator · `cashflow.py` cash-flow restock plan · `deadstock_analysis.py` modal beku · `trend_analysis.py` tren+musiman.
 - `data/` input (gitignored), `output/` reports.
+- `bisalaporan/` — co-located **Laporan generator** subproject (raw marketplace exports → `Laporan` workbooks: `Invoice`/`Jual`/`Remit`/`Bonus`); run via `python main.py --laporan`. Its `Jual` feeds this bot's `Jual` ledger through a **manual Google Sheets step** — separate stages, not auto-chained.
 
 ## CLI (`python main.py`)
-- (no flag) = **full suite** (`--all`, 7 steps, loads data once via `_load_shared`, reorder once) · `--sales [YEAR]` · `--trend` · `--reorder` · `--cashflow` · `--deadstock` · `--ab-test` · `--restock-check` · `--data-dir`/`--output-dir`. Zero-config reports (trend/cash-flow/dead-stock) always run; ab-test/restock-check run only if their template has rows.
+- (no flag) = **full suite** (`--all`, 7 steps, loads data once via `_load_shared`, reorder once) · `--sales [YEAR]` · `--trend` · `--reorder` · `--cashflow` · `--deadstock` · `--ab-test` · `--restock-check` · `--data-dir`/`--output-dir`. Zero-config reports (trend/cash-flow/dead-stock) always run; ab-test/restock-check run only if their template has rows. · `--laporan [shopee tiktok …]` runs the `bisalaporan/` generator (subprocess; reads `bisalaporan/data`, writes `bisalaporan/reports`).
 
 ## Inputs (`data/`, by glob)
-- `*Stok*.xlsx` (purchases, sheet `Stok`; latest also needs `Hilang`+`PindahBarang`) and `*Jual*.xlsx` (sales, ≥ `JualShopee`).
+- `*Stok*.xlsx` (purchases, sheet `Stok`; latest also needs `Hilang`+`PindahBarang`) and `*Jual*.xlsx` (sales, ≥ `JualShopee`). Legacy `Bisa*` file/sheet names (`BisaStok`/`BisaJualShopee`…) are still read transparently via `resolve_sheet()` — the `Bisa`-prefix de-branding kept full backward-compat; the `ITBisa` brand is unchanged.
 - Stok **`Toko`** = standardized supplier/forwarder (Ocistok/Martkita, AliExpress, Jasa Impor, marketplaces, local distributors); payment account + invoice/resi in **`Keterangan Pembelian`**; **`Luar Negeri?`** = authoritative overseas flag (splits local vs cross-border import). Loader auto-accepts the legacy `Toko[spasi]Akun Pemesan` header.
 
 ## Output: `Analisa_Penjualan_ITBisa_<year>.xlsx` — 9 sheets, pure sales history

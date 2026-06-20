@@ -86,7 +86,7 @@ python main.py --reconcile
 python main.py --reconcile --shopee     # one marketplace
 
 # use the itbisa-shop-report-bot Jual ledger for the Cek Omzet vs Fee sheet
-python main.py --reconcile --shopee --bisajual-dir "..\itbisa-shop-report-bot\data"
+python main.py --reconcile --shopee --jual-dir "..\itbisa-shop-report-bot\data"
 ```
 
 This **read-only** pass re-reads the raw `Saldo` / `Fee` files and reports any
