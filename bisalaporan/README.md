@@ -41,9 +41,9 @@ python main.py
 | `python main.py --output-dir <dir>` | Write reports under `<dir>` instead of `./reports`. |
 | `python main.py --show-files` | Log every input file discovered, then run. |
 | `python main.py --reconcile` | Write `Rekonsiliasi <Marketplace>.xlsx` (read-only audit; see below). Generates no reports. |
-| `python main.py --reconcile --bisajual-dir <dir>` | As above, but read the itbisa-shop-report-bot `*Jual*.xlsx` ledger from `<dir>` for the `Cek Omzet vs Fee` sheet. |
-| `python main.py --cek-bisajual --bisajual-dir <dir>` | Reconcile a list of invoices against the Jual ledger to find entry bugs (see below). |
-| `python main.py --cek-bisajual --invoices <file>` | Same, for the invoices listed in `<file>` (one per line). |
+| `python main.py --reconcile --jual-dir <dir>` | As above, but read the itbisa-shop-report-bot `*Jual*.xlsx` ledger from `<dir>` for the `Cek Omzet vs Fee` sheet. |
+| `python main.py --cek-jual --jual-dir <dir>` | Reconcile a list of invoices against the Jual ledger to find entry bugs (see below). |
+| `python main.py --cek-jual --invoices <file>` | Same, for the invoices listed in `<file>` (one per line). |
 | `python main.py -v` / `--verbose` | Enable debug logging. |
 
 ## Reconciliation (`--reconcile`)
@@ -74,7 +74,7 @@ silently falls out of `Laporan`. Each workbook has:
   *Omzet tidak settle*, and *Belum ada penghasilan* (booked but not yet remitted —
   not a loss). This is how you confirm `Jual` represents real money. Omzet is taken
   from the **itbisa-shop-report-bot** `*Jual*.xlsx` ledger (non-void `Omzet Barang`)
-  when you point `--bisajual-dir` at it (or drop the file in `data/`); otherwise it's
+  when you point `--jual-dir` at it (or drop the file in `data/`); otherwise it's
   re-derived from raw `Transaksi`.
 - **Cek Remit Saldo vs Fee** (Shopee) — every invoice side by side: the remit amount
   from `Saldo` vs the `Total Penghasilan` from `Fee`, with a **Cocok**/**Beda**
@@ -86,9 +86,9 @@ silently falls out of `Laporan`. Each workbook has:
 
 Run it for one marketplace with the usual flags, e.g. `python main.py --reconcile --shopee`.
 
-## Find Jual entry bugs (`--cek-bisajual`)
+## Find Jual entry bugs (`--cek-jual`)
 
-`python main.py --cek-bisajual` reconciles a list of invoices against the
+`python main.py --cek-jual` reconciles a list of invoices against the
 **itbisa-shop-report-bot** `Jual` ledger to answer one question: *how was each
 order entered, vs the real money it made?* For each invoice it pairs the booked Omzet
 (non-void, across every `Jual*` sheet) with the real money in `Saldo` (full
@@ -105,7 +105,7 @@ net) and `Fee`, then flags the entry bugs:
 It writes `reports/shopee/Cek Jual Shopee.xlsx` (BUG rows red, at the top). The
 invoice list defaults to a built-in set; pass `--invoices <file>` (one invoice per
 line, `#` comments allowed) for any other — the list is meant to grow over time. Point
-`--bisajual-dir` at the bot repo's `data/` so it reads the real ledger. Read-only.
+`--jual-dir` at the bot repo's `data/` so it reads the real ledger. Read-only.
 
 ## Inputs (`data/`)
 
@@ -198,12 +198,12 @@ generator/
   process/
     preprocess.py            # recursive discovery of data/ inputs
     <marketplace>/<vN>.py    # per-marketplace/version readers + filters
-  bisainvoice/ bisajual/ bisaremit/ bisabonus/ bisafee/
+  invoice/ jual/ remit/ bonus/ fee/
     generic.py               # the shared *_to_excel writer for each sheet type
     <marketplace>/<vN>.py    # per-marketplace sheet builders
-  bisafinal/
+  final/
     generic.py               # builds the Final sheet (marketplace-agnostic)
-  bisarekonsiliasi/
+  rekonsiliasi/
     generic.py               # --reconcile audit (Saldo/Fee vs captured)
   keywordchecker/            # validates marketplace status / saldo keywords
   utility/
