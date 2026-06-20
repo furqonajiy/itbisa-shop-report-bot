@@ -1,0 +1,11 @@
+# IntelliJ
+*.iml
+*.properties
+.idea
+
+# pycache
+*.pyc
+__pycache__/
+
+# Generated reports
+/reports/
