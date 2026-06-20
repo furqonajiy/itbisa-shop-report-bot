@@ -3,7 +3,6 @@ import logging
 import os
 
 import pandas as pd
-from openpyxl.reader.excel import load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -197,7 +196,6 @@ def _write_final(out, path, sheet_name=FINAL_SHEET):
 
     try:
         writer = pd.ExcelWriter(path, mode='a', engine='openpyxl', if_sheet_exists='replace')
-        writer.book = load_workbook(path)
     except (FileNotFoundError, ValueError):
         writer = pd.ExcelWriter(path, engine='openpyxl')
 

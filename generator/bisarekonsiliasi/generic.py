@@ -262,7 +262,10 @@ def _build_fee_mismatch(fee, remit):
             out.append((inv, None, nr, 'Remit tanpa fee (tidak ada rincian biaya)'))
         elif abs((tp or 0) - (nr or 0)) > 0.5:
             out.append((inv, tp, nr, 'Nominal beda -> join (Invoice, Nominal Remit) gagal, fee jadi 0'))
-    return pd.DataFrame(out, columns=['Invoice', 'Total Penghasilan (Fee)', 'Nominal Remit', 'Masalah'])
+    mismatch = pd.DataFrame(out, columns=['Invoice', 'Total Penghasilan (Fee)', 'Nominal Remit', 'Masalah'])
+    # Deterministic order: pandas 2.x changed the outer-merge row order (the rows
+    # themselves are unchanged), so sort explicitly to keep the sheet stable.
+    return mismatch.sort_values(['Masalah', 'Invoice']).reset_index(drop=True)
 
 
 def _shopee_saldo_vs_fee(fee, remit):
