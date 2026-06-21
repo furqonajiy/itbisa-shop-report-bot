@@ -9,16 +9,22 @@ from config import (
     BULK_CHINA_SHARE_THRESHOLD, CHINA_KEYWORDS, CV_MODERATE_MAX, CV_STABLE_MAX,
     IMPORT_SHOP_KEYWORDS, LEAD_SHOP_MIN_SHARE, LEAD_TIME_CHINA_MONTHS,
     LEAD_TIME_MARKET_MONTHS, LEAD_TIME_MAX_DAYS, LEAD_TIME_MIN_LOTS,
-    LEAD_TIME_PERCENTILE, MARKET_KEYWORDS, MIGRASI_PREFIX, OVERSTOCK_MONTHS,
-    PRICING_HPP_WINDOWS_MONTHS,
+    LEAD_TIME_PERCENTILE, MARKET_KEYWORDS, MIGRASI_PREFIX, ONORDER_MAX_AGE_MONTHS,
+    OVERSTOCK_MONTHS, PRICING_HPP_WINDOWS_MONTHS,
     PRICE_CHANGE_AUTO_PRIOR_DAYS,
     PRICE_CHANGE_AUTO_RECENT_DAYS, PRICE_CHANGE_MIN_STEP,
     PRICE_CHANGE_PRE_WINDOW_DAYS, PRICE_CHANGE_RECENT_DAYS,
     PRICE_CHANGE_VALIDATION_MIN_SHARE, ROP_NOW_RATIO, ROP_SOON_RATIO,
     ROP_URGENT_RATIO, SAFETY_MULT_MODERATE, SAFETY_MULT_STABLE,
-    SAFETY_MULT_VOLATILE, SLOW_DEAD_MAX_VELOCITY, TARGET_MONTHS_POST_REORDER,
-    VELOCITY_MIN_ACTIVE_MONTHS,
+    SAFETY_MULT_VOLATILE, SLOW_DEAD_MAX_VELOCITY, STATUS_SUDAH_DIPESAN,
+    TARGET_MONTHS_POST_REORDER, VELOCITY_MIN_ACTIVE_MONTHS,
 )
+
+# Reorder buckets that mean "a new purchase is due" — these are the ones an
+# outstanding (in-transit) order can downgrade to STATUS_SUDAH_DIPESAN.
+_REORDER_DUE_STATUSES = {
+    "🔴 STOCKOUT", "🔴 Reorder URGENT", "🟠 Reorder Now", "🟡 Reorder Soon",
+}
 
 _DAYS_PER_MONTH = 365.25 / 12.0
 
@@ -621,6 +627,34 @@ def _compute_china_share(stok: pd.DataFrame) -> pd.Series:
     return (qty_china / qty_total).fillna(0)
 
 
+def _compute_on_order(stok: pd.DataFrame, today: pd.Timestamp,
+                      max_age_months: int = ONORDER_MAX_AGE_MONTHS) -> pd.DataFrame:
+    """Per-SKU in-transit (already-purchased, not-yet-arrived) stock.
+
+    A lot is "on order" when it is paid (`tanggal_bayar` filled) but not yet
+    arrived (`tanggal_sampai` blank) — the same arrival signal the stock ledger
+    uses (`load_current_stok_arrived` counts only filled `Tanggal Sampai`). Migrasi
+    opening-balance rows are excluded, and only orders paid within `max_age_months`
+    count (older blank-Sampai rows are treated as data gaps / lost, not in transit).
+
+    Returns a DataFrame indexed by SKU with `qty_on_order` and `last_order_date`.
+    SKUs with no outstanding order are absent."""
+    cols = {"toko", "tanggal_bayar", "tanggal_sampai", "qty_beli"}
+    if not cols.issubset(stok.columns):
+        return pd.DataFrame(columns=["qty_on_order", "last_order_date"])
+    s = stok[~stok["toko"].astype(str).str.startswith(MIGRASI_PREFIX, na=False)]
+    cutoff = today - pd.DateOffset(months=max_age_months)
+    it = s[(s["qty_beli"] > 0) & s["tanggal_bayar"].notna()
+           & s["tanggal_sampai"].isna()
+           & (s["tanggal_bayar"] >= cutoff) & (s["tanggal_bayar"] <= today)]
+    if len(it) == 0:
+        return pd.DataFrame(columns=["qty_on_order", "last_order_date"])
+    return it.groupby("SKU").agg(
+        qty_on_order=("qty_beli", "sum"),
+        last_order_date=("tanggal_bayar", "max"),
+    )
+
+
 def compute_reorder_metrics(stok: pd.DataFrame, jual: pd.DataFrame,
                             today: pd.Timestamp | None = None,
                             sisa_by_sku: pd.Series | None = None) -> pd.DataFrame:
@@ -643,6 +677,11 @@ def compute_reorder_metrics(stok: pd.DataFrame, jual: pd.DataFrame,
     # Per-shop observed lead time mapped to each SKU's primary supplier (replaces the
     # old flat LEAD_TIME_CHINA_MONTHS guess). See compute_lead_time_months.
     per_sku_lead, global_import_lead = compute_lead_time_months(stok)
+    # In-transit (already-purchased, not-yet-arrived) qty per SKU → folded into the
+    # inventory position so an already-restocked SKU isn't re-flagged as urgent.
+    on_order = _compute_on_order(stok, today)
+    oo_qty = on_order["qty_on_order"].to_dict() if len(on_order) else {}
+    oo_date = on_order["last_order_date"].to_dict() if len(on_order) else {}
 
     all_skus = sorted(set(qty_beli_total.index) | set(qty_jual_total.index))
 
@@ -688,16 +727,40 @@ def compute_reorder_metrics(stok: pd.DataFrame, jual: pd.DataFrame,
         target_qty = vel * TARGET_MONTHS_POST_REORDER
         months_cover = sisa / vel if vel > 0 else float("inf")
 
+        # Inventory position = on-hand + on-order (already-purchased, in transit).
+        # The physical status is still classified on on-hand `sisa` (a SKU at 0
+        # on-hand is physically stocked out NOW even with a shipment inbound), but
+        # the reorder DECISION uses the position so a covered SKU isn't re-ordered.
+        qty_oo = float(oo_qty.get(sku, 0.0))
+        last_order = oo_date.get(sku)
+        position = sisa + qty_oo
+        est_arrival = pd.NaT
+        if qty_oo > 0 and last_order is not None and pd.notna(last_order):
+            est_arrival = pd.Timestamp(last_order) + pd.Timedelta(days=lead * _DAYS_PER_MONTH)
+
         status, urgency = _classify_status(sisa, vel, rop_final, months_cover)
 
-        if vel > 0 and sisa < rop_final:
-            qty_suggest = max(0.0, target_qty - sisa + lead_demand)
+        # Suggested order nets out the incoming qty (position, not on-hand): if a
+        # reorder is still due after counting on-order, only ask for the remainder.
+        if vel > 0 and position < rop_final:
+            qty_suggest = max(0.0, target_qty - position + lead_demand)
         else:
             qty_suggest = 0.0
+
+        # Already-ordered override: a SKU that would be a buy-now bucket but whose
+        # incoming order brings the position up to the ROP is "Sudah Dipesan" — flag
+        # it (don't re-buy), wait for arrival. If the incoming is still short, keep
+        # the urgent status (qty_suggest above already asks only for the top-up).
+        if qty_oo > 0 and status in _REORDER_DUE_STATUSES and position >= rop_final:
+            status, urgency = STATUS_SUDAH_DIPESAN, 8.0
 
         rows.append({
             "SKU": sku,
             "sisa_stok": sisa,
+            "qty_on_order": qty_oo,
+            "inventory_position": position,
+            "last_order_date": last_order if qty_oo > 0 else pd.NaT,
+            "est_arrival": est_arrival,
             "qty_beli_all_time": qty_b,
             "qty_jual_all_time": qty_s,
             "v3mo": v3, "v6mo": v6, "v12mo": v12, "v24mo": v24,
@@ -731,6 +794,7 @@ def compute_reorder_metrics(stok: pd.DataFrame, jual: pd.DataFrame,
           f"URGENT: {counts.get('🔴 Reorder URGENT', 0)}, "
           f"Now: {counts.get('🟠 Reorder Now', 0)}, "
           f"Soon: {counts.get('🟡 Reorder Soon', 0)}, "
+          f"Sudah Dipesan: {counts.get(STATUS_SUDAH_DIPESAN, 0)}, "
           f"Healthy: {counts.get('🟢 Healthy', 0)}, "
           f"Overstock: {counts.get('🔵 Overstock', 0)}, "
           f"Dead: {counts.get('💤 Slow/Dead', 0)})")

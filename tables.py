@@ -8,8 +8,8 @@ from analysis import classify_supplier
 from config import (
     HPP_VARIANCE_THRESHOLD, MARKUP_BORDERLINE_MAX, MARKUP_BORDERLINE_MIN,
     MARKUP_THRESHOLD_KANDIDAT, PRICE_SCENARIOS, QTY_PERCENTILE,
-    SCORE_WEIGHT_MARGIN, SCORE_WEIGHT_VELOCITY, SUPPLIER_TOP_N_SINGLE_SOURCE,
-    TOP_N_DIMINATI, TOP_N_PROFIT,
+    SCORE_WEIGHT_MARGIN, SCORE_WEIGHT_VELOCITY, STATUS_SUDAH_DIPESAN,
+    SUPPLIER_TOP_N_SINGLE_SOURCE, TOP_N_DIMINATI, TOP_N_PROFIT,
 )
 
 
@@ -233,5 +233,8 @@ def build_reorder_tables(reorder_df: pd.DataFrame) -> dict:
             ["months_cover", "SKU"], ascending=[False, True]).reset_index(drop=True),
         "slow_dead": reorder_df[reorder_df["status"] == "💤 Slow/Dead"].sort_values(
             ["sisa_stok", "SKU"], ascending=[False, True]).reset_index(drop=True),
+        # Already-ordered (in transit): soonest estimated arrival first, SKU tiebreaker.
+        "sudah_dipesan": reorder_df[reorder_df["status"] == STATUS_SUDAH_DIPESAN].sort_values(
+            ["est_arrival", "SKU"], ascending=[True, True]).reset_index(drop=True),
         "full": reorder_df.sort_values(["urgency_score", "SKU"], ascending=[False, True]).reset_index(drop=True),
     }
