@@ -159,6 +159,17 @@ ROP_NOW_RATIO = 1.0
 ROP_SOON_RATIO = 1.3
 OVERSTOCK_MONTHS = 12.0
 
+# --- On-order / in-transit stock (already purchased, not yet arrived) ---
+# A lot is "on order" (in transit) when it is paid (Tanggal Bayar filled) but not
+# yet arrived (Tanggal Sampai blank). This qty is added to the inventory position
+# (on-hand + on-order) for the reorder decision, so an already-restocked SKU isn't
+# re-flagged as urgent; when the incoming covers the ROP it is shown as
+# STATUS_SUDAH_DIPESAN with an estimated arrival (last order date + lead time).
+# Only orders paid within this many months count (older blank-Sampai rows are
+# treated as data gaps / lost, not in transit).
+ONORDER_MAX_AGE_MONTHS = 6
+STATUS_SUDAH_DIPESAN = "⏳ Sudah Dipesan"
+
 # --- Restock price check (--restock-check) ---
 # Evaluate a supplier's offered restock price for a SKU and recommend the selling
 # price per marketplace. Input data/restock_check.xlsx (auto-template if missing).

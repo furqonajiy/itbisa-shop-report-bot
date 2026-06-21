@@ -162,6 +162,29 @@ How it works:
 
 See `compute_lead_time_months` in `analysis.py`.
 
+### On-order / in-transit stock (already ordered, not yet arrived)
+
+The stock ledger only counts **arrived** lots (`Tanggal Sampai` filled), so a SKU you have
+**already re-purchased** but whose shipment hasn't landed used to show low on-hand and get
+re-flagged URGENT — telling you to buy something already on its way.
+
+Now the reorder decision uses the **inventory position = on-hand + on-order**:
+
+- **On-order (in transit)** = non-Migrasi lots that are paid (`Tanggal Bayar` filled) but not
+  arrived (`Tanggal Sampai` blank), paid within `ONORDER_MAX_AGE_MONTHS` (default 6, so old
+  blank-`Sampai` data gaps don't false-flag).
+- The physical status is still classified on on-hand `sisa_stok` (a 0-on-hand SKU is still
+  physically stocked out now), but the **suggested order nets out the incoming** (it only asks
+  for the remainder), and a buy-now SKU (STOCKOUT/URGENT/Now/Soon) whose incoming order covers
+  the ROP is relabelled **`⏳ Sudah Dipesan`** with an **estimated arrival** (last order date +
+  lead time) — don't re-buy, wait for it to land. If the incoming is still short, it stays in
+  its urgent bucket but only requests the top-up.
+- New columns appear in `01_Reorder_Action` / `02_Reorder_Data_Lengkap`: `Qty Dipesan`,
+  `Posisi` (on-hand + on-order), `Tgl Pesan`, `Est. Tiba`, plus a dedicated `⏳ Sudah Dipesan`
+  section. (`--cashflow` is not yet position-aware; it still plans off on-hand.)
+
+See `_compute_on_order` in `analysis.py`.
+
 ## Output sheet structure (sales report)
 
 The yearly file `Analisa_Penjualan_ITBisa_<year>.xlsx` is **pure sales history (9 sheets)**.

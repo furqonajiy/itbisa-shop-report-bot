@@ -16,8 +16,8 @@ from config import (
     MARKUP_THRESHOLD_KANDIDAT, ORANGE_FILL_COLOR, OVERSTOCK_MONTHS,
     PRICE_SCENARIOS, RED_FILL_COLOR, ROP_SOON_RATIO, ROP_URGENT_RATIO,
     SAFETY_MULT_MODERATE, SAFETY_MULT_STABLE, SAFETY_MULT_VOLATILE,
-    SLOW_DEAD_MAX_VELOCITY, TARGET_MARKUP_KOREKSI, TARGET_MONTHS_POST_REORDER,
-    TITLE_COLOR, TOP_N_PER_PLATFORM, YELLOW_FILL_COLOR,
+    SLOW_DEAD_MAX_VELOCITY, STATUS_SUDAH_DIPESAN, TARGET_MARKUP_KOREKSI,
+    TARGET_MONTHS_POST_REORDER, TITLE_COLOR, TOP_N_PER_PLATFORM, YELLOW_FILL_COLOR,
 )
 from tables import build_top_per_platform
 
@@ -594,20 +594,35 @@ def _write_supplier_analysis(ws, supplier_tables):
 
 
 _REORDER_BUCKET_HEADERS = [
-    "SKU", "Sisa Stok", "V 3mo", "V 6mo", "V 12mo",
+    "SKU", "Sisa Stok", "Qty Dipesan", "V 3mo", "V 6mo", "V 12mo",
     "Vel. Pakai", "Basis", "Volatility", "Max 1 Order",
     "Lead (bln)", "ROP", "Bulan Cover", "Suggest Order",
     "Last Purchase",
 ]
-_REORDER_BUCKET_WIDTHS = [38, 11, 10, 10, 10, 11, 7, 10, 11, 10, 11, 11, 13, 13]
+_REORDER_BUCKET_WIDTHS = [38, 11, 12, 10, 10, 10, 11, 7, 10, 11, 10, 11, 11, 13, 13]
 _REORDER_BUCKET_COLS = [
-    "SKU", "sisa_stok", "v3mo", "v6mo", "v12mo",
+    "SKU", "sisa_stok", "qty_on_order", "v3mo", "v6mo", "v12mo",
     "velocity_used", "velocity_basis", "volatility", "max_single_order",
     "lead_months", "rop_final", "months_cover", "qty_order_suggest",
     "last_purchase",
 ]
+# Dedicated layout for the "Sudah Dipesan" (in-transit) bucket: surfaces the order
+# date + estimated arrival so the user knows to wait instead of re-buying.
+_ONORDER_BUCKET_HEADERS = [
+    "SKU", "Sisa Stok", "Qty Dipesan", "Posisi (sisa+pesan)", "Tgl Pesan",
+    "Est. Tiba", "Vel. Pakai", "Lead (bln)", "ROP", "Suggest Order",
+]
+_ONORDER_BUCKET_WIDTHS = [38, 11, 12, 18, 13, 13, 11, 10, 11, 13]
+_ONORDER_BUCKET_COLS = [
+    "SKU", "sisa_stok", "qty_on_order", "inventory_position", "last_order_date",
+    "est_arrival", "velocity_used", "lead_months", "rop_final", "qty_order_suggest",
+]
+_ONORDER_BUCKET_FORMATS = [
+    None, FMT_NUM, FMT_NUM, FMT_NUM, "yyyy-mm-dd",
+    "yyyy-mm-dd", FMT_DEC, FMT_DEC, FMT_DEC, FMT_NUM,
+]
 _REORDER_BUCKET_FORMATS = [
-    None, FMT_NUM, FMT_DEC, FMT_DEC, FMT_DEC,
+    None, FMT_NUM, FMT_NUM, FMT_DEC, FMT_DEC, FMT_DEC,
     FMT_DEC, None, None, FMT_NUM,
     FMT_DEC, FMT_DEC, FMT_DEC, FMT_NUM,
     "yyyy-mm-dd",
@@ -625,6 +640,22 @@ def _write_reorder_bucket(ws, row_cur, title, df, fill_color):
     write_headers(ws, row_cur, _REORDER_BUCKET_HEADERS, widths=_REORDER_BUCKET_WIDTHS)
     out = df[_REORDER_BUCKET_COLS]
     write_data_rows(ws, row_cur + 1, out, formats=_REORDER_BUCKET_FORMATS)
+    return row_cur + len(df) + 3
+
+
+def _write_onorder_bucket(ws, row_cur, title, df, fill_color):
+    """Section for already-ordered (in-transit) SKUs — shows order date + est. arrival."""
+    c = ws.cell(row=row_cur, column=1, value=title)
+    c.font = TITLE_FONT
+    c.fill = fill_color
+    row_cur += 1
+    if len(df) == 0:
+        ws.cell(row=row_cur, column=1,
+                value="(tidak ada SKU yang sedang dalam perjalanan)").font = NORMAL_FONT
+        return row_cur + 2
+    write_headers(ws, row_cur, _ONORDER_BUCKET_HEADERS, widths=_ONORDER_BUCKET_WIDTHS)
+    out = df[_ONORDER_BUCKET_COLS]
+    write_data_rows(ws, row_cur + 1, out, formats=_ONORDER_BUCKET_FORMATS)
     return row_cur + len(df) + 3
 
 
@@ -658,6 +689,10 @@ def _write_reorder_analysis(ws, reorder_tables, today=None):
         "(b) lead demand + max 1 order (proteksi bulk buyer).",
         f"• Target setelah reorder: {TARGET_MONTHS_POST_REORDER} bulan cadangan + lead time.",
         f"• SKU dengan velocity < {SLOW_DEAD_MAX_VELOCITY}/bulan diklasifikasi 'Slow/Dead', tidak masuk reorder rule.",
+        "• Posisi inventory = sisa stok + Qty Dipesan (sudah dibeli, Tanggal Sampai masih kosong = "
+        "dalam perjalanan). SKU yang sudah dipesan & incoming-nya menutup ROP → status "
+        f"'{STATUS_SUDAH_DIPESAN}' (jangan beli lagi, tunggu tiba); Suggest Order hanya minta "
+        "kekurangannya kalau incoming belum cukup.",
     ]
     for line in method_lines:
         c = ws.cell(row=row_cur, column=1, value=line)
@@ -673,6 +708,7 @@ def _write_reorder_analysis(ws, reorder_tables, today=None):
         ("🔴 Reorder URGENT", "urgent", RED_FILL),
         ("🟠 Reorder Now", "now", ORANGE_FILL),
         ("🟡 Reorder Soon", "soon", YELLOW_FILL),
+        (STATUS_SUDAH_DIPESAN, "sudah_dipesan", BLUE_FILL),
         ("🟢 Healthy", "healthy", GREEN_FILL),
         ("🔵 Overstock", "overstock", BLUE_FILL),
         ("💤 Slow/Dead", "slow_dead", LIGHT_FILL),
@@ -696,39 +732,52 @@ def _write_reorder_analysis(ws, reorder_tables, today=None):
          "now", ORANGE_FILL),
         (f"D. 🟡 REORDER SOON — Sisa < ROP × {ROP_SOON_RATIO}, MULAI SIAP-SIAP",
          "soon", YELLOW_FILL),
-        (f"E. 🔵 OVERSTOCK — Sisa > {OVERSTOCK_MONTHS:.0f} bulan cadangan, STOP REORDER",
-         "overstock", BLUE_FILL),
     ]
     for title, key, fill in buckets:
         row_cur = _write_reorder_bucket(ws, row_cur, title, reorder_tables[key], fill)
+
+    # Already-ordered (in transit): was a buy-now bucket, but an outstanding order
+    # now covers the ROP — show it so the user waits for arrival instead of re-buying.
+    row_cur = _write_onorder_bucket(
+        ws, row_cur,
+        f"E. {STATUS_SUDAH_DIPESAN} — SUDAH DIBELI, BELUM SAMPAI; JANGAN BELI LAGI, TUNGGU TIBA",
+        reorder_tables["sudah_dipesan"], BLUE_FILL)
+
+    row_cur = _write_reorder_bucket(
+        ws, row_cur,
+        f"F. 🔵 OVERSTOCK — Sisa > {OVERSTOCK_MONTHS:.0f} bulan cadangan, STOP REORDER",
+        reorder_tables["overstock"], BLUE_FILL)
 
 
 def _write_reorder_full(ws, reorder_full):
     ws["A1"] = "DATA LENGKAP REORDER PER SKU"
     ws["A1"].font = TITLE_FONT
-    ws.merge_cells("A1:T1")
-    headers = ["SKU", "Status", "Sisa Stok", "V 3mo", "V 6mo", "V 12mo", "V 24mo",
-               "Vel. Pakai", "Basis", "CV", "Volatility", "Safety ×",
+    ws.merge_cells("A1:W1")
+    headers = ["SKU", "Status", "Sisa Stok", "Qty Dipesan", "Posisi", "V 3mo", "V 6mo",
+               "V 12mo", "V 24mo", "Vel. Pakai", "Basis", "CV", "Volatility", "Safety ×",
                "Max 1 Order", "Lead (bln)", "Lead Demand",
                "ROP Safety", "ROP Bulk", "ROP Final",
-               "Bulan Cover", "Suggest Order"]
-    widths = [38, 22, 11, 10, 10, 10, 10, 11, 7, 8, 10, 9,
-              12, 11, 12, 12, 12, 12, 12, 13]
+               "Bulan Cover", "Suggest Order", "Est. Tiba"]
+    widths = [38, 22, 11, 12, 11, 10, 10, 10, 10, 11, 7, 8, 10, 9,
+              12, 11, 12, 12, 12, 12, 12, 13, 13]
     write_headers(ws, 3, headers, widths=widths)
-    cols = ["SKU", "status", "sisa_stok", "v3mo", "v6mo", "v12mo", "v24mo",
+    cols = ["SKU", "status", "sisa_stok", "qty_on_order", "inventory_position",
+            "v3mo", "v6mo", "v12mo", "v24mo",
             "velocity_used", "velocity_basis", "cv", "volatility", "safety_mult",
             "max_single_order", "lead_months", "lead_demand",
-            "rop_safety", "rop_bulk", "rop_final", "months_cover", "qty_order_suggest"]
-    formats = [None, None, FMT_NUM, FMT_DEC, FMT_DEC, FMT_DEC, FMT_DEC,
+            "rop_safety", "rop_bulk", "rop_final", "months_cover", "qty_order_suggest",
+            "est_arrival"]
+    formats = [None, None, FMT_NUM, FMT_NUM, FMT_NUM, FMT_DEC, FMT_DEC, FMT_DEC, FMT_DEC,
                FMT_DEC, None, FMT_DEC, None, FMT_DEC,
                FMT_NUM, FMT_DEC, FMT_DEC,
-               FMT_DEC, FMT_DEC, FMT_DEC, FMT_DEC, FMT_NUM]
+               FMT_DEC, FMT_DEC, FMT_DEC, FMT_DEC, FMT_NUM, "yyyy-mm-dd"]
     out = reorder_full[cols]
     write_data_rows(ws, 4, out, formats=formats)
 
     status_to_fill = {
         "🔴 STOCKOUT": RED_FILL, "🔴 Reorder URGENT": RED_FILL,
         "🟠 Reorder Now": ORANGE_FILL, "🟡 Reorder Soon": YELLOW_FILL,
+        STATUS_SUDAH_DIPESAN: BLUE_FILL,
         "🟢 Healthy": GREEN_FILL, "🔵 Overstock": BLUE_FILL,
         "💤 Slow/Dead": LIGHT_FILL,
     }
@@ -832,6 +881,7 @@ def write_reorder_standalone(output_path: Path, reorder_tables: dict,
         ("🔴 Reorder URGENT", "urgent", RED_FILL),
         ("🟠 Reorder Now", "now", ORANGE_FILL),
         ("🟡 Reorder Soon", "soon", YELLOW_FILL),
+        (STATUS_SUDAH_DIPESAN, "sudah_dipesan", BLUE_FILL),
         ("🟢 Healthy", "healthy", GREEN_FILL),
         ("🔵 Overstock", "overstock", BLUE_FILL),
         ("💤 Slow/Dead", "slow_dead", LIGHT_FILL),
