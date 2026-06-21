@@ -49,7 +49,8 @@ Results are written to the `output/` folder.
 > **Laporan generator (`laporan/`)** — `python main.py --laporan` runs the co-located
 > generator (an importable `laporan` package, called in-process; also runnable
 > standalone as `python -m laporan`) that turns raw marketplace exports
-> (`Transaksi`/`Saldo`/`Fee`) into `Laporan` workbooks. Its `Jual` feeds this bot's
+> (`Transaksi`/`Saldo`/`Fee`) into `Laporan` workbooks — each delivered as a `Jual`
+> sheet + a `Remit` sheet (the combined `Final` reconciliation). Its `Jual` feeds this bot's
 > `Jual` ledger through a **manual Google Sheets step** (copy Laporan → Jual Sheets →
 > export `Jual*.xlsx` into `data/`), so the generate and analyze stages are run
 > separately. Reads `laporan/data`, writes `laporan/reports`.

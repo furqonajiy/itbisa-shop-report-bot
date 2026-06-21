@@ -55,8 +55,11 @@ Catatan:
 ## 3. (Opsional) Dari export mentah ke data `Jual` — generator Laporan
 
 Sub-tool **`laporan/`** mengubah export mentah marketplace (Shopee, Tokopedia, Tiktok,
-Bukalapak) jadi workbook **`Laporan`** berisi sheet `Invoice` / `Jual` / `Remit` / `Bonus`
-(+ sheet `Final`). Sheet **`Jual`** inilah yang jadi sumber data untuk bot analisa ini.
+Bukalapak) jadi workbook **`Laporan`**. Tiap workbook akhirnya berisi sheet **`Jual`** dan
+**`Remit`** (yaitu sheet rekonsiliasi gabungan `Final`, sudah di-rename) — plus **`Bonus`**
+kalau ada. (Di dalam, generator tetap bikin `Invoice`/`Remit`/`Final` dulu, lalu sheet
+`Invoice` dan `Remit` lama dibuang.) Sheet **`Jual`** inilah yang jadi sumber data untuk bot
+analisa ini, dan sheet **`Remit`** (`Final`) yang kamu salin ke ledger `Jual`.
 
 1. Taruh export mentah di **`laporan/data/`** (boleh di subfolder; dikenali dari nama file,
    mis. `Transaksi v2 Shopee`, `Saldo v2 Shopee`, `Fee v1 Tiktok`).
