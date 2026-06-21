@@ -61,21 +61,31 @@ Results are written to the `output/` folder.
 
 There are **two** HPP figures with different roles:
 
-| | HPP_WA | Pricing-basis HPP (`hpp_pricing`) |
+| | HPP_WA — "HPP/buah (P&L)" | Pricing-basis HPP (`hpp_pricing`) — "HPP/buah" |
 |---|---|---|
-| Definition | Weighted average of all relevant purchases | Price of the **latest overseas lot** (by `Tanggal Bayar`); falls back to HPP_WA when the SKU has no overseas (Luar Negeri) purchase |
-| Used for | **Profit & Margin** (P&L / realized truth) | **Pricing analysis**: Markup %, Kandidat Naik Harga, Borderline, and the floor recommendation in Barang Rugi |
+| Definition | Weighted average of all relevant purchases | **Tiered current replacement cost** (see below) |
+| Used for | **Profit & Margin** (P&L / realized truth) | **Pricing analysis**: Markup %, Kandidat Naik Harga, Borderline, the floor recommendation in Barang Rugi, and the restock cost in the cash-flow plan |
 
-Rationale: overseas (direct-import) supplier prices are consistent, so for the question
-"should I raise the price?" the relevant basis is the **current replacement cost** (the latest
-overseas lot price), not a weighted average still weighed down by old, expensive lots.
+Rationale: for the question "should I raise the price?" the relevant basis is the **current
+replacement cost**, not a lifetime weighted average still weighed down by old, expensive lots.
 Profit/margin, conversely, keep using HPP_WA because it represents the cost actually realized.
+
+The pricing-basis HPP ("HPP/buah", column was "HPP Dasar Harga") is chosen per SKU in tiers:
+
+1. **Overseas SKU** — has any `Luar Negeri? = 1` purchase → the **latest overseas lot** price
+   (by `Tanggal Bayar`). Overseas (direct-import) prices are consistent, so no averaging; the
+   most recent lot is the current import cost.
+2. **Purely-domestic SKU** — the **qty-weighted average of its domestic lots in the most recent
+   restock window that has data**: the last **3 months**, else **6**, else **12**
+   (`PRICING_HPP_WINDOWS_MONTHS`, anchored at today; Migrasi opening-balance and undated lots
+   excluded). This tracks the current domestic restock cost rather than stale lots.
+3. **Fallback** — no dated domestic lot in any window → the all-time **HPP_WA**.
 
 - **Overseas (`Luar Negeri`)** is defined strictly: only rows with `Luar Negeri? = 1`
   (not guessed from the supplier name).
-- When a SKU has several overseas lots, the **latest lot** is used (most recent `Tanggal Bayar`).
-- The per-SKU pricing-HPP source is shown in Sheet 07, column **"Sumber HPP Harga"**
-  (`LN-terakhir` or `WA`), next to **"HPP Dasar Harga"** and **"HPP/Buah (P&L)"**.
+- The per-SKU pricing-HPP tier is shown in Sheet 07, column **"Sumber HPP Harga"**
+  (`LN-terakhir` / `WA 3bln` / `WA 6bln` / `WA 12bln` / `WA`), next to **"HPP/buah"**
+  (the pricing basis) and **"HPP/buah (P&L)"** (the realized HPP_WA).
 
 ### Harga Sekarang (baseline for the price-increase analysis)
 
@@ -189,8 +199,9 @@ one), via an inventory-position simulation:
   `CASHFLOW_HORIZON_MONTHS` (default 6) are budgeted, and `CASHFLOW_MAX_CYCLES` caps the
   simulation. So a fast mover like NE555P gets several orders in the window.
 - **How much** = the reorder qty (`target cover + lead demand − stock at order time`).
-- **Cost** = qty × **replacement HPP** = `hpp_pricing` (the latest overseas lot price — what you
-  would actually pay to restock now), falling back to `hpp_wa`.
+- **Cost** = qty × **replacement HPP** = `hpp_pricing` (the "HPP/buah" basis — latest overseas
+  lot price, or the domestic restock WA of the last 3/6/12 months — what you would actually pay
+  to restock now), falling back to `hpp_wa`.
 - **Supplier** = the SKU's dominant standardized `Toko` (by non-Migrasi purchase qty), so spend
   is grouped by who you buy from.
 
@@ -288,7 +299,7 @@ Config `data/ab_tests.xlsx` (sheet `ABTest`): `SKU`, `Tanggal Perubahan`, `Nama 
 
 - `config.py` — constants (glob, sheet, thresholds, Migrasi prefix)
 - `data_loader.py` — read & clean the stock/sales data
-- `analysis.py` — HPP_WA, pricing-basis HPP (latest overseas lot), per-SKU aggregation, profit, reorder
+- `analysis.py` — HPP_WA, pricing-basis HPP (latest overseas lot / domestic 3-6-12mo WA), per-SKU aggregation, profit, reorder
 - `tables.py` — build the analysis tables
 - `excel_writer.py` — render the Excel workbook
 - `ab_testing.py` — A/B price-change test analysis

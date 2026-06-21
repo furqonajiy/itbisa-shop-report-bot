@@ -10,6 +10,7 @@ from config import (
     IMPORT_SHOP_KEYWORDS, LEAD_SHOP_MIN_SHARE, LEAD_TIME_CHINA_MONTHS,
     LEAD_TIME_MARKET_MONTHS, LEAD_TIME_MAX_DAYS, LEAD_TIME_MIN_LOTS,
     LEAD_TIME_PERCENTILE, MARKET_KEYWORDS, MIGRASI_PREFIX, OVERSTOCK_MONTHS,
+    PRICING_HPP_WINDOWS_MONTHS,
     PRICE_CHANGE_AUTO_PRIOR_DAYS,
     PRICE_CHANGE_AUTO_RECENT_DAYS, PRICE_CHANGE_MIN_STEP,
     PRICE_CHANGE_PRE_WINDOW_DAYS, PRICE_CHANGE_RECENT_DAYS,
@@ -218,12 +219,54 @@ def _latest_ln_price(stok: pd.DataFrame) -> pd.Series:
     return ln.groupby("SKU").tail(1).set_index("SKU")["unit_hpp"]
 
 
-def calculate_hpp_wa(stok: pd.DataFrame) -> pd.DataFrame:
+def _domestic_windowed_hpp(stok: pd.DataFrame, today: pd.Timestamp,
+                           windows=PRICING_HPP_WINDOWS_MONTHS
+                           ) -> tuple[pd.Series, pd.Series]:
+    """Tiered recency-windowed qty-weighted HPP for DOMESTIC purchase lots.
+
+    For each SKU, the qty-weighted average unit cost (Σ total_hpp ÷ Σ qty_beli) of
+    its DOMESTIC lots in the most recent window that has any: `windows` months
+    (default 3 → 6 → 12, shortest wins). Migrasi opening-balance rows, overseas
+    (Luar Negeri? = 1) lots, and undated lots are excluded. Used as the pricing
+    basis ("HPP/buah") for purely-domestic SKUs — caller handles the overseas
+    branch (latest LN lot) and the all-time HPP_WA fallback.
+
+    Returns (price: Series SKU→unit cost, label: Series SKU→'WA Nbln').
+    SKUs with no dated domestic lot in any window are absent from both."""
+    s = stok.copy()
+    s = s[~s["toko"].astype(str).str.startswith(MIGRASI_PREFIX, na=False)]
+    s = s[(s["qty_beli"] > 0) & s["total_hpp"].notna()
+          & s["tanggal_bayar"].notna() & (s["luar_negeri"] != 1)]
+    price: dict[str, float] = {}
+    label: dict[str, str] = {}
+    if len(s) == 0:
+        return pd.Series(price, dtype=float), pd.Series(label, dtype=object)
+
+    for months in windows:
+        cutoff = today - pd.DateOffset(months=months)
+        win = s[s["tanggal_bayar"] >= cutoff]
+        if len(win) == 0:
+            continue
+        agg = win.groupby("SKU").agg(_q=("qty_beli", "sum"), _h=("total_hpp", "sum"))
+        agg = agg[agg["_q"] > 0]
+        wa = agg["_h"] / agg["_q"]
+        for sku, val in wa.items():
+            if sku not in price:   # shortest window with data wins
+                price[sku] = float(val)
+                label[sku] = f"WA {months}bln"
+    return pd.Series(price, dtype=float), pd.Series(label, dtype=object)
+
+
+def calculate_hpp_wa(stok: pd.DataFrame,
+                     today: pd.Timestamp | None = None) -> pd.DataFrame:
     """HPP weighted average per SKU with Ocistok-priority.
     Rules:
     - If SKU has any Ocistok/Martkita (China) pembelian → HPP_WA from China rows only
     - Otherwise → HPP_WA from all available pembelian
-    Inventory metrics (total_qty_beli, jumlah_pembelian) always use all rows."""
+    Inventory metrics (total_qty_beli, jumlah_pembelian) always use all rows.
+    `today` anchors the domestic pricing-HPP windows (defaults to now)."""
+    if today is None:
+        today = pd.Timestamp(datetime.now().date())
     stok = stok.copy()
     stok["supplier_type"] = stok.apply(
         lambda r: classify_supplier(r.get("toko"), r.get("luar_negeri")), axis=1
@@ -254,22 +297,37 @@ def calculate_hpp_wa(stok: pd.DataFrame) -> pd.DataFrame:
         lambda s: "Ocistok" if s in skus_with_ocistok else "Other"
     )
 
-    # Pricing-decision HPP ("apakah harus naik harga?"): latest overseas lot price
-    # for SKUs with LN purchases, else fall back to hpp_wa. Used ONLY for markup %
-    # and price recommendations — profit/margin keep hpp_wa.
+    # Pricing-decision HPP "HPP/buah" ("apakah harus naik harga?"): used ONLY for
+    # markup % and price recommendations — profit/margin keep hpp_wa. Tiers:
+    #   1) overseas SKU (any Luar Negeri? = 1 lot) → latest overseas lot price
+    #   2) purely-domestic SKU → qty-weighted avg of the most recent restock window
+    #      with data (3 → 6 → 12 months)
+    #   3) fallback → all-time hpp_wa (no dated domestic lot in any window)
     ln_latest = _latest_ln_price(stok)
+    dom_price, dom_label = _domestic_windowed_hpp(stok, today)
+
     result["hpp_pricing"] = result["SKU"].map(ln_latest)
     result["hpp_pricing_source"] = np.where(
-        result["hpp_pricing"].notna(), "LN-terakhir", "WA"
+        result["hpp_pricing"].notna(), "LN-terakhir", ""
     )
-    result["hpp_pricing"] = result["hpp_pricing"].fillna(result["hpp_wa"])
+    need_dom = result["hpp_pricing"].isna()
+    result.loc[need_dom, "hpp_pricing"] = result.loc[need_dom, "SKU"].map(dom_price)
+    result.loc[need_dom, "hpp_pricing_source"] = result.loc[need_dom, "SKU"].map(dom_label)
+    still_na = result["hpp_pricing"].isna()
+    result.loc[still_na, "hpp_pricing"] = result.loc[still_na, "hpp_wa"]
+    result.loc[still_na, "hpp_pricing_source"] = "WA"
 
     n_oci = len(skus_with_ocistok)
-    n_ln = int(ln_latest.index.isin(result["SKU"]).sum())
+    src_counts = result["hpp_pricing_source"].value_counts()
+    n_ln = int(src_counts.get("LN-terakhir", 0))
+    n_dom = int(sum(src_counts.get(f"WA {m}bln", 0) for m in PRICING_HPP_WINDOWS_MONTHS))
+    n_wa = int(src_counts.get("WA", 0))
+    dom_txt = ", ".join(f"{m}bln={int(src_counts.get(f'WA {m}bln', 0))}"
+                        for m in PRICING_HPP_WINDOWS_MONTHS)
     print(f"✓ HPP weighted average: {len(result):,} SKU "
           f"({n_oci:,} Ocistok-priority, {len(result)-n_oci:,} other-mix)")
-    print(f"  → HPP dasar harga: {n_ln:,} SKU pakai harga LN terakhir, "
-          f"{len(result)-n_ln:,} fallback ke WA")
+    print(f"  → HPP/buah: {n_ln:,} LN-terakhir, {n_dom:,} WA domestik ({dom_txt}), "
+          f"{n_wa:,} fallback WA all-time")
     return result
 
 

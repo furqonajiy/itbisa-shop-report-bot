@@ -39,17 +39,20 @@ from tables import (build_reorder_tables, build_supplier_analysis,
                     build_table_rugi)
 
 
-def _load_all(data_dir: Path):
+def _load_all(data_dir: Path, today: pd.Timestamp | None = None):
     """Load stok + jual once; compute shared aggregates.
     Returns (stok, jual_full_clean, hpp_agg, qty_jual_all_time, sisa_by_sku, ledger_df).
     sisa_by_sku/ledger_df reconcile to RekapBarang from the CURRENT workbook
-    (latest stok + latest jual file by filename)."""
+    (latest stok + latest jual file by filename).
+    `today` anchors the domestic pricing-HPP windows (defaults to now)."""
+    if today is None:
+        today = pd.Timestamp(datetime.now().date())
     stok_files = sorted(data_dir.glob(STOK_GLOB))
     jual_files = sorted(data_dir.glob(JUAL_GLOB))
     stok = load_stok_files(stok_files)
     jual_raw = load_jual_files(jual_files)
     jual_full_clean, _ = clean_jual(jual_raw, year=None)
-    hpp_agg = calculate_hpp_wa(stok)
+    hpp_agg = calculate_hpp_wa(stok, today)
     qty_jual_all_time = jual_full_clean.groupby("SKU")["qty_jual"].sum()
 
     # --- Current-workbook stock ledger (authoritative sisa_stok) ---
@@ -76,8 +79,8 @@ def _load_shared(data_dir: Path) -> _Loaded:
     """Load stok+jual once and compute the shared aggregates (HPP, ledger, reorder,
     A/B change dates) a single time. A full run (`--all` / no flag) builds this once
     and hands it to every step, instead of each step re-reading the workbooks."""
-    stok, jual, hpp_agg, qty_jual, sisa, ledger = _load_all(data_dir)
     today = pd.Timestamp(datetime.now().date())
+    stok, jual, hpp_agg, qty_jual, sisa, ledger = _load_all(data_dir, today)
     reorder_df = compute_reorder_metrics(stok, jual, today, sisa_by_sku=sisa)
     ab_changes = load_ab_change_dates(data_dir / AB_TESTS_FILENAME)
     return _Loaded(stok, jual, hpp_agg, qty_jual, sisa, ledger, today, reorder_df, ab_changes)

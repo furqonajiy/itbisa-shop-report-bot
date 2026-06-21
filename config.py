@@ -35,6 +35,17 @@ MARKUP_BORDERLINE_MIN = 0.0
 MARKUP_BORDERLINE_MAX = 30.0
 TARGET_MARKUP_KOREKSI = 0.30
 
+# --- Pricing-basis HPP ("HPP/buah") domestic recency windows ---
+# hpp_pricing (the "HPP/buah" used for markup % and price recommendations) is:
+#   - latest overseas lot price for a SKU with any Luar Negeri? = 1 purchase
+#     (consistent import price, so no averaging); else
+#   - for a purely-domestic SKU: the qty-weighted average of its purchase lots in
+#     the most recent window that has any — 3 months, else 6, else 12 — so the basis
+#     tracks the current domestic restock cost, not old lots; else
+#   - the all-time HPP_WA fallback (when there is no dated domestic lot in any window).
+# Profit/margin keep HPP_WA (realized P&L); only the pricing decision uses this.
+PRICING_HPP_WINDOWS_MONTHS = [3, 6, 12]
+
 # --- Recent price-change guard for Kandidat Naik Harga (sheet 05) ---
 # A SKU whose 'harga sekarang' is a RECENT price increase that little demand has
 # been observed at yet is NOT a valid "raise further" candidate: its qty/profit
@@ -183,7 +194,7 @@ COL_RC_NOTE = "Catatan"
 # --- Cash-flow restock plan (--cashflow) ---
 # Turn the reorder metrics into a purchasing budget calendar: for each SKU that
 # crosses its reorder point within the horizon, project WHEN to order, HOW MUCH,
-# the COST (qty × replacement HPP = latest overseas lot price, fallback HPP_WA),
+# the COST (qty × replacement HPP = latest overseas lot price, else domestic WA 3/6/12 mo, fallback HPP_WA),
 # and WHICH supplier — then bucket the Rupiah by month and supplier. Zero-config
 # (built entirely from the stok/jual data), so it always runs in --all.
 CASHFLOW_OUTPUT_FILENAME = "Analisa_Cashflow_Restock.xlsx"
