@@ -24,7 +24,7 @@ import laporan.process.shopee.v3 as shopee_v3
 import laporan.process.tokopedia.v1 as tokopedia_v1
 import laporan.process.tiktok.v1 as tiktok_v1
 import laporan.process.tokopedia.v2 as tokopedia_v2
-from laporan.final.generic import generate_final
+from laporan.final.generic import generate_final, finalize_workbooks
 from laporan.process.preprocess import generate_report_list
 from laporan.rekonsiliasi.generic import generate_reconciliation
 from laporan.utility import constant
@@ -55,6 +55,9 @@ def run(list_report, marketplaces=None):
         # All of this marketplace's workbooks now exist; build the Final sheet
         # (joins Invoice + Jual + a cross-period Remit lookup).
         generate_final(marketplace.capitalize())
+        # Then collapse each workbook to its deliverable sheets: keep Jual + Bonus,
+        # promote Final to 'Remit <MP>', drop the redundant Invoice/original Remit.
+        finalize_workbooks(marketplace.capitalize())
 
 
 def parse_args(argv=None):
