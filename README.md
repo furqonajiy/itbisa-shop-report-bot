@@ -11,6 +11,8 @@ candidates, supplier analysis, reorder, and a per-warehouse stock recap.
 pip install -r requirements.txt   # pandas, openpyxl
 ```
 
+> New here? `Cara_Pakai.md` is a step-by-step usage guide in Bahasa Indonesia (PowerShell), aimed at the shop operator.
+
 Put the export files in the `data/` folder (any filename, matched by glob):
 
 - Stock : `*BisaStok*.xlsx`   (sheet `BisaStok`)
