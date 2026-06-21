@@ -6,10 +6,11 @@
 > `requirements.txt` (`pandas>=2.0,<3.0`, `openpyxl`).
 
 Offline Python tool that turns raw marketplace exports (Shopee, Tokopedia, Tiktok,
-Bukalapak) into standardized **Laporan** workbooks. Each generated workbook holds
-the bookkeeping sheets **Invoice**, **Jual**, **Remit**, **Bonus**,
-and a combined **Final** sheet for one period. The **Jual** sheet is the feed
-consumed by the sibling project
+Bukalapak) into standardized **Laporan** workbooks. For each period it builds the
+bookkeeping sheets **Invoice**, **Jual**, **Remit**, **Bonus** and a combined
+**Final** sheet, then collapses each workbook to its deliverable sheets —
+**`Jual`** and **`Remit`** (the `Final` sheet, promoted), plus **`Bonus`** where
+present. The **`Jual`** sheet is the feed consumed by the sibling project
 [`itbisa-shop-report-bot`](https://github.com/furqonajiy/itbisa-shop-report-bot).
 
 It is fully offline and idempotent: no API calls, no network, no secrets. Drop the
@@ -129,8 +130,15 @@ one of:
 | `Saldo` (balance mutations) | `… Saldo v2 Shopee.csv`, `… Saldo v3 Shopee.xlsx`, `… Saldo v2 Tokopedia.xlsx`, `… Saldo v2 Bukalapak.csv` |
 | `Fee` (settlement fees) | `… Fee v2 Shopee.xlsx`, `… Fee v3 Shopee.xlsx`, `… Fee v1 Tiktok.xlsx` |
 
-`data/` and `reports/` are git-ignored — they hold your own (often large) Excel files
-and the generated output, which are not version-controlled.
+The readers tolerate the marketplaces' evolving export formats: the **TikTok `Fee`**
+export parses in either English or the **Indonesia-localized** column layout; the
+**TikTok order** export is read resiliently when its `.xlsx` reports a broken sheet
+dimension (only the first column would otherwise load); the **Shopee `Fee`
+`Adjustment`** detail-table header is found dynamically (its row floats with the
+preamble length); and added/renamed columns the math doesn't use are ignored.
+
+`reports/` is git-ignored (regenerated output); **`data/` is tracked** here, so the
+sample exports travel with the repo.
 
 ## Outputs (`reports/<marketplace>/`)
 
@@ -160,10 +168,25 @@ their sheets accumulate into a single workbook:
 `Invoice` is written first (it creates the workbook); the other sheets are
 appended to it.
 
-### The `Final` sheet
+**Deliverable sheets.** Once every `Final` is built, each workbook is collapsed
+to what gets used downstream — the `Final` sheet (which already combines the order
++ remit sides and is what you copy into the `Jual` ledger) is promoted/renamed to
+**`Remit <MP>`**, `Jual <MP>` is kept, and `Bonus <MP>` is kept where present; the
+now-redundant `Invoice <MP>` and the original `Remit <MP>` are dropped:
+
+| Marketplace | Deliverable sheets |
+| --- | --- |
+| Shopee, Tiktok | `Jual`, `Remit` |
+| Tokopedia | `Jual`, `Remit` (+ `Bonus` when there are bonuses) |
+| Bukalapak | `Jual`, `Remit` |
+
+Settlement-only workbooks (a period with only `Saldo`, so no `Final` is built)
+keep their standalone `Remit`/`Bonus` and are left untouched.
+
+### The `Final` sheet (delivered as `Remit <MP>`)
 
 `Final` is one reconciliation row per `Invoice`, joining the order side with the
-remit side. Columns: `Tanggal Pesan`, `Marketplace`, `Invoice`, `Ongkir`,
+remit side; it is the sheet delivered as `Remit <MP>`. Columns: `Tanggal Pesan`, `Marketplace`, `Invoice`, `Ongkir`,
 `Asuransi`, `Omzet Barang`, `Nominal Invoice`, `Tanggal Remit`, `Potongan
 Pembayaran`, `Nominal Remit`, `Keuntungan Tambahan`, `Kerugian Tambahan`, `Cek
 Remit`, `Untung Lainnya`, `Rugi Lainnya`, `Keterangan`.

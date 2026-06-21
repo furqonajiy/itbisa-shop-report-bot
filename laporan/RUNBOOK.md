@@ -75,14 +75,18 @@ reports\
   bukalapak\   ... Laporan v2 Bukalapak.xlsx
 ```
 
-Each workbook contains the `Invoice`, `Jual`, `Remit`, and/or `Bonus`
-sheets for that period, plus a combined **`Final`** sheet (one reconciliation row per
-`Invoice`; see the coverage table and the `Final` section in `README.md`). The run is
-**idempotent** — re-running overwrites the matching sheets in place.
+Each workbook is delivered with just its deliverable sheets: **`Jual <MP>`** and
+**`Remit <MP>`** — the latter is the combined reconciliation sheet (one row per
+`Invoice`, formerly `Final`), promoted/renamed because it is what you copy into the
+`Jual` ledger — plus **`Bonus <MP>`** where there are bonuses. The generator still
+builds `Invoice`/`Remit`/`Final` internally, then drops the redundant `Invoice` and
+the original `Remit`; settlement-only periods (only `Saldo`) keep their standalone
+`Remit`/`Bonus`. The run is **idempotent** — re-running regenerates each workbook.
 
-> The `Final` sheet looks up each order's remit across **all** of that marketplace's
-> `Laporan` workbooks, so process a marketplace's periods together (an order placed
-> one month and remitted the next only fills in once both periods' files are present).
+> The `Remit <MP>` (Final) sheet looks up each order's remit across **all** of that
+> marketplace's `Laporan` workbooks, so process a marketplace's periods together (an
+> order placed one month and remitted the next only fills in once both periods'
+> files are present).
 
 ## 4b. (Optional) Reconcile Saldo / Fee
 
