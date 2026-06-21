@@ -2,6 +2,7 @@ import glob
 import logging
 import os
 
+import openpyxl
 import pandas as pd
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -239,3 +240,50 @@ def generate_final(marketplace):
         _write_final(out, path)
         logging.info("Generate Final {0} -> {1} ({2} rows)".format(
             marketplace, os.path.basename(path), len(out)))
+
+
+def finalize_workbooks(marketplace):
+    """Collapse each Laporan workbook to its deliverable sheets.
+
+    The Final sheet already combines the order side (Invoice) and the remit side,
+    and it is the sheet copied onward into the Jual ledger -- so once it is built
+    the per-workbook detail is redundant. Keep only:
+        Jual <MP>, Remit <MP> (the Final sheet, renamed), Bonus <MP> (if present)
+    dropping the now-redundant Invoice <MP> and the original Remit <MP>.
+
+    Workbooks without a Final sheet (settlement-only periods) are left untouched.
+    MUST run AFTER generate_final, so the cross-period remit union has already
+    read the original Remit sheets.
+    """
+    subfolder = MARKETPLACE_FOLDERS.get(marketplace)
+    if subfolder is None:
+        return
+    folder = os.path.join(get_reports_dir(), subfolder)
+    if not os.path.isdir(folder):
+        return
+
+    invoice_sheet = 'Invoice {0}'.format(marketplace)
+    jual_sheet = 'Jual {0}'.format(marketplace)
+    remit_sheet = 'Remit {0}'.format(marketplace)
+    bonus_sheet = 'Bonus {0}'.format(marketplace)
+
+    for path in _list_workbooks(folder):
+        wb = openpyxl.load_workbook(path)
+        if FINAL_SHEET not in wb.sheetnames:
+            continue  # settlement-only workbook; nothing to promote
+
+        # Drop the now-redundant order/remit detail sheets, then promote Final.
+        for name in (invoice_sheet, remit_sheet):
+            if name in wb.sheetnames:
+                del wb[name]
+        wb[FINAL_SHEET].title = remit_sheet
+
+        # Order the kept sheets: Jual, Remit, Bonus (any others kept after).
+        order = [s for s in (jual_sheet, remit_sheet, bonus_sheet) if s in wb.sheetnames]
+        order += [s for s in wb.sheetnames if s not in order]
+        wb._sheets = [wb[name] for name in order]
+        wb.active = 0
+
+        wb.save(path)
+        logging.info("Finalize {0} -> {1} ({2})".format(
+            marketplace, os.path.basename(path), ', '.join(wb.sheetnames)))
