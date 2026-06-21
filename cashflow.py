@@ -6,8 +6,8 @@ that will cross its reorder point within the horizon, it projects
   - WHEN to place the order (from current sisa stok, velocity, and the per-shop
     lead time already computed by the reorder analysis),
   - HOW MUCH to order (the suggested order qty),
-  - the COST (qty × replacement HPP = the latest overseas lot price `hpp_pricing`,
-    falling back to `hpp_wa`), and
+  - the COST (qty × replacement HPP = `hpp_pricing`: latest overseas lot price, or
+    the domestic restock WA 3/6/12 mo, falling back to `hpp_wa`), and
   - WHICH supplier (the SKU's dominant `Toko` by purchase qty).
 
 It then buckets the Rupiah by month and by supplier, so an importer who pays
@@ -207,7 +207,7 @@ def write_cashflow_report(filepath: Path, plan: pd.DataFrame, monthly: pd.DataFr
                if len(plan) else 0.0)
     n_no_hpp = (int(plan[plan["order_cost"].isna()]["SKU"].nunique()) if len(plan) else 0)
     ws["A2"] = (f"Per {today.strftime('%d %B %Y')}  |  Horizon {horizon} bulan  |  "
-                f"Biaya pakai HPP pengganti (lot luar negeri terakhir, fallback HPP_WA). "
+                f"Biaya pakai HPP pengganti (lot luar negeri terakhir; dalam negeri WA 3/6/12 bln, fallback HPP_WA). "
                 f"Merencanakan SEMUA siklus reorder dalam horizon (mover cepat = beberapa order).")
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:D2")

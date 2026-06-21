@@ -91,7 +91,7 @@ def _build_findings(sku_agg: pd.DataFrame, tables: dict,
                 f"   • {r['SKU']} — terjual {r['qty_terjual']:,.0f} pcs, "
                 f"RUGI Rp {r['profit']:,.0f}. HPP Rp {r['hpp_wa']:,.0f}, "
                 f"dijual Rp {r['harga_jual_avg']:,.0f}. "
-                f"Saran: Rp {rekom:,.0f} (HPP dasar harga Rp {hpp_dasar:,.0f} × {1 + TARGET_MARKUP_KOREKSI:.2f})."
+                f"Saran: Rp {rekom:,.0f} (HPP/buah Rp {hpp_dasar:,.0f} × {1 + TARGET_MARKUP_KOREKSI:.2f})."
             )
         lines.append("")
 
@@ -315,7 +315,8 @@ def _write_rugi(ws, df):
     ws["A1"].font = TITLE_FONT
     ws.merge_cells("A1:I1")
     ws["A2"] = ("Selisih = Harga Jual - (HPP_WA + |Admin|). NEGATIF = jual di bawah modal. "
-                "Rugi dihitung dari HPP_WA (realisasi); rekomendasi harga pakai HPP dasar harga (lot LN terakhir bila ada).")
+                "Rugi dihitung dari HPP/buah (P&L) = HPP_WA (realisasi); rekomendasi harga pakai "
+                "HPP/buah (lot LN terakhir; else WA 3/6/12 bln dalam negeri).")
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:I2")
 
@@ -325,7 +326,7 @@ def _write_rugi(ws, df):
         return
 
     write_headers(ws, 4,
-                  ["SKU", "Qty Terjual", "HPP/buah", "Admin/buah", "Total Cost/buah",
+                  ["SKU", "Qty Terjual", "HPP/buah (P&L)", "Admin/buah", "Total Cost/buah",
                    "Harga Jual Avg", "Selisih", "Profit/buah", "Total Profit"],
                   widths=[38, 13, 13, 13, 15, 15, 13, 13, 18])
     out = df[["SKU", "qty_terjual", "hpp_wa", "biaya_admin_per_buah",
@@ -337,13 +338,13 @@ def _write_rugi(ws, df):
 
     row_rec = 5 + len(df) + 2
     ws.cell(row=row_rec, column=1,
-            value=f"REKOMENDASI HARGA KOREKSI (HPP dasar harga × {1 + TARGET_MARKUP_KOREKSI:.2f}, markup {TARGET_MARKUP_KOREKSI*100:.0f}%):").font = BOLD_FONT
+            value=f"REKOMENDASI HARGA KOREKSI (HPP/buah × {1 + TARGET_MARKUP_KOREKSI:.2f}, markup {TARGET_MARKUP_KOREKSI*100:.0f}%):").font = BOLD_FONT
     for i, (_, r) in enumerate(df.iterrows(), start=row_rec + 1):
         hpp_dasar = r["hpp_pricing"]
         rekom = hpp_dasar * (1 + TARGET_MARKUP_KOREKSI)
         ws.cell(row=i, column=1, value=r["SKU"]).font = NORMAL_FONT
         ws.cell(row=i, column=2, value=f"Sekarang: Rp {r['harga_jual_avg']:,.0f}").font = NORMAL_FONT
-        ws.cell(row=i, column=3, value=f"HPP dasar harga: Rp {hpp_dasar:,.0f}").font = NORMAL_FONT
+        ws.cell(row=i, column=3, value=f"HPP/buah: Rp {hpp_dasar:,.0f}").font = NORMAL_FONT
         c = ws.cell(row=i, column=4, value=f"Rekomendasi: Rp {rekom:,.0f}")
         c.font = BOLD_FONT
         c.fill = GREEN_FILL
@@ -353,8 +354,9 @@ def _write_borderline(ws, df):
     ws["A1"] = "TABEL 4: MARKUP < 30% (HARGA DI BAWAH FLOOR — PERLU NAIK HARGA)"
     ws["A1"].font = TITLE_FONT
     ws.merge_cells("A1:I1")
-    ws["A2"] = ("Floor: harga jual minimal HPP dasar harga × 1.30. HPP dasar harga = harga lot luar negeri "
-                "terakhir bila ada, else HPP_WA. SKU di sini di bawah floor — wajib review (kecuali ada alasan kompetitif).")
+    ws["A2"] = ("Floor: harga jual minimal HPP/buah × 1.30. HPP/buah = harga lot luar negeri terakhir "
+                "bila ada; bila dalam negeri, weighted average restock 3 bln terakhir (else 6 bln, else 12 bln, "
+                "else HPP_WA). SKU di sini di bawah floor — wajib review (kecuali ada alasan kompetitif).")
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:I2")
 
@@ -364,7 +366,7 @@ def _write_borderline(ws, df):
         return
 
     write_headers(ws, 4,
-                  ["SKU", "Qty Terjual", "HPP Dasar Harga", "Admin/buah", "Harga Sekarang",
+                  ["SKU", "Qty Terjual", "HPP/buah", "Admin/buah", "Harga Sekarang",
                    "Markup %", "Margin %", "Profit/buah", "Profit Total"],
                   widths=[38, 13, 14, 13, 15, 11, 11, 13, 18])
     df = df.copy()
@@ -377,12 +379,12 @@ def _write_borderline(ws, df):
 
     row_rec = 5 + len(df) + 2
     ws.cell(row=row_rec, column=1,
-            value="REKOMENDASI HARGA TARGET (HPP dasar harga × 1.30):").font = BOLD_FONT
+            value="REKOMENDASI HARGA TARGET (HPP/buah × 1.30):").font = BOLD_FONT
     for i, (_, r) in enumerate(df.iterrows(), start=row_rec + 1):
         target = r["hpp_pricing"] * 1.30
         ws.cell(row=i, column=1, value=r["SKU"]).font = NORMAL_FONT
         ws.cell(row=i, column=2, value=f"Sekarang: Rp {r['harga_sekarang']:,.0f}").font = NORMAL_FONT
-        ws.cell(row=i, column=3, value=f"HPP dasar harga: Rp {r['hpp_pricing']:,.0f}").font = NORMAL_FONT
+        ws.cell(row=i, column=3, value=f"HPP/buah: Rp {r['hpp_pricing']:,.0f}").font = NORMAL_FONT
         c = ws.cell(row=i, column=4, value=f"Target: Rp {target:,.0f}")
         c.font = BOLD_FONT
         c.fill = GREEN_FILL
@@ -392,8 +394,8 @@ def _write_kandidat(ws, df):
     ws["A1"] = "TABEL 5: KANDIDAT NAIK HARGA"
     ws["A1"].font = TITLE_FONT
     ws.merge_cells("A1:M1")
-    ws["A2"] = (f"Kriteria: top 20% qty + markup ≥ {MARKUP_THRESHOLD_KANDIDAT:.0f}% atas HPP dasar harga "
-                "(lot LN terakhir bila ada, else HPP_WA) + stok ada. Score = 60% velocity + 40% markup.")
+    ws["A2"] = (f"Kriteria: top 20% qty + markup ≥ {MARKUP_THRESHOLD_KANDIDAT:.0f}% atas HPP/buah "
+                "(lot LN terakhir bila ada; else WA 3/6/12 bln dalam negeri) + stok ada. Score = 60% velocity + 40% markup.")
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:M2")
     ws["A3"] = ('⚠ "Harga Sekarang" = harga satuan TERENDAH di hari penjualan non-CoD terakhir SKU. '
@@ -494,8 +496,8 @@ def _write_full_data(ws, sku_agg):
             "profit", "profit_per_buah", "harga_jual_avg", "harga_sekarang",
             "markup_pct", "margin_pct",
             "total_qty_beli", "sisa_stok", "jumlah_pembelian", "restock_di_tahun"]
-    headers = ["SKU", "Qty Terjual", "Trans", "Avg Qty/Order", "Omzet", "HPP/Buah (P&L)",
-               "HPP Source", "HPP Dasar Harga", "Sumber HPP Harga", "HPP Total",
+    headers = ["SKU", "Qty Terjual", "Trans", "Avg Qty/Order", "Omzet", "HPP/buah (P&L)",
+               "HPP Source", "HPP/buah", "Sumber HPP Harga", "HPP Total",
                "Biaya Admin", "Admin/Buah", "Profit",
                "Profit/Buah", "Harga Jual Avg", "Harga Sekarang", "Markup %", "Margin %",
                "Total Dibeli", "Sisa Stok", "Lot Beli", "Restock Tahun"]
