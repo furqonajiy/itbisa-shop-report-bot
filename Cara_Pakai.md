@@ -6,11 +6,18 @@ tiap laporan, lihat `README.md`.
 Tool ini jalan **offline** di komputer sendiri: tidak ada koneksi internet, tidak ada API,
 tidak ada token. Kamu kasih file Excel export, dia balikin workbook analisa.
 
+Alurnya dua tahap:
+
+1. **(Opsional) Generator Laporan** — ubah export mentah marketplace jadi workbook `Laporan`
+   yang rapi. Lihat bagian 3. Lewati kalau data `Jual` kamu sudah siap.
+2. **Analisa** — dari file `Stok` + `Jual` di folder `data/`, hasilkan 7 laporan analisa.
+   Ini bagian utamanya (bagian 4 dan seterusnya).
+
 ---
 
 ## 1. Persiapan (sekali saja)
 
-1. Pastikan **Python 3.10+** sudah terpasang. Cek di PowerShell:
+1. Pastikan **Python 3.10+** (disarankan 3.13) sudah terpasang. Cek di PowerShell:
    ```powershell
    python --version
    ```
@@ -18,7 +25,7 @@ tidak ada token. Kamu kasih file Excel export, dia balikin workbook analisa.
    ```powershell
    pip install -r requirements.txt
    ```
-   (yang dipasang cuma `pandas` dan `openpyxl`.)
+   (yang dipasang cuma `pandas` dan `openpyxl`; ini juga sudah mencakup generator Laporan.)
 
 ---
 
@@ -28,19 +35,46 @@ Taruh file export di folder **`data/`**. Nama file bebas, asal **mengandung kata
 
 | Jenis | Pola nama file | Sheet yang dibutuhkan |
 |---|---|---|
-| Pembelian / stok | `*BisaStok*.xlsx` | `BisaStok` (file terbaru juga butuh `BisaHilang` + `BisaPindahBarang`) |
-| Penjualan | `*BisaJual*.xlsx` | minimal `BisaJualShopee` (sheet `BisaJual*` lain ikut kalau ada) |
+| Pembelian / stok | `*Stok*.xlsx` | `Stok` (file terbaru juga butuh `Hilang` + `PindahBarang`) |
+| Penjualan | `*Jual*.xlsx` | minimal `JualShopee` (sheet `Jual*` lain ikut kalau ada) |
 
 Catatan:
+- Nama lama **`BisaStok`/`BisaJual…`** masih kebaca otomatis (pola `*Stok*`/`*Jual*` tetap cocok,
+  dan sheet `Bisa…` lama tetap dibaca) — jadi file lama tidak perlu di-rename.
 - Boleh banyak file (mis. per tahun). Semua dipakai untuk histori penjualan & HPP.
 - File **terbaru** (urut nama) dipakai sebagai "current workbook" untuk hitung **sisa stok**.
-- Kolom **`Toko`** di `BisaStok` = supplier/forwarder yang sudah distandardisasi
+- Kolom **`Toko`** di `Stok` = supplier/forwarder yang sudah distandardisasi
   (mis. `Ocistok/Martkita`, `AliExpress`, `Shopee`); kolom **`Luar Negeri?`** = penanda
   barang impor. Pastikan dua kolom ini terisi rapi supaya analisa reorder & supplier akurat.
 
+> **Dari mana file `Jual*.xlsx`?** Kalau kamu masih punya export mentah marketplace
+> (`Transaksi`/`Saldo`/`Fee`), pakai generator Laporan di bagian 3 dulu untuk membuatnya.
+
 ---
 
-## 3. Jalankan
+## 3. (Opsional) Dari export mentah ke data `Jual` — generator Laporan
+
+Sub-tool **`laporan/`** mengubah export mentah marketplace (Shopee, Tokopedia, Tiktok,
+Bukalapak) jadi workbook **`Laporan`** berisi sheet `Invoice` / `Jual` / `Remit` / `Bonus`
+(+ sheet `Final`). Sheet **`Jual`** inilah yang jadi sumber data untuk bot analisa ini.
+
+1. Taruh export mentah di **`laporan/data/`** (boleh di subfolder; dikenali dari nama file,
+   mis. `Transaksi v2 Shopee`, `Saldo v2 Shopee`, `Fee v1 Tiktok`).
+2. Jalankan generator-nya:
+   ```powershell
+   python main.py --laporan                 # semua marketplace
+   python main.py --laporan shopee tiktok   # batasi ke marketplace tertentu
+   ```
+   (bisa juga standalone: `python -m laporan`.) Hasilnya di `laporan/reports/<marketplace>/`.
+3. **Langkah manual Google Sheets:** salin sheet `Jual` dari Laporan ke Google Sheets `Jual`
+   kamu, lalu export jadi `Jual*.xlsx` dan taruh di **`data/`** (folder bot ini).
+
+Tahap generate dan tahap analisa sengaja **dipisah** (tidak otomatis nyambung) karena ada
+langkah manual Google Sheets di tengah. Detail lengkap: `laporan/README.md`.
+
+---
+
+## 4. Jalankan analisa
 
 Cara paling gampang — jalankan **semuanya** sekaligus:
 
@@ -61,9 +95,10 @@ python main.py --cashflow       # rencana budget belanja restock per bulan & sup
 python main.py --deadstock      # modal beku di stok lambat/mati + cara membebaskannya
 python main.py --ab-test        # analisa hasil ubah harga (A/B test)
 python main.py --restock-check  # cek harga restock vs harga jual per marketplace
+python main.py --laporan        # (tahap terpisah) generator Laporan — lihat bagian 3
 ```
 
-Mau output di folder lain? Pakai `--data-dir` / `--output-dir`:
+Mau folder data/output lain? Pakai `--data-dir` / `--output-dir`:
 
 ```powershell
 python main.py --data-dir "D:\data" --output-dir "D:\hasil"
@@ -71,7 +106,7 @@ python main.py --data-dir "D:\data" --output-dir "D:\hasil"
 
 ---
 
-## 4. Apa saja yang dihasilkan (7 laporan)
+## 5. Apa saja yang dihasilkan (7 laporan)
 
 | File di `output/` | Untuk apa | Sheet penting |
 |---|---|---|
@@ -80,12 +115,15 @@ python main.py --data-dir "D:\data" --output-dir "D:\hasil"
 | `Analisa_Reorder.xlsx` | Barang apa yang harus dibeli sekarang & berapa banyak | `01_Reorder_Action`, `03_Rekap_Stok_per_Gudang` |
 | `Analisa_Cashflow_Restock.xlsx` | Butuh modal restock berapa, kapan, ke supplier mana | `01_Kalender_per_Bulan`, `02_Detail_per_SKU` |
 | `Analisa_Modal_Beku.xlsx` | Modal yang nyangkut di stok lambat/mati + cara cairin | `01_Modal_Beku_per_SKU`, `02_Per_Supplier` |
-| `Analisa_AB_Test.xlsx` | Apakah perubahan harga benar-benar berhasil | (opsional — lihat bagian 5) |
-| `Analisa_Restock_Check.xlsx` | Layak tidak restock di harga China ini & jual berapa | (opsional — lihat bagian 5) |
+| `Analisa_AB_Test.xlsx` | Apakah perubahan harga benar-benar berhasil | (opsional — lihat bagian 6) |
+| `Analisa_Restock_Check.xlsx` | Layak tidak restock di harga China ini & jual berapa | (opsional — lihat bagian 6) |
+
+> Catatan: generator Laporan (bagian 3) adalah tahap **terpisah** dan tidak ikut terbentuk
+> saat `python main.py`. 7 laporan di atas adalah output tahap analisa.
 
 ---
 
-## 5. Dua laporan opsional (perlu diisi dulu)
+## 6. Dua laporan opsional (perlu diisi dulu)
 
 `--ab-test` dan `--restock-check` butuh template yang kamu isi sendiri. Saat menjalankan
 `python main.py` (semua), kedua langkah ini **dilewati otomatis** kalau template-nya kosong —
@@ -108,7 +146,7 @@ Cara mengaktifkan:
 
 ---
 
-## 6. Rutinitas yang disarankan
+## 7. Rutinitas yang disarankan
 
 - **Tiap bulan:** export data baru → `python main.py` → buka **Reorder** (beli yang
   STOCKOUT/URGENT) → cek **Cashflow** untuk tagihannya.
@@ -120,13 +158,15 @@ Cara mengaktifkan:
 
 ---
 
-## 7. Masalah umum
+## 8. Masalah umum
 
 - **"No files found" / laporan kosong** → cek nama file di `data/` sudah mengandung
-  `BisaStok` / `BisaJual` dan ekstensinya `.xlsx`.
+  `Stok` / `Jual` (nama lama `BisaStok`/`BisaJual` juga oke) dan ekstensinya `.xlsx`.
 - **Sisa stok terlihat aneh / minus (OVERSOLD)** → tool menandai SKU OVERSOLD di console dan
   di `00_Summary`; biasanya karena ada penjualan tanpa data pembelian/migrasi yang cocok.
 - **A/B test / restock-check tidak muncul** → templatenya masih kosong; isi dulu (lihat
-  bagian 5).
+  bagian 6).
+- **`--laporan` tidak menghasilkan apa-apa** → cek export mentah ada di `laporan/data/` dan
+  nama filenya mengandung token `Transaksi`/`Saldo`/`Fee` + nama marketplace.
 - **`python` tidak dikenali** → Python belum terpasang atau belum masuk PATH; pasang ulang
   dan centang "Add Python to PATH".
