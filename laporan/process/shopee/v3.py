@@ -65,6 +65,27 @@ def read_saldo(shp_saldo_file, df_fee):
             generate_bonus(shp_saldo_file, df)
 
 
+def _read_adjustment(shp_file):
+    """Read the Shopee 'Adjustment' detail table.
+
+    Its header row floats -- the preamble length depends on how many adjustment
+    categories are summarised above the detail table -- so locate the
+    'No. Pesanan Terhubung' header dynamically instead of a fixed skiprows.
+    Returns [] when there is no Adjustment sheet or no detail table.
+    """
+    try:
+        raw = pd.read_excel(shp_file, sheet_name='Adjustment', header=None, dtype=str)
+    except ValueError as error:
+        logging.debug(error)
+        return []
+
+    for i in range(len(raw)):
+        if 'No. Pesanan Terhubung' in [str(c).strip() for c in raw.iloc[i].tolist()]:
+            return pd.read_excel(shp_file, sheet_name='Adjustment', skiprows=i,
+                                 dtype={'Biaya Penyesuaian': float})
+    return []
+
+
 def read_fee(shp_file, df_fee):
     cond1 = 'Fee v3 Shopee' in shp_file
     cond2 = '~' not in shp_file
@@ -75,13 +96,7 @@ def read_fee(shp_file, df_fee):
             'Harga Asli Produk': int, 'Total Diskon Produk': int, 'Biaya Administrasi': int, 'Biaya Layanan': int,
             'Biaya Proses Pesanan': int, 'Ongkir yang Diteruskan oleh Shopee ke Jasa Kirim': int, 'Total Penghasilan': int})
 
-        df_adjust = []
-        try:
-            df_adjust = pd.read_excel(shp_file, sheet_name='Adjustment', skiprows=14, dtype={
-                'Biaya Penyesuaian': float
-            })
-        except ValueError as error:
-            logging.debug(error)
+        df_adjust = _read_adjustment(shp_file)
 
         if len(df_raw) > 0:
             clean_df_fee = generate_fee(shp_file, df_raw, df_adjust)
