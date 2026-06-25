@@ -256,6 +256,35 @@ COL_PINDAH_TAMBAH = "Lokasi\nPenambahan\nBarang"   # gudang receiving (+)
 COL_PINDAH_KURANG = "Lokasi\nPengurangan\nBarang"  # gudang losing (−)
 COL_PINDAH_QTY = "Banyak Barang"
 
+# --- Stock opname → BisaHilang reconciliation (--stock-opname) ---
+# Compare a physical stock count (data/stock_opname.xlsx) against the bot's
+# computed on-hand (the current-workbook ledger) and emit the BisaHilang
+# adjustment rows: per SKU, Banyak Hilang (book > fisik) or Banyak Ketemu
+# (book < fisik). Paste the output into the Google Sheets BisaHilang tab.
+STOCK_OPNAME_FILENAME = "stock_opname.xlsx"
+STOCK_OPNAME_SHEET = "StockOpname"
+BISAHILANG_OUTPUT_FILENAME = "BisaHilang_Rekonsiliasi.xlsx"
+# Value basis for Nilai Ketemu / Nilai Hilang (the inventory worth found/lost):
+#   "hpp_wa"      → weighted-average cost (realized; the standard write-off basis)
+#   "hpp_pricing" → the "HPP/buah" pricing basis (latest overseas lot / recent WA)
+# FIFO is NOT supported (the tool keeps no purchase layers).
+STOCK_OPNAME_VALUE_BASIS = "hpp_wa"
+# Blank → book each SKU's adjustment to its dominant gudang in the ledger; set a
+# gudang name here (or fill the template's Lokasi Gudang column) to override.
+STOCK_OPNAME_DEFAULT_GUDANG = ""
+# Template (input) columns
+COL_SO_SKU = "SKU"
+COL_SO_FISIK = "Stok Fisik"
+COL_SO_GUDANG = "Lokasi Gudang"
+COL_SO_TANGGAL = "Tanggal Pengecekan"
+COL_SO_NOTE = "Keterangan"
+# BisaHilang (output) headers that have no COL_HILANG_* equivalent (match the
+# Google Sheets BisaHilang tab; COL_HILANG_* cover SKU/Ketemu/Hilang/Gudang).
+COL_BH_TANGGAL = "Tanggal\nPengecekan\nKehilangan"
+COL_BH_NILAI_KETEMU = "Nilai\nKetemu"
+COL_BH_NILAI_HILANG = "Nilai\nHilang"
+COL_BH_NOTE = "Keterangan"
+
 # Ledger jual scope: all sheets starting with this prefix in the current jual file
 # (matches RekapBarang, which includes Blibli/Investasi beyond JUAL_SHEETS).
 LEDGER_JUAL_PREFIX = "Jual"

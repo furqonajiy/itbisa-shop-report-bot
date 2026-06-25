@@ -34,6 +34,7 @@ python main.py --cashflow       # cash-flow restock plan: how much capital is ne
 python main.py --deadstock      # dead-stock / capital release: Rupiah frozen in slow/dead/overstock + how to free it
 python main.py --ab-test        # A/B price-change test analysis (reads data/ab_tests.xlsx)
 python main.py --restock-check  # restock price check & selling-price recommendation (reads data/restock_check.xlsx)
+python main.py --stock-opname   # reconcile a physical count vs the ledger -> BisaHilang adjustment rows (reads data/stock_opname.xlsx)
 python main.py --all            # everything together (same as no flag)
 python main.py --laporan        # generate Laporan in laporan/ (every marketplace); scope: --laporan shopee tiktok
 ```
@@ -270,6 +271,26 @@ isolated per-year files can't give. No template needed; it always runs in `--all
 Output: `output/Analisa_Tren_Musiman.xlsx` — `00_Ringkasan`, `01_Tren_Tahunan`, `02_Tren_Bulanan`,
 `03_Musiman`. See `trend_analysis.py`.
 
+## Stock opname → BisaHilang (`--stock-opname`)
+
+Answers: **after a physical stock count, what Hilang/Ketemu adjustment makes the books match
+reality?** Input `data/stock_opname.xlsx` (auto-created template: `SKU`, `Stok Fisik`, optional
+`Lokasi Gudang` / `Tanggal Pengecekan` / `Keterangan`).
+
+- Per SKU: `selisih = stok_buku − stok_fisik`, where `stok_buku` is the bot's ledger `sisa_stok`.
+  `> 0` → **Banyak Hilang** (shrinkage); `< 0` → **Banyak Ketemu** (found).
+- **Value** (`Nilai Hilang` / `Nilai Ketemu`) = `qty × HPP`, where HPP is `STOCK_OPNAME_VALUE_BASIS`
+  (default **`hpp_wa`** — weighted-average cost, the realized inventory cost and standard
+  write-off basis; set `hpp_pricing` for the latest/"HPP per buah" basis instead. **FIFO is not
+  supported** — the tool keeps no purchase layers).
+- **Lokasi Gudang** = the template's column if filled, else the SKU's dominant gudang in the
+  ledger (else the busiest warehouse).
+
+Output `output/BisaHilang_Rekonsiliasi.xlsx`: a **`BisaHilang`** sheet (discrepancy rows only,
+in the exact tab format) ready to paste into the Google Sheets BisaHilang tab, plus a
+`Ringkasan` audit sheet (every counted SKU + totals). Standalone (not part of `--all`). Paste,
+re-export `BisaStok`, and `sisa_stok` lines up with your count. See `stock_opname.py`.
+
 ## Restock price check (`--restock-check`)
 
 Answers: **is this supplier expensive/cheap/fair, and if I restock, what should I sell it for?**
@@ -327,6 +348,7 @@ Config `data/ab_tests.xlsx` (sheet `ABTest`): `SKU`, `Tanggal Perubahan`, `Nama 
 - `excel_writer.py` — render the Excel workbook
 - `ab_testing.py` — A/B price-change test analysis
 - `restock_pricing.py` — restock price check & selling-price recommendation
+- `stock_opname.py` — stock-opname reconciliation → BisaHilang adjustment rows
 - `cashflow.py` — cash-flow restock plan (purchasing-budget calendar)
 - `deadstock_analysis.py` — dead-stock / capital-release analysis
 - `trend_analysis.py` — sales trend & seasonality analysis

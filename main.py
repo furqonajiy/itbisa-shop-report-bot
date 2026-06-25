@@ -22,7 +22,10 @@ from cashflow import (build_restock_plan, pivot_month_supplier, summarize_by_mon
                       write_cashflow_report, _months_axis)
 from deadstock_analysis import analyze_deadstock, write_deadstock_report
 from trend_analysis import analyze_trend, write_trend_report
+from stock_opname import (analyze_stock_opname, create_template as create_stock_opname_template,
+                          load_stock_opname, write_bisahilang_report)
 from config import (AB_TESTS_FILENAME, AB_TESTS_OUTPUT_FILENAME,
+                    BISAHILANG_OUTPUT_FILENAME, STOCK_OPNAME_FILENAME,
                     CASHFLOW_HORIZON_MONTHS,
                     CASHFLOW_OUTPUT_FILENAME, DATA_DIR,
                     DEADSTOCK_OUTPUT_FILENAME, JUAL_GLOB,
@@ -333,6 +336,35 @@ def run_restock_check(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) 
     return output_path
 
 
+def run_stock_opname(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Path:
+    """Reconcile a physical stock count against the bot ledger → BisaHilang.
+    Reads data/stock_opname.xlsx (auto-creates template if missing); writes
+    output/BisaHilang_Rekonsiliasi.xlsx (paste the BisaHilang sheet into Sheets)."""
+    print(f"\n{'='*60}")
+    print(f"STOCK OPNAME — REKONSILIASI → BISAHILANG")
+    print(f"{'='*60}\n")
+
+    so_path = data_dir / STOCK_OPNAME_FILENAME
+    if not so_path.exists():
+        print(f"⚠ Template stock-opname belum ada. Membuat di {so_path}")
+        create_stock_opname_template(so_path)
+        print(f"\nIsi file tersebut (SKU + Stok Fisik hasil hitung), lalu run ulang.")
+        return so_path
+
+    opname = load_stock_opname(so_path)
+    if len(opname) == 0:
+        print(f"⚠ {STOCK_OPNAME_FILENAME} kosong — tidak ada SKU untuk dicek.")
+        return so_path
+
+    # Reuse the shared loader → authoritative ledger sisa + per-gudang + HPP.
+    today = pd.Timestamp(datetime.now().date())
+    _stok, _jual, hpp_agg, _qty, sisa, ledger = _load_all(data_dir, today)
+    recon = analyze_stock_opname(opname, sisa, ledger, hpp_agg, today)
+    output_path = output_dir / BISAHILANG_OUTPUT_FILENAME
+    write_bisahilang_report(output_path, recon, today)
+    return output_path
+
+
 def run_ab_test(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Path:
     """Run A/B test analysis. Creates template if config file missing."""
     print(f"\n{'='*60}")
@@ -523,6 +555,8 @@ def main() -> int:
                         help="Generate laporan A/B test (perubahan harga). Otomatis bikin template kalau belum ada.")
     parser.add_argument("--restock-check", action="store_true",
                         help="Analisa harga restock (beli vs jual per marketplace). Otomatis bikin template kalau belum ada.")
+    parser.add_argument("--stock-opname", action="store_true",
+                        help="Rekonsiliasi stok fisik vs buku → BisaHilang. Baca data/stock_opname.xlsx (otomatis bikin template kalau belum ada).")
     parser.add_argument("--all", action="store_true",
                         help="Run SEMUANYA: sales all years + reorder + ab-test + restock-check "
                              "(ab-test & restock-check jalan kalau template-nya ada isinya).")
@@ -541,6 +575,8 @@ def main() -> int:
             run_everything(args.data_dir, args.output_dir)
         elif args.restock_check:
             run_restock_check(args.data_dir, args.output_dir)
+        elif args.stock_opname:
+            run_stock_opname(args.data_dir, args.output_dir)
         elif args.ab_test:
             run_ab_test(args.data_dir, args.output_dir)
         elif args.cashflow:
