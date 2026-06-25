@@ -98,6 +98,7 @@ python main.py --cashflow       # rencana budget belanja restock per bulan & sup
 python main.py --deadstock      # modal beku di stok lambat/mati + cara membebaskannya
 python main.py --ab-test        # analisa hasil ubah harga (A/B test)
 python main.py --restock-check  # cek harga restock vs harga jual per marketplace
+python main.py --stock-opname   # rekonsiliasi stok fisik vs buku -> BisaHilang (isi data/stock_opname.xlsx)
 python main.py --laporan        # (tahap terpisah) generator Laporan — lihat bagian 3
 ```
 
