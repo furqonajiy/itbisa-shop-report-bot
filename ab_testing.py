@@ -10,11 +10,12 @@ from openpyxl.utils import get_column_letter
 
 from data_loader import resolve_sheet
 from config import (
-    AB_BULK_CONCENTRATION, AB_MIN_DAYS_POST, AB_MIN_TRANS_POST, AB_MIN_TRANS_PRE,
+    AB_BULK_CONCENTRATION, AB_LOW_STOCK_MONTHS_COVER,
+    AB_MIN_DAYS_POST, AB_MIN_TRANS_POST, AB_MIN_TRANS_PRE,
     AB_PRE_WINDOW_DAYS, AB_TESTS_SHEET, ALERT_TEXT_COLOR, COL_AB_CATATAN,
     COL_AB_NAMA, COL_AB_SKU, COL_AB_TANGGAL, FMT_DEC, FMT_NUM, FMT_PCT, FMT_RP,
     FONT_NAME, GREEN_FILL_COLOR, HEADER_BG_COLOR, HEADER_TEXT_COLOR,
-    LIGHT_GRAY_COLOR, RED_FILL_COLOR, TITLE_COLOR, YELLOW_FILL_COLOR,
+    LIGHT_GRAY_COLOR, RED_FILL_COLOR, STATUS_SUDAH_DIPESAN, TITLE_COLOR, YELLOW_FILL_COLOR,
 )
 
 HEADER_FONT = Font(name=FONT_NAME, bold=True, color=HEADER_TEXT_COLOR, size=11)
@@ -173,9 +174,68 @@ def _confound_flags(pre_m: dict, post_m: dict, bridge: dict) -> list[str]:
     return flags
 
 
+def _build_stock_lookup(reorder_df: pd.DataFrame | None) -> dict[str, dict]:
+    if reorder_df is None or len(reorder_df) == 0 or "SKU" not in reorder_df.columns:
+        return {}
+    rows = reorder_df.drop_duplicates("SKU", keep="last").to_dict("records")
+    lookup = {}
+    for row in rows:
+        sku = str(row.get("SKU", "")).strip()
+        if sku:
+            lookup[sku] = row
+            lookup[sku.upper()] = row
+    return lookup
+
+
+def _fmt_qty(value: float) -> str:
+    if pd.isna(value):
+        return "?"
+    value = float(value)
+    if value.is_integer():
+        return f"{int(value):,}"
+    return f"{value:,.1f}"
+
+
+def _stock_pause_reason(stock: dict | None) -> str:
+    if not stock:
+        return ""
+
+    status = str(stock.get("status") or "")
+    sisa = stock.get("sisa_stok", float("nan"))
+    months_cover = stock.get("months_cover", float("nan"))
+    cover_value = float("nan")
+    if pd.notna(months_cover):
+        cover_value = float(months_cover)
+
+    is_stockout = "STOCKOUT" in status or (pd.notna(sisa) and sisa <= 0)
+    is_low_cover = (
+        pd.notna(cover_value)
+        and cover_value != float("inf")
+        and cover_value <= AB_LOW_STOCK_MONTHS_COVER
+    )
+    if not (is_stockout or is_low_cover):
+        return ""
+
+    details = []
+    if status:
+        details.append(status)
+    if pd.notna(sisa):
+        details.append(f"sisa {_fmt_qty(sisa)} pcs")
+    if pd.notna(cover_value) and cover_value != float("inf"):
+        details.append(f"cover {cover_value:.1f} bln")
+    eta = stock.get("est_arrival")
+    if status == STATUS_SUDAH_DIPESAN and eta is not None and pd.notna(eta):
+        details.append(f"ETA {pd.Timestamp(eta).strftime('%Y-%m-%d')}")
+
+    suffix = f" ({', '.join(details)})" if details else ""
+    return f"stok hampir habis{suffix} → tunggu restock sebelum baca A/B"
+
+
 def _verdict(bridge: dict, delta_profit: float, delta_qty: float,
-             confounds: list[str]) -> str:
+             confounds: list[str], stock_pause: str = "") -> str:
     """Descriptive verdict on profit, with break-even framing."""
+    if stock_pause:
+        return "⏸️ Pending — stok hampir habis, A/B ditunda sampai restock"
     if pd.isna(delta_profit):
         return "⚪ Inconclusive — data kurang"
     be = bridge["break_even_drop_pct"]
@@ -196,13 +256,15 @@ def _verdict(bridge: dict, delta_profit: float, delta_qty: float,
 
 
 def analyze_ab_tests(ab_tests: pd.DataFrame, jual_full_clean: pd.DataFrame,
-                     hpp_agg: pd.DataFrame, today: datetime) -> pd.DataFrame:
+                     hpp_agg: pd.DataFrame, today: datetime,
+                     reorder_df: pd.DataFrame | None = None) -> pd.DataFrame:
     """For each test config, compare a comparable pre-window vs post change date,
     decompose Δprofit (price vs volume), compute break-even volume drop & confounds."""
     if len(ab_tests) == 0:
         return pd.DataFrame()
 
     hpp_lookup = hpp_agg.set_index("SKU")["hpp_wa"].to_dict()
+    stock_lookup = _build_stock_lookup(reorder_df)
     results = []
 
     for _, t in ab_tests.iterrows():
@@ -224,6 +286,10 @@ def analyze_ab_tests(ab_tests: pd.DataFrame, jual_full_clean: pd.DataFrame,
         post_m = _compute_period_metrics(post, hpp)
         bridge = _profit_bridge(pre_m, post_m)
         confounds = _confound_flags(pre_m, post_m, bridge)
+        stock = stock_lookup.get(str(sku).strip()) or stock_lookup.get(str(sku).upper().strip())
+        stock_pause = _stock_pause_reason(stock)
+        if stock_pause:
+            confounds.insert(0, stock_pause)
 
         delta_qty = _pct_change(pre_m["qty_per_day"], post_m["qty_per_day"])
         delta_omzet = _pct_change(pre_m["omzet_per_day"], post_m["omzet_per_day"])
@@ -258,6 +324,9 @@ def analyze_ab_tests(ab_tests: pd.DataFrame, jual_full_clean: pd.DataFrame,
             "post_avg_price": post_m["avg_price"],
             "post_markup_pct": post_m["markup_pct"],
             "post_margin_pct": post_m["margin_pct"],
+            "sisa_stok": stock.get("sisa_stok", float("nan")) if stock else float("nan"),
+            "stock_months_cover": stock.get("months_cover", float("nan")) if stock else float("nan"),
+            "reorder_status": stock.get("status", "") if stock else "",
             "delta_qty_pct": delta_qty,
             "delta_omzet_pct": delta_omzet,
             "delta_profit_pct": delta_profit,
@@ -269,7 +338,7 @@ def analyze_ab_tests(ab_tests: pd.DataFrame, jual_full_clean: pd.DataFrame,
             "break_even_drop_pct": bridge["break_even_drop_pct"],
             "headroom_pct": bridge["headroom_pct"],
             "elasticity": bridge["elasticity"],
-            "verdict": _verdict(bridge, delta_profit, delta_qty, confounds),
+            "verdict": _verdict(bridge, delta_profit, delta_qty, confounds, stock_pause),
             "warning": "; ".join(confounds),
             "catatan": t.get("catatan", "") or "",
         })
@@ -309,6 +378,7 @@ def write_ab_test_report(output_path: Path, results: pd.DataFrame,
         ("Effective (profit naik)", (results["verdict"].str.startswith("✅")).sum()),
         ("Mixed", (results["verdict"].str.startswith("🟡")).sum()),
         ("Bad (profit turun)", (results["verdict"].str.startswith("🔴")).sum()),
+        ("Pending restock (A/B ditunda)", (results["verdict"].str.startswith("⏸")).sum()),
         ("Inconclusive / No change", (results["verdict"].str.startswith("⚪")).sum()),
     ]
     for i, (lbl, val) in enumerate(summary, start=5):
@@ -317,9 +387,9 @@ def write_ab_test_report(output_path: Path, results: pd.DataFrame,
         c.font = BOLD_FONT
         c.number_format = FMT_NUM
 
-    ws["A11"] = "DAFTAR TEST"
-    ws["A11"].font = TITLE_FONT
-    for i, (_, r) in enumerate(results.iterrows(), start=12):
+    list_title_row = 5 + len(summary) + 1
+    ws.cell(row=list_title_row, column=1, value="DAFTAR TEST").font = TITLE_FONT
+    for i, (_, r) in enumerate(results.iterrows(), start=list_title_row + 1):
         ws.cell(row=i, column=1, value=r["sku"]).font = NORMAL_FONT
         ws.cell(row=i, column=2, value=r["nama_test"]).font = NORMAL_FONT
         c = ws.cell(row=i, column=3, value=r["verdict"])
@@ -343,18 +413,19 @@ def write_ab_test_report(output_path: Path, results: pd.DataFrame,
 def _write_details_sheet(ws, results: pd.DataFrame) -> None:
     ws["A1"] = "DETAIL A/B TEST — PRE vs POST + PROFIT BRIDGE"
     ws["A1"].font = TITLE_FONT
-    ws.merge_cells("A1:V1")
+    ws.merge_cells("A1:Y1")
     ws["A2"] = ("Pre = window setara sebelum perubahan (bukan all-time). Bridge: Δprofit/hari "
                 "= Efek Harga + Efek Volume + Interaksi + Efek Admin. Break-even = batas turun "
                 "volume sebelum profit balik ke level pre; Headroom = jarak qty aktual ke batas itu "
-                "(+ = aman). Elastisitas + = qty & harga sama-sama naik (atribusi lemah, lihat Catatan).")
+                "(+ = aman). Stok hampir habis/stockout = A/B ditunda sampai restock.")
     ws["A2"].font = SUB_FONT
-    ws.merge_cells("A2:V2")
+    ws.merge_cells("A2:Y2")
 
     headers = [
         "SKU", "Nama Test", "Tgl Perubahan", "HPP/Buah",
         "Pre Qty/Day", "Pre Profit/Day", "Pre Avg Price",
         "Post Qty/Day", "Post Profit/Day", "Post Avg Price",
+        "Sisa Stok", "Cover Stok (bln)", "Status Reorder",
         "Δ Qty/Day", "Δ Profit/Day", "Δ Price",
         "Efek Harga/hr", "Efek Volume/hr", "Interaksi/hr", "Efek Admin/hr",
         "Break-even Turun Qty", "Headroom Qty", "Elastisitas",
@@ -363,10 +434,11 @@ def _write_details_sheet(ws, results: pd.DataFrame) -> None:
     widths = [38, 22, 13, 11,
               12, 14, 13,
               12, 14, 13,
+              10, 12, 22,
               11, 11, 11,
               14, 14, 13, 13,
               16, 13, 11,
-              42, 46]
+              46, 52]
 
     for i, h in enumerate(headers, start=1):
         c = ws.cell(row=4, column=i, value=h)
@@ -383,6 +455,8 @@ def _write_details_sheet(ws, results: pd.DataFrame) -> None:
         "Pre Avg Price": "pre_avg_price",
         "Post Qty/Day": "post_qty_per_day", "Post Profit/Day": "post_profit_per_day",
         "Post Avg Price": "post_avg_price",
+        "Sisa Stok": "sisa_stok", "Cover Stok (bln)": "stock_months_cover",
+        "Status Reorder": "reorder_status",
         "Δ Qty/Day": "delta_qty_pct", "Δ Profit/Day": "delta_profit_pct", "Δ Price": "delta_price_pct",
         "Efek Harga/hr": "efek_harga_per_hari", "Efek Volume/hr": "efek_volume_per_hari",
         "Interaksi/hr": "interaksi_per_hari", "Efek Admin/hr": "efek_admin_per_hari",
@@ -393,8 +467,8 @@ def _write_details_sheet(ws, results: pd.DataFrame) -> None:
     pct_headers = {"Δ Qty/Day", "Δ Profit/Day", "Δ Price", "Break-even Turun Qty", "Headroom Qty"}
     rp_headers = {"HPP/Buah", "Pre Profit/Day", "Pre Avg Price", "Post Profit/Day",
                   "Post Avg Price", "Efek Harga/hr", "Efek Volume/hr", "Interaksi/hr", "Efek Admin/hr"}
-    num_headers = {"Pre Qty/Day", "Post Qty/Day"}
-    dec_headers = {"Elastisitas"}
+    num_headers = {"Pre Qty/Day", "Post Qty/Day", "Sisa Stok"}
+    dec_headers = {"Elastisitas", "Cover Stok (bln)"}
     verdict_col = headers.index("Verdict") + 1
 
     for r_idx, (_, row) in enumerate(results.iterrows()):
@@ -423,7 +497,7 @@ def _write_details_sheet(ws, results: pd.DataFrame) -> None:
             vcell.fill = GREEN_FILL
         elif verdict.startswith("🔴"):
             vcell.fill = RED_FILL
-        elif verdict.startswith("🟡"):
+        elif verdict.startswith("🟡") or verdict.startswith("⏸"):
             vcell.fill = YELLOW_FILL
 
     ws.freeze_panes = "B5"

@@ -378,7 +378,9 @@ def run_ab_test(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Pat
         print(f"\nEdit file tersebut, tambahkan SKU & tanggal perubahan, lalu run ulang.")
         return ab_config_path
 
-    _stok, jual_full_clean, hpp_agg, _qty, _sisa, _ledger = _load_all(data_dir)
+    today_ts = pd.Timestamp(datetime.now().date())
+    stok, jual_full_clean, hpp_agg, _qty, sisa, _ledger = _load_all(data_dir, today_ts)
+    reorder_df = compute_reorder_metrics(stok, jual_full_clean, today_ts, sisa_by_sku=sisa)
     ab_tests = load_ab_tests(ab_config_path)
 
     if len(ab_tests) == 0:
@@ -387,7 +389,8 @@ def run_ab_test(data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR) -> Pat
 
     print(f"\n--- Menganalisa {len(ab_tests)} test ---")
     today = datetime.now()
-    results = analyze_ab_tests(ab_tests, jual_full_clean, hpp_agg, today)
+    results = analyze_ab_tests(ab_tests, jual_full_clean, hpp_agg, today,
+                               reorder_df=reorder_df)
 
     output_path = output_dir / AB_TESTS_OUTPUT_FILENAME
     write_ab_test_report(output_path, results, today)
@@ -421,7 +424,8 @@ def _run_ab_test_if_configured(data_dir: Path, output_dir: Path,
     jual_full_clean, hpp_agg = loaded.jual, loaded.hpp_agg
     print(f"\n--- Menganalisa {len(ab_tests)} test ---")
     today = datetime.now()
-    results = analyze_ab_tests(ab_tests, jual_full_clean, hpp_agg, today)
+    results = analyze_ab_tests(ab_tests, jual_full_clean, hpp_agg, today,
+                               reorder_df=loaded.reorder)
     output_path = output_dir / AB_TESTS_OUTPUT_FILENAME
     write_ab_test_report(output_path, results, today)
 

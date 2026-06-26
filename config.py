@@ -129,6 +129,9 @@ AB_BULK_CONCENTRATION = 0.40
 AB_MIN_TRANS_PRE = 3
 # Min transaksi di window post sebelum klaim sebab-akibat dianggap cukup.
 AB_MIN_TRANS_POST = 3
+# Pause A/B verdicts when current stock cover is this low; sales may be capped by
+# stock availability, so price impact is not isolated until restock lands.
+AB_LOW_STOCK_MONTHS_COVER = 1.0
 
 # Reorder analysis config
 REORDER_OUTPUT_FILENAME = "Analisa_Reorder.xlsx"
