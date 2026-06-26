@@ -9,7 +9,7 @@ Offline Python tool that turns raw marketplace exports (Shopee, Tokopedia, Tikto
 Bukalapak) into standardized **Laporan** workbooks. For each period it builds the
 bookkeeping sheets **Invoice**, **Jual**, **Remit**, **Bonus** and a combined
 **Final** sheet, then collapses each workbook to its deliverable sheets —
-**`Jual`** and **`Remit`** (the `Final` sheet, promoted), plus **`Bonus`** where
+**`Remit`** (the `Final` sheet, promoted), then **`Jual`**, plus **`Bonus`** where
 present. The **`Jual`** sheet is the feed consumed by the sibling project
 [`itbisa-shop-report-bot`](https://github.com/furqonajiy/itbisa-shop-report-bot).
 
@@ -171,14 +171,14 @@ appended to it.
 **Deliverable sheets.** Once every `Final` is built, each workbook is collapsed
 to what gets used downstream — the `Final` sheet (which already combines the order
 + remit sides and is what you copy into the `Jual` ledger) is promoted/renamed to
-**`Remit <MP>`**, `Jual <MP>` is kept, and `Bonus <MP>` is kept where present; the
+**`Remit <MP>`**, `Jual <MP>` is kept second, and `Bonus <MP>` is kept third where present; the
 now-redundant `Invoice <MP>` and the original `Remit <MP>` are dropped:
 
 | Marketplace | Deliverable sheets |
 | --- | --- |
-| Shopee, Tiktok | `Jual`, `Remit` |
-| Tokopedia | `Jual`, `Remit` (+ `Bonus` when there are bonuses) |
-| Bukalapak | `Jual`, `Remit` |
+| Shopee, Tiktok | `Remit`, `Jual` |
+| Tokopedia | `Remit`, `Jual` (+ `Bonus` when there are bonuses) |
+| Bukalapak | `Remit`, `Jual` |
 
 Settlement-only workbooks (a period with only `Saldo`, so no `Final` is built)
 keep their standalone `Remit`/`Bonus` and are left untouched.

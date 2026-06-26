@@ -270,8 +270,8 @@ def finalize_workbooks(marketplace):
 
     The Final sheet already combines the order side (Invoice) and the remit side,
     and it is the sheet copied onward into the Jual ledger -- so once it is built
-    the per-workbook detail is redundant. Keep only:
-        Jual <MP>, Remit <MP> (the Final sheet, renamed), Bonus <MP> (if present)
+    the per-workbook detail is redundant. Keep only, in workbook tab order:
+        Remit <MP> (the Final sheet, renamed), Jual <MP>, Bonus <MP> (if present)
     dropping the now-redundant Invoice <MP> and the original Remit <MP>.
 
     Workbooks without a Final sheet (settlement-only periods) are left untouched.
@@ -301,8 +301,8 @@ def finalize_workbooks(marketplace):
                 del wb[name]
         wb[FINAL_SHEET].title = remit_sheet
 
-        # Order the kept sheets: Jual, Remit, Bonus (any others kept after).
-        order = [s for s in (jual_sheet, remit_sheet, bonus_sheet) if s in wb.sheetnames]
+        # Order the kept sheets: Remit, Jual, Bonus (any others kept after).
+        order = [s for s in (remit_sheet, jual_sheet, bonus_sheet) if s in wb.sheetnames]
         order += [s for s in wb.sheetnames if s not in order]
         wb._sheets = [wb[name] for name in order]
         wb.active = 0

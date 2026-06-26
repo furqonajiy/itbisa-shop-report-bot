@@ -75,10 +75,10 @@ reports\
   bukalapak\   ... Laporan v2 Bukalapak.xlsx
 ```
 
-Each workbook is delivered with just its deliverable sheets: **`Jual <MP>`** and
-**`Remit <MP>`** — the latter is the combined reconciliation sheet (one row per
+Each workbook is delivered with just its deliverable sheets in tab order:
+**`Remit <MP>`** and **`Jual <MP>`** — the former is the combined reconciliation sheet (one row per
 `Invoice`, formerly `Final`), promoted/renamed because it is what you copy into the
-`Jual` ledger — plus **`Bonus <MP>`** where there are bonuses. The generator still
+`Jual` ledger — plus **`Bonus <MP>`** as the third sheet where there are bonuses. The generator still
 builds `Invoice`/`Remit`/`Final` internally, then drops the redundant `Invoice` and
 the original `Remit`; settlement-only periods (only `Saldo`) keep their standalone
 `Remit`/`Bonus`. The run is **idempotent** — re-running regenerates each workbook.

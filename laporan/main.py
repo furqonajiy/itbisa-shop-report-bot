@@ -55,8 +55,8 @@ def run(list_report, marketplaces=None):
         # All of this marketplace's workbooks now exist; build the Final sheet
         # (joins Invoice + Jual + a cross-period Remit lookup).
         generate_final(marketplace.capitalize())
-        # Then collapse each workbook to its deliverable sheets: keep Jual + Bonus,
-        # promote Final to 'Remit <MP>', drop the redundant Invoice/original Remit.
+        # Then collapse each workbook to its deliverable sheets: promote Final to
+        # 'Remit <MP>', then keep Jual + Bonus behind it.
         finalize_workbooks(marketplace.capitalize())
 
 
