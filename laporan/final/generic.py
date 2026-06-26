@@ -57,6 +57,16 @@ def _to_number(series):
     return pd.to_numeric(series, errors='coerce')
 
 
+def _normalize_columns(df):
+    """Flatten delivered two-line headers back to their canonical names."""
+    return df.rename(columns={col: str(col).replace('\n', ' ').strip() for col in df.columns})
+
+
+def _to_remit_date(series):
+    """Coerce remit dates so cross-period aggregation can ignore blanks safely."""
+    return pd.to_datetime(series, errors='coerce', format='mixed')
+
+
 def _read(xls, sheet_name):
     """Return a sheet from an open ExcelFile, or None if it is absent."""
     if sheet_name in xls.sheet_names:
@@ -82,12 +92,21 @@ def _combined_remit(workbooks, remit_sheet):
             remit = _read(xls, remit_sheet)
         if remit is None or remit.empty or 'Invoice' not in remit.columns:
             continue
+        remit = _normalize_columns(remit)
         keep = ['Invoice', 'Tanggal Remit'] + _REMIT_AMOUNT_COLUMNS
         remit = remit[[c for c in keep if c in remit.columns]].copy()
         remit['Invoice'] = remit['Invoice'].astype(str)
         for col in _REMIT_AMOUNT_COLUMNS:
             if col in remit.columns:
                 remit[col] = _to_number(remit[col])
+        if 'Tanggal Remit' in remit.columns:
+            remit['Tanggal Remit'] = _to_remit_date(remit['Tanggal Remit'])
+
+        signal_cols = [col for col in ['Tanggal Remit'] + _REMIT_AMOUNT_COLUMNS if col in remit.columns]
+        if signal_cols:
+            remit = remit[remit[signal_cols].notna().any(axis=1)]
+        if remit.empty:
+            continue
         frames.append(remit)
 
     if not frames:
@@ -96,8 +115,12 @@ def _combined_remit(workbooks, remit_sheet):
     allremit = pd.concat(frames, ignore_index=True)
     agg = {col: 'sum' for col in _REMIT_AMOUNT_COLUMNS if col in allremit.columns}
     if 'Tanggal Remit' in allremit.columns:
-        agg['Tanggal Remit'] = 'max'  # latest remit date (ISO strings sort correctly)
-    return allremit.groupby('Invoice', as_index=False).agg(agg)
+        allremit['Tanggal Remit'] = _to_remit_date(allremit['Tanggal Remit'])
+        agg['Tanggal Remit'] = 'max'  # latest remit date
+    out = allremit.groupby('Invoice', as_index=False).agg(agg)
+    if 'Tanggal Remit' in out.columns:
+        out['Tanggal Remit'] = out['Tanggal Remit'].dt.strftime('%Y-%m-%d %H:%M')
+    return out
 
 
 def _build_final(invoice_df, jual_df, remit_idx):
