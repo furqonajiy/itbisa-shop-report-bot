@@ -20,6 +20,12 @@ _MONEY_COLUMNS = [
 # Remit amount columns summed when an order has several remit entries.
 _REMIT_AMOUNT_COLUMNS = ['Potongan Pembayaran', 'Nominal Remit', 'Keuntungan Tambahan', 'Kerugian Tambahan']
 
+# Columns that only exist after Final has been promoted to Remit <MP>.
+_FINAL_REMIT_ONLY_COLUMNS = {
+    'Tanggal Pesan', 'Marketplace', 'Ongkir', 'Asuransi', 'Omzet Barang',
+    'Nominal Invoice', 'Cek Remit', 'Untung Lainnya', 'Rugi Lainnya', 'Keterangan',
+}
+
 # Column groups, colored to show their source: 1 = order side (Invoice/Jual),
 # 2 = remit side (Remit), 3 = manual columns.
 _GROUP_ORDER = 1
@@ -93,6 +99,8 @@ def _combined_remit(workbooks, remit_sheet):
         if remit is None or remit.empty or 'Invoice' not in remit.columns:
             continue
         remit = _normalize_columns(remit)
+        if _FINAL_REMIT_ONLY_COLUMNS.intersection(remit.columns):
+            continue
         keep = ['Invoice', 'Tanggal Remit'] + _REMIT_AMOUNT_COLUMNS
         remit = remit[[c for c in keep if c in remit.columns]].copy()
         remit['Invoice'] = remit['Invoice'].astype(str)
@@ -113,6 +121,10 @@ def _combined_remit(workbooks, remit_sheet):
         return None
 
     allremit = pd.concat(frames, ignore_index=True)
+    dedupe_cols = [col for col in ['Invoice', 'Tanggal Remit'] + _REMIT_AMOUNT_COLUMNS
+                   if col in allremit.columns]
+    if dedupe_cols:
+        allremit = allremit.drop_duplicates(subset=dedupe_cols)
     agg = {col: 'sum' for col in _REMIT_AMOUNT_COLUMNS if col in allremit.columns}
     if 'Tanggal Remit' in allremit.columns:
         allremit['Tanggal Remit'] = _to_remit_date(allremit['Tanggal Remit'])
