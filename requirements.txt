@@ -1,2 +1,6 @@
-pandas>=2.0,<3.0
-openpyxl>=3.1.0
+# pandas 2.x AND 3.0 are both supported and verified to produce identical output.
+# The analysis modules are natively pandas-3.0 compatible; the laporan/ generator
+# opts out of pandas 3.0's new default `str` dtype (via future.infer_string=False
+# in laporan/main.py) so its legacy readers behave exactly as on 2.x.
+pandas>=2.0
+openpyxl>=3.1.5

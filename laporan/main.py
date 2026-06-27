@@ -18,6 +18,8 @@ Examples (PowerShell, from the repo root):
 import argparse
 import logging
 
+import pandas as pd
+
 import laporan.process.bukalapak.v2 as bukalapak_v2
 import laporan.process.shopee.v2 as shopee_v2
 import laporan.process.shopee.v3 as shopee_v3
@@ -39,6 +41,24 @@ MARKETPLACE_PROCESSORS = {
 }
 
 MARKETPLACES = list(MARKETPLACE_PROCESSORS.keys())
+
+
+def _enable_legacy_string_dtype():
+    """pandas 3.0 compat: keep object-dtype string columns (pandas <3.0 behavior).
+
+    pandas 3.0 makes the new `str` (StringDtype) the default for text read from
+    Excel/CSV. This generator's legacy readers/builders assume object-dtype strings
+    — they assign ints into text columns and mutate in place — which the `str`
+    dtype rejects (`TypeError: Invalid value '0' for dtype 'str'`). Opting out via
+    pandas' own `future.infer_string=False` switch makes the generator behave
+    byte-for-byte identically on pandas 2.x and 3.0, with no per-builder rewrite.
+    (The itbisa-shop-report-bot analysis modules need no such flag — they are
+    natively pandas-3.0 compatible.) The option is absent on pandas < 2.1, where
+    object is already the default, so a missing option is harmless."""
+    try:
+        pd.set_option("future.infer_string", False)
+    except Exception:  # option not present on this pandas — object is already default
+        pass
 
 
 def run(list_report, marketplaces=None):
@@ -107,6 +127,7 @@ def main(argv=None):
 
     constant.set_dirs(data_dir=args.data_dir, reports_dir=args.output_dir)
     ignore_warning(True)
+    _enable_legacy_string_dtype()
 
     chosen = selected_marketplaces(args)
 
