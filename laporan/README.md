@@ -3,7 +3,7 @@
 > Co-located subproject of **itbisa-shop-report-bot** — an importable `laporan` package.
 > Run it from the repo root with `python main.py --laporan` (called in-process), or
 > standalone with `python -m laporan`. Dependencies are the repo's root
-> `requirements.txt` (`pandas>=2.0,<3.0`, `openpyxl`).
+> `requirements.txt` (`pandas>=2.0`, `openpyxl>=3.1.5`).
 
 Offline Python tool that turns raw marketplace exports (Shopee, Tokopedia, Tiktok,
 Bukalapak) into standardized **Laporan** workbooks. For each period it builds the
@@ -36,9 +36,10 @@ python -m laporan
 # reports land in laporan\reports\shopee\ , laporan\reports\tiktokshop\ , etc.
 ```
 
-> **Python / pandas:** this tool targets **pandas 2.x** (the repo-root `requirements.txt`
-> pins `pandas>=2.0,<3.0`). pandas **3.0** is not yet supported (its new `str` dtype and
-> Copy-on-Write default need a separate port). Use Python **3.13**.
+> **Python / pandas:** runs on **pandas 2.x and 3.0** (verified byte-identical output).
+> On pandas 3.0 the generator opts out of the new default `str` dtype via
+> `future.infer_string=False` (set in `laporan/main.py`) so its legacy readers behave
+> exactly as on 2.x. Use Python **3.13** (works on 3.11+).
 
 ## CLI (`python -m laporan`)
 

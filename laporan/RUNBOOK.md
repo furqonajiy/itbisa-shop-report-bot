@@ -16,8 +16,9 @@ pip install -r requirements.txt
 ```
 
 > Use a Python **3.13** interpreter. The repo-root `requirements.txt` pins
-> `pandas>=2.0,<3.0` (pandas **3.0** is not yet supported — its new `str` dtype +
-> Copy-on-Write default need a separate port).
+> `pandas>=2.0` — **pandas 2.x and 3.0 are both supported** (verified byte-identical
+> output; on 3.0 the generator opts out of the new `str` dtype via
+> `future.infer_string=False` in `laporan/main.py`).
 
 ## 2. Drop the marketplace exports into `data/`
 
@@ -124,7 +125,7 @@ the relevant workbook(s) into that project's `data\` per its own README.
 | A file is ignored | Its filename is missing the marketplace/version/type token (e.g. `Transaksi v2 Shopee`). Rename to the exporter's convention. |
 | `ValueError: Tidak dapat menentukan marketplace dari file: …` | The report filename has no `Shopee`/`Tiktok`/`Tokopedia`/`Bukalapak` substring — fix the source filename. |
 | `ImportError` / `numpy.dtype size changed` on `import pandas` | pandas/numpy mismatch. Reinstall the pinned set: `pip install -r requirements.txt`. |
-| `TypeError: Invalid value '0' for dtype 'str'` / `fillna() got an unexpected keyword 'method'` | pandas **3.0** is installed (unsupported). Pin to 2.x: `pip install "pandas>=2.0,<3.0"`. |
+| `TypeError: Invalid value '0' for dtype 'str'` | A pandas-3.0 `str`-dtype error — should not happen now (`main()` sets `future.infer_string=False`). If it does, you're calling a generator function without going through `laporan.main.main()`; set the option first, or `pip install -r requirements.txt`. |
 | `ValueError: Check … Keyword failed in …` | The export contains a status/saldo keyword the validator doesn't know (`keywordchecker/`). A new marketplace wording appeared — add it to the relevant `VALID_*` list. |
 
 ## Verifying a change before committing
