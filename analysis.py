@@ -551,7 +551,10 @@ def aggregate_by_sku(jual: pd.DataFrame, hpp_agg: pd.DataFrame, year: int,
     else:
         for c in pc_cols:
             sku_agg[c] = np.nan
-    sku_agg["harga_baru_flag"] = sku_agg["harga_baru_flag"].fillna(False).astype(bool)
+    # Missing/merged-in NaN → not flagged. `.eq(True)` builds a clean bool column
+    # directly (no object→bool fillna downcast, which pandas 2.x deprecation-warns on
+    # and pandas 3.0 changes); behaves identically across pandas 2.x/3.x.
+    sku_agg["harga_baru_flag"] = sku_agg["harga_baru_flag"].eq(True)
     return sku_agg
 
 

@@ -21,7 +21,11 @@ def resolve_sheet(fp, want: str) -> str:
     de-branded name ('Stok', 'JualShopee', ...) and the legacy 'Bisa'-prefixed name
     ('BisaStok', 'BisaJualShopee', ...). Returns `want` if neither is present so the
     read raises a clear error."""
-    names = fp.sheet_names if isinstance(fp, pd.ExcelFile) else pd.ExcelFile(fp).sheet_names
+    if isinstance(fp, pd.ExcelFile):
+        names = fp.sheet_names
+    else:
+        with pd.ExcelFile(fp) as _xl:   # close the handle (avoid ResourceWarning)
+            names = _xl.sheet_names
     if want in names:
         return want
     alt = want[4:] if want.startswith("Bisa") else "Bisa" + want
@@ -112,18 +116,18 @@ def load_jual_files(file_paths: list[Path]) -> pd.DataFrame:
 
     parts = []
     for fp in file_paths:
-        xl = pd.ExcelFile(fp)
-        if resolve_sheet(xl, REQUIRED_JUAL_SHEET) not in xl.sheet_names:
-            print(f"  ⚠ {fp.name} tidak punya sheet wajib '{REQUIRED_JUAL_SHEET}', dilewati")
-            continue
-        print(f"✓ Membaca jual: {fp.name}")
-        for sheet in JUAL_SHEETS:
-            actual = resolve_sheet(xl, sheet)
-            if actual in xl.sheet_names:
-                df = pd.read_excel(fp, sheet_name=actual)
-                df["_sheet_source"] = sheet   # canonical (new) name, so downstream filters match
-                parts.append(df)
-                print(f"  → {actual}: {len(df):,} baris")
+        with pd.ExcelFile(fp) as xl:   # context-managed so the handle always closes
+            if resolve_sheet(xl, REQUIRED_JUAL_SHEET) not in xl.sheet_names:
+                print(f"  ⚠ {fp.name} tidak punya sheet wajib '{REQUIRED_JUAL_SHEET}', dilewati")
+                continue
+            print(f"✓ Membaca jual: {fp.name}")
+            for sheet in JUAL_SHEETS:
+                actual = resolve_sheet(xl, sheet)
+                if actual in xl.sheet_names:
+                    df = xl.parse(sheet_name=actual)
+                    df["_sheet_source"] = sheet   # canonical (new) name, so downstream filters match
+                    parts.append(df)
+                    print(f"  → {actual}: {len(df):,} baris")
 
     df = pd.concat(parts, ignore_index=True)
     df = df.rename(columns={
@@ -218,15 +222,15 @@ def load_current_stok_arrived(stok_file: Path) -> pd.DataFrame:
 def load_current_jual_nonvoid(jual_file: Path) -> pd.DataFrame:
     """Non-void sales from the current jual workbook, all Jual* sheets (matches
     rekap scope incl. Blibli/Investasi). Returns columns: SKU, gudang, qty."""
-    xl = pd.ExcelFile(jual_file)
-    sheets = [s for s in xl.sheet_names
-              if s.startswith(LEDGER_JUAL_PREFIX) or s.startswith("Bisa" + LEDGER_JUAL_PREFIX)]
     parts = []
-    for sh in sheets:
-        d = pd.read_excel(jual_file, sheet_name=sh)
-        if "SKU" not in d.columns:
-            continue
-        parts.append(d)
+    with pd.ExcelFile(jual_file) as xl:   # context-managed so the handle always closes
+        sheets = [s for s in xl.sheet_names
+                  if s.startswith(LEDGER_JUAL_PREFIX) or s.startswith("Bisa" + LEDGER_JUAL_PREFIX)]
+        for sh in sheets:
+            d = xl.parse(sheet_name=sh)
+            if "SKU" not in d.columns:
+                continue
+            parts.append(d)
     df = pd.concat(parts, ignore_index=True)
     df = df[df["SKU"].notna()].copy()
     df["SKU"] = _normalize_sku(df["SKU"])
