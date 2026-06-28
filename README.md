@@ -331,8 +331,15 @@ profit moves for many reasons (trend, seasonality, stockouts). What is compared:
   another factor is at play; the price effect cannot be isolated → flagged in the Catatan column.
 - **Confound flags**: post too short / too few transactions, thin pre baseline, post qty
   dominated by one wholesale order, positive elasticity.
+- **2-month validity gate**: a test younger than `AB_MIN_VALID_DAYS` (**60 days ≈ 2 months**
+  post-change) is **not yet conclusive** — its verdict is forced to `⏳ In Progress (<2 bln)`
+  (overriding Effective/Bad/Mixed/Pending) because the post-change qty/profit are still too thin
+  to separate the price effect from seasonality/restock/promo noise. The `00_Summary` counts
+  these `⏳ In Progress` tests separately, and `01_Test_Results` shows each test's
+  `Masa Uji (hari)` (= `days_since_change`). Only ≥2-month tests get a conclusive read.
 - **Verdict** is descriptive (✅/🟡/🔴/⚪) based on profit direction + break-even, downgraded to
-  🟡 when attribution is weak.
+  🟡 when attribution is weak — unless the validity gate forces `⏳ In Progress`. See `_verdict`
+  / `analyze_ab_tests` in `ab_testing.py`.
 
 Not yet including Difference-in-Differences (control SKUs) & bootstrap CI — a later step.
 
