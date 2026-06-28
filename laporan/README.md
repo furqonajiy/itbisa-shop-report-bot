@@ -45,7 +45,7 @@ python -m laporan
 
 | Command | Effect |
 | --- | --- |
-| `python -m laporan` | Process **every** marketplace (Bukalapak, Tokopedia, Shopee, Tiktok). |
+| `python -m laporan` | Process **every** marketplace (Tiktok, Shopee, Tokopedia, Bukalapak — the `MARKETPLACE_PROCESSORS` order). |
 | `python -m laporan --shopee` | Process Shopee only. (`--tokopedia`, `--tiktok`, `--bukalapak` likewise; flags combine.) |
 | `python -m laporan --shopee --tiktok` | Process the selected subset. |
 | `python -m laporan --data-dir <dir>` | Read inputs from `<dir>` instead of `./data`. |

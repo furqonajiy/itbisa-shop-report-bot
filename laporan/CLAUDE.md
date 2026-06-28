@@ -23,11 +23,13 @@
 - `data/` — input exports (gitignored). `reports/` — generated output (gitignored).
 
 ## CLI (`python -m laporan`, from the repo root)
-- (no flag) → process **every** marketplace (Bukalapak, Tokopedia, Shopee, Tiktok — the `MARKETPLACE_PROCESSORS` order).
+- (no flag) → process **every** marketplace in the `MARKETPLACE_PROCESSORS` order: **Tiktok, Shopee, Tokopedia, Bukalapak**.
 - `--shopee` / `--tokopedia` / `--tiktok` / `--bukalapak` → process only the selected marketplace(s); flags combine.
 - `--data-dir <dir>` / `--output-dir <dir>` → override `./data` / `./reports`.
 - `--show-files` → log every discovered input file. `-v` / `--verbose` → debug logging.
 - `--reconcile` → **read-only audit mode**: writes `Rekonsiliasi <Marketplace>.xlsx` (does **not** generate reports). Respects the marketplace + `--data-dir`/`--output-dir` flags.
+- `--cek-jual` → **read-only** Jual entry-bug check (`rekonsiliasi/cekjual.py`): reconciles a list of invoices against the bot's `Jual` ledger and writes `reports/shopee/Cek Jual Shopee.xlsx`; generates no reports. `--invoices <file>` supplies the invoice list (one per line, `#` comments allowed), else a built-in default.
+- `--jual-dir <dir>` → point `--reconcile` / `--cek-jual` at the itbisa-shop-report-bot `*Jual*.xlsx` ledger folder (for the `Cek Omzet vs Fee` sheet / the Jual check); falls back to re-derived Omzet when unset.
 - With no input files found, the CLI logs `Tidak ada file ditemukan …` and exits cleanly.
 
 ## Inputs (`data/`, matched recursively)
