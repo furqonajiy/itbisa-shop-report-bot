@@ -120,6 +120,11 @@ COL_AB_TANGGAL = "Tanggal Perubahan"
 COL_AB_NAMA = "Nama Test"
 COL_AB_CATATAN = "Catatan"
 AB_MIN_DAYS_POST = 3
+# Hasil A/B baru dianggap VALID setelah minimal ~2 bulan data post-perubahan.
+# Di bawah ambang ini verdict dipaksa "⏳ In Progress (<2 bln)" — qty/profit post
+# masih terlalu sedikit (efek musiman, restock, promo belum tersaring), jadi
+# kesimpulan Effective/Bad/dst. ditunda sampai jendela data cukup.
+AB_MIN_VALID_DAYS = 60
 # Window pre yang setara (hari sebelum tanggal perubahan). Baseline all-time
 # membandingkan post pendek vs rata-rata bertahun-tahun → delta menggelembung.
 AB_PRE_WINDOW_DAYS = 60

@@ -12,6 +12,7 @@ from data_loader import resolve_sheet
 from config import (
     AB_BULK_CONCENTRATION, AB_LOW_STOCK_MONTHS_COVER,
     AB_MIN_DAYS_POST, AB_MIN_TRANS_POST, AB_MIN_TRANS_PRE,
+    AB_MIN_VALID_DAYS,
     AB_PRE_WINDOW_DAYS, AB_TESTS_SHEET, ALERT_TEXT_COLOR, COL_AB_CATATAN,
     COL_AB_NAMA, COL_AB_SKU, COL_AB_TANGGAL, FMT_DEC, FMT_NUM, FMT_PCT, FMT_RP,
     FONT_NAME, GREEN_FILL_COLOR, HEADER_BG_COLOR, HEADER_TEXT_COLOR,
@@ -232,8 +233,15 @@ def _stock_pause_reason(stock: dict | None) -> str:
 
 
 def _verdict(bridge: dict, delta_profit: float, delta_qty: float,
-             confounds: list[str], stock_pause: str = "") -> str:
-    """Descriptive verdict on profit, with break-even framing."""
+             confounds: list[str], stock_pause: str = "",
+             in_progress: str = "") -> str:
+    """Descriptive verdict on profit, with break-even framing.
+
+    A test younger than AB_MIN_VALID_DAYS (~2 months) is NOT yet conclusive:
+    `in_progress` overrides everything so the verdict reads "⏳ In Progress"
+    instead of a (premature) Effective/Bad/Mixed call."""
+    if in_progress:
+        return in_progress
     if stock_pause:
         return "⏸️ Pending — stok hampir habis, A/B ditunda sampai restock"
     if pd.isna(delta_profit):
@@ -291,6 +299,16 @@ def analyze_ab_tests(ab_tests: pd.DataFrame, jual_full_clean: pd.DataFrame,
         if stock_pause:
             confounds.insert(0, stock_pause)
 
+        # Hard 2-month validity gate: below AB_MIN_VALID_DAYS post-change the test
+        # is still running — force an "In Progress" verdict, no conclusive call.
+        days_since_change = max(0, (today - change_date).days)
+        in_progress = ""
+        if days_since_change < AB_MIN_VALID_DAYS:
+            in_progress = (f"⏳ In Progress (<2 bln) — baru {days_since_change} hari "
+                           f"sejak perubahan, butuh ≥{AB_MIN_VALID_DAYS} hari")
+            confounds.insert(0, f"masa uji {days_since_change}/{AB_MIN_VALID_DAYS} hari "
+                                f"— hasil belum valid (<2 bln)")
+
         delta_qty = _pct_change(pre_m["qty_per_day"], post_m["qty_per_day"])
         delta_omzet = _pct_change(pre_m["omzet_per_day"], post_m["omzet_per_day"])
         delta_profit = _pct_change(pre_m["profit_per_day"], post_m["profit_per_day"])
@@ -300,6 +318,7 @@ def analyze_ab_tests(ab_tests: pd.DataFrame, jual_full_clean: pd.DataFrame,
             "sku": sku,
             "nama_test": t.get("nama_test", "") or "",
             "tanggal_perubahan": change_date,
+            "days_since_change": days_since_change,
             "hpp_wa": hpp,
             "pre_window_days": AB_PRE_WINDOW_DAYS,
             "pre_first": pre_m["first_date"],
@@ -338,7 +357,8 @@ def analyze_ab_tests(ab_tests: pd.DataFrame, jual_full_clean: pd.DataFrame,
             "break_even_drop_pct": bridge["break_even_drop_pct"],
             "headroom_pct": bridge["headroom_pct"],
             "elasticity": bridge["elasticity"],
-            "verdict": _verdict(bridge, delta_profit, delta_qty, confounds, stock_pause),
+            "verdict": _verdict(bridge, delta_profit, delta_qty, confounds,
+                                stock_pause, in_progress),
             "warning": "; ".join(confounds),
             "catatan": t.get("catatan", "") or "",
         })
@@ -358,7 +378,9 @@ def write_ab_test_report(output_path: Path, results: pd.DataFrame,
     ws.merge_cells("A1:F1")
     ws["A2"] = (f"Generated: {today.strftime('%d %B %Y %H:%M')}  |  "
                 f"Pre = {AB_PRE_WINDOW_DAYS} hari sebelum perubahan vs Post (daily-rate). "
-                f"Profit bridge memisah efek harga vs volume.")
+                f"Profit bridge memisah efek harga vs volume. "
+                f"Hasil baru valid setelah ≥{AB_MIN_VALID_DAYS} hari (±2 bln) — "
+                f"di bawah itu ⏳ In Progress.")
     ws["A2"].font = SUB_FONT
     ws.merge_cells("A2:F2")
 
@@ -375,6 +397,7 @@ def write_ab_test_report(output_path: Path, results: pd.DataFrame,
     ws["A4"].font = TITLE_FONT
     summary = [
         ("Total Test Tracked", len(results)),
+        ("In Progress (<2 bln, belum valid)", (results["verdict"].str.startswith("⏳")).sum()),
         ("Effective (profit naik)", (results["verdict"].str.startswith("✅")).sum()),
         ("Mixed", (results["verdict"].str.startswith("🟡")).sum()),
         ("Bad (profit turun)", (results["verdict"].str.startswith("🔴")).sum()),
@@ -413,16 +436,17 @@ def write_ab_test_report(output_path: Path, results: pd.DataFrame,
 def _write_details_sheet(ws, results: pd.DataFrame) -> None:
     ws["A1"] = "DETAIL A/B TEST — PRE vs POST + PROFIT BRIDGE"
     ws["A1"].font = TITLE_FONT
-    ws.merge_cells("A1:Y1")
+    ws.merge_cells("A1:Z1")
     ws["A2"] = ("Pre = window setara sebelum perubahan (bukan all-time). Bridge: Δprofit/hari "
                 "= Efek Harga + Efek Volume + Interaksi + Efek Admin. Break-even = batas turun "
                 "volume sebelum profit balik ke level pre; Headroom = jarak qty aktual ke batas itu "
-                "(+ = aman). Stok hampir habis/stockout = A/B ditunda sampai restock.")
+                "(+ = aman). Stok hampir habis/stockout = A/B ditunda sampai restock. "
+                "Masa Uji < 2 bln (60 hari) = ⏳ In Progress, hasil belum valid.")
     ws["A2"].font = SUB_FONT
-    ws.merge_cells("A2:Y2")
+    ws.merge_cells("A2:Z2")
 
     headers = [
-        "SKU", "Nama Test", "Tgl Perubahan", "HPP/Buah",
+        "SKU", "Nama Test", "Tgl Perubahan", "Masa Uji (hari)", "HPP/Buah",
         "Pre Qty/Day", "Pre Profit/Day", "Pre Avg Price",
         "Post Qty/Day", "Post Profit/Day", "Post Avg Price",
         "Sisa Stok", "Cover Stok (bln)", "Status Reorder",
@@ -431,7 +455,7 @@ def _write_details_sheet(ws, results: pd.DataFrame) -> None:
         "Break-even Turun Qty", "Headroom Qty", "Elastisitas",
         "Verdict", "Catatan (confound)",
     ]
-    widths = [38, 22, 13, 11,
+    widths = [38, 22, 13, 13, 11,
               12, 14, 13,
               12, 14, 13,
               10, 12, 22,
@@ -450,6 +474,7 @@ def _write_details_sheet(ws, results: pd.DataFrame) -> None:
 
     field_map = {
         "SKU": "sku", "Nama Test": "nama_test", "Tgl Perubahan": "tanggal_perubahan",
+        "Masa Uji (hari)": "days_since_change",
         "HPP/Buah": "hpp_wa",
         "Pre Qty/Day": "pre_qty_per_day", "Pre Profit/Day": "pre_profit_per_day",
         "Pre Avg Price": "pre_avg_price",
@@ -469,6 +494,7 @@ def _write_details_sheet(ws, results: pd.DataFrame) -> None:
                   "Post Avg Price", "Efek Harga/hr", "Efek Volume/hr", "Interaksi/hr", "Efek Admin/hr"}
     num_headers = {"Pre Qty/Day", "Post Qty/Day", "Sisa Stok"}
     dec_headers = {"Elastisitas", "Cover Stok (bln)"}
+    int_headers = {"Masa Uji (hari)"}
     verdict_col = headers.index("Verdict") + 1
 
     for r_idx, (_, row) in enumerate(results.iterrows()):
@@ -489,6 +515,8 @@ def _write_details_sheet(ws, results: pd.DataFrame) -> None:
                 cell.number_format = FMT_DEC
             elif h in dec_headers:
                 cell.number_format = FMT_DEC
+            elif h in int_headers:
+                cell.number_format = FMT_NUM
             if r_idx % 2 == 1:
                 cell.fill = LIGHT_FILL
 
@@ -497,7 +525,7 @@ def _write_details_sheet(ws, results: pd.DataFrame) -> None:
             vcell.fill = GREEN_FILL
         elif verdict.startswith("🔴"):
             vcell.fill = RED_FILL
-        elif verdict.startswith("🟡") or verdict.startswith("⏸"):
+        elif verdict.startswith("🟡") or verdict.startswith("⏸") or verdict.startswith("⏳"):
             vcell.fill = YELLOW_FILL
 
     ws.freeze_panes = "B5"
